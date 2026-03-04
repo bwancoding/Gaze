@@ -1,0 +1,220 @@
+// Wrhitw Prisma Schema
+// 多视角新闻聚合平台
+// 
+// 数据库：PostgreSQL
+// Prisma 版本：5.x
+// 创建时间：2026-03-04
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// 信息源
+// ============================================================
+
+model Source {
+  id                String   @id @default(uuid())
+  name              String   // 媒体名称
+  url               String   // 官方网站
+  logoUrl           String?  // Logo URL
+  biasLabel         String   @default("center") // left/center/right
+  biasScore         Decimal? @db.Decimal(3, 2)  // -1 到 1
+  country           String?  // ISO 国家代码
+  language          String   @default("en")
+  credibilityScore  Decimal? @db.Decimal(3, 2)  // 0 到 1
+  rssFeedUrl        String?
+  apiEndpoint       String?
+  scrapeInterval    Int      @default(900) // 秒
+  isActive          Boolean  @default(true)
+  lastScrapedAt     DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // 关联
+  eventSources EventSource[]
+  aiSummariesLeft  AiSummary[] @relation("LeftPerspectiveSources")
+  aiSummariesCenter AiSummary[] @relation("CenterPerspectiveSources")
+  aiSummariesRight AiSummary[] @relation("RightPerspectiveSources")
+
+  @@index([biasLabel])
+  @@index([country])
+  @@index([isActive])
+  @@map("sources")
+}
+
+// ============================================================
+// 事件
+// ============================================================
+
+model Event {
+  id            String   @id @default(uuid())
+  title         String
+  summary       String?
+  description   String?
+  category      String?
+  tags          String[]
+  occurredAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  hotScore      Decimal  @default(0) @db.Decimal(5, 2)
+  viewCount     Int      @default(0)
+  bookmarkCount Int      @default(0)
+  status        String   @default("active") // active, archived, merged
+  sourceCount   Int      @default(0)
+
+  // 关联
+  eventSources EventSource[]
+  aiSummary    AiSummary?
+  readingHistory ReadingHistory[]
+  bookmarks    Bookmark[]
+
+  @@index([category])
+  @@index([createdAt])
+  @@index([occurredAt])
+  @@index([hotScore])
+  @@index([status])
+  @@map("events")
+}
+
+// ============================================================
+// 事件 - 来源关联
+// ============================================================
+
+model EventSource {
+  id             String   @id @default(uuid())
+  eventId        String
+  sourceId       String
+  articleUrl     String
+  articleTitle   String
+  articleContent String?
+  articleSummary String?
+  publishedAt    DateTime?
+  fetchedAt      DateTime @default(now())
+  sentimentScore Decimal? @db.Decimal(3, 2)
+  wordCount      Int?
+
+  // 关联
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, sourceId])
+  @@index([eventId])
+  @@index([sourceId])
+  @@index([publishedAt])
+  @@map("event_sources")
+}
+
+// ============================================================
+// AI 摘要
+// ============================================================
+
+model AiSummary {
+  id                String   @id @default(uuid())
+  eventId           String   @unique
+  leftPerspective   String
+  centerPerspective String
+  rightPerspective  String
+  leftSources       String[] // Source IDs
+  centerSources     String[] // Source IDs
+  rightSources      String[] // Source IDs
+  modelName         String?
+  promptVersion     String?
+  tokenCount        Int?
+  qualityScore      Decimal? @db.Decimal(3, 2)
+  generatedAt       DateTime @default(now())
+  expiresAt         DateTime?
+
+  // 关联
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  // 来源引用（通过数组关联，非外键）
+  leftSourceRefs   Source[] @relation("LeftPerspectiveSources")
+  centerSourceRefs Source[] @relation("CenterPerspectiveSources")
+  rightSourceRefs  Source[] @relation("RightPerspectiveSources")
+
+  @@index([eventId])
+  @@index([generatedAt])
+  @@map("ai_summaries")
+}
+
+// ============================================================
+// 用户
+// ============================================================
+
+model User {
+  id                 String   @id @default(uuid())
+  email              String?  @unique
+  phone              String?  @unique
+  passwordHash       String?
+  provider           String?
+  providerId         String?
+  displayName        String?
+  avatarUrl          String?
+  preferredLanguage  String   @default("zh-CN")
+  preferredCategories String[]
+  isActive           Boolean  @default(true)
+  isVerified         Boolean  @default(false)
+  lastLoginAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  // 关联
+  readingHistory ReadingHistory[]
+  bookmarks      Bookmark[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([provider, providerId])
+  @@map("users")
+}
+
+// ============================================================
+// 阅读历史
+// ============================================================
+
+model ReadingHistory {
+  id         String   @id @default(uuid())
+  userId     String
+  eventId    String
+  readAt     DateTime @default(now())
+  readDuration Int?
+  deviceType String?  // mobile, desktop, tablet
+
+  // 关联
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([userId])
+  @@index([eventId])
+  @@index([readAt])
+  @@map("reading_history")
+}
+
+// ============================================================
+// 收藏
+// ============================================================
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  eventId   String
+  createdAt DateTime @default(now())
+  notes     String?
+
+  // 关联
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([userId])
+  @@index([eventId])
+  @@index([createdAt])
+  @@map("bookmarks")
+}
