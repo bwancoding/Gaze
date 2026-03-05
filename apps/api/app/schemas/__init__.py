@@ -6,7 +6,17 @@ Pydantic 模型定义
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
-from uuid import UUID
+import os
+
+# SQLite 用 string，PostgreSQL 用 UUID
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./wrhitw.db")
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
+
+if IS_SQLITE:
+    from typing import Union
+    UUID = Union[str, object]  # type alias for pydantic
+else:
+    from uuid import UUID
 
 
 # ==================== Event Schemas ====================

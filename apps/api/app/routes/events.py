@@ -5,7 +5,7 @@ WRHITW Event API Routes
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from app.core.database import get_db
 from app.models import Event, EventSource, Source, AiSummary
 from app.schemas import EventResponse, EventListResponse, EventCreate, EventUpdate
@@ -94,7 +94,14 @@ async def create_event(
     - **category**: 分类
     - **tags**: 标签
     """
-    event = Event(**event_data.model_dump())
+    import json
+    data = event_data.model_dump()
+    
+    # SQLite 需要将 tags 序列化为 JSON 字符串
+    if 'tags' in data and isinstance(data['tags'], list):
+        data['tags'] = json.dumps(data['tags'])
+    
+    event = Event(**data)
     db.add(event)
     db.commit()
     db.refresh(event)

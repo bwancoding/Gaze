@@ -3,11 +3,63 @@ WRHITW Database Models
 数据库模型定义
 """
 
-from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime, DECIMAL, ForeignKey, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID, ARRAY, TIMESTAMP
+from sqlalchemy import Column, String, Text as _Text, Integer, Boolean, DateTime, DECIMAL, ForeignKey, UniqueConstraint
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, ARRAY as PG_ARRAY, TIMESTAMP as PG_TIMESTAMP
 from sqlalchemy.sql import func
 from app.core.database import Base
 import uuid
+import os
+
+# 根据数据库类型选择兼容的类型
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./wrhitw.db")
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
+
+if IS_SQLITE:
+    from sqlalchemy import String as _String
+    from sqlalchemy import TypeDecorator
+    import json
+    
+    class SQLiteUUID(TypeDecorator):
+        """SQLite UUID 类型，存储为字符串"""
+        impl = _String
+        cache_ok = True
+        
+        def process_bind_param(self, value, dialect):
+            if value is None:
+                return value
+            return str(value) if hasattr(value, '__str__') else value
+        
+        def process_result_value(self, value, dialect):
+            return value
+    
+    class SQLiteArray(TypeDecorator):
+        """SQLite ARRAY 类型，存储为 JSON 字符串"""
+        impl = _Text
+        cache_ok = True
+        
+        def process_bind_param(self, value, dialect):
+            if value is None:
+                return value
+            return json.dumps(value) if isinstance(value, list) else value
+        
+        def process_result_value(self, value, dialect):
+            if value is None:
+                return []
+            try:
+                return json.loads(value)
+            except:
+                return []
+    
+    def UUID(as_uuid=False):
+        return SQLiteUUID(36)
+    def ARRAY(item_type):
+        return SQLiteArray()
+    def TIMESTAMP(timezone=False):
+        return DateTime()
+else:
+    UUID = PG_UUID
+    ARRAY = PG_ARRAY
+    TIMESTAMP = PG_TIMESTAMP
 
 
 class Source(Base):
@@ -38,8 +90,8 @@ class Event(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     title = Column(String(512), nullable=False)
-    summary = Column(Text)
-    description = Column(Text)
+    summary = Column(_Text)
+    description = Column(_Text)
     category = Column(String(50))
     tags = Column(ARRAY(String))
     occurred_at = Column(TIMESTAMP(timezone=True))
@@ -61,8 +113,8 @@ class EventSource(Base):
     source_id = Column(UUID(as_uuid=True), ForeignKey('sources.id', ondelete='CASCADE'), nullable=False)
     article_url = Column(String(1024), nullable=False)
     article_title = Column(String(512), nullable=False)
-    article_content = Column(Text)
-    article_summary = Column(Text)
+    article_content = Column(_Text)
+    article_summary = Column(_Text)
     published_at = Column(TIMESTAMP(timezone=True))
     fetched_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     sentiment_score = Column(DECIMAL(3, 2))
@@ -79,9 +131,9 @@ class AiSummary(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), unique=True, nullable=False)
-    left_perspective = Column(Text, nullable=False)
-    center_perspective = Column(Text, nullable=False)
-    right_perspective = Column(Text, nullable=False)
+    left_perspective = Column(_Text, nullable=False)
+    center_perspective = Column(_Text, nullable=False)
+    right_perspective = Column(_Text, nullable=False)
     left_sources = Column(ARRAY(UUID(as_uuid=True)))
     center_sources = Column(ARRAY(UUID(as_uuid=True)))
     right_sources = Column(ARRAY(UUID(as_uuid=True)))
@@ -138,7 +190,7 @@ class Bookmark(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
-    notes = Column(Text)
+    notes = Column(_Text)
 
     __table_args__ = (
         UniqueConstraint('user_id', 'event_id', name='uq_user_bookmark'),

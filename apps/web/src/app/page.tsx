@@ -1,164 +1,539 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import EventCard from '../components/EventCard';
 
-// 模拟数据（后续会从 API 获取）
-const mockEvents = [
+// API 配置
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+// 类型定义
+interface Event {
+  id: string;
+  title: string;
+  summary?: string;
+  category?: string;
+  sourceCount: number;
+  viewCount?: number;
+  hotScore?: number;
+  occurredAt?: string;
+  storyAngle?: string;
+  storyTeaser?: string;
+}
+
+// 自定义图标
+const Icons = {
+  Globe: () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  BookOpen: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+    </svg>
+  ),
+  Compass: () => (
+    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+    </svg>
+  ),
+  Sparkles: () => (
+    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+    </svg>
+  ),
+  ArrowRight: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+    </svg>
+  ),
+  Quote: () => (
+    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
+    </svg>
+  ),
+  Refresh: () => (
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    </svg>
+  ),
+};
+
+// 分类颜色映射
+const categoryStyles = {
+  '环境': {
+    gradient: 'from-emerald-500 to-teal-600',
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    border: 'border-emerald-200',
+  },
+  '财经': {
+    gradient: 'from-blue-500 to-indigo-600',
+    bg: 'bg-blue-50',
+    text: 'text-blue-700',
+    border: 'border-blue-200',
+  },
+  '科技': {
+    gradient: 'from-violet-500 to-purple-600',
+    bg: 'bg-violet-50',
+    text: 'text-violet-700',
+    border: 'border-violet-200',
+  },
+  '政治': {
+    gradient: 'from-amber-500 to-orange-600',
+    bg: 'bg-amber-50',
+    text: 'text-amber-700',
+    border: 'border-amber-200',
+  },
+};
+
+// 默认故事数据（API 失败时使用）
+const defaultStories: Event[] = [
   {
     id: '1',
     title: '全球气候峰会达成新协议，各国承诺减少碳排放',
-    summary: '为期两周的气候峰会在迪拜落幕，近 200 个国家同意逐步减少化石燃料使用，这是历史上首次明确提及化石燃料的协议。',
+    summary: '为期两周的气候峰会在迪拜落幕，近 200 个国家同意逐步减少化石燃料使用。',
     category: '环境',
     sourceCount: 8,
     viewCount: 12453,
     hotScore: 95.8,
-    occurredAt: '2026-03-04T10:00:00Z',
-  },
-  {
-    id: '2',
-    title: '美联储宣布维持利率不变，通胀压力仍存',
-    summary: '美联储联邦公开市场委员会决定将基准利率维持在 5.25%-5.50% 区间，表示将继续密切关注经济数据。',
-    category: '财经',
-    sourceCount: 6,
-    viewCount: 8932,
-    hotScore: 87.3,
-    occurredAt: '2026-03-04T08:30:00Z',
-  },
-  {
-    id: '3',
-    title: '人工智能监管法案在欧盟议会获得通过',
-    summary: '欧盟议会以压倒性多数通过《人工智能法案》，将对高风险 AI 系统实施严格监管，科技公司面临新的合规要求。',
-    category: '科技',
-    sourceCount: 10,
-    viewCount: 15678,
-    hotScore: 92.1,
-    occurredAt: '2026-03-03T16:45:00Z',
-  },
-  {
-    id: '4',
-    title: '某国大选结果揭晓，反对党获胜',
-    summary: '经过计票，反对党候选人以微弱优势获胜，现任总理承认败选。分析人士称这标志着该国政治格局的重大变化。',
-    category: '政治',
-    sourceCount: 12,
-    viewCount: 23456,
-    hotScore: 98.5,
-    occurredAt: '2026-03-03T22:00:00Z',
-  },
-  {
-    id: '5',
-    title: '新型量子计算机突破，计算速度提升 1000 倍',
-    summary: '研究团队宣布在量子纠错方面取得重大进展，新型量子计算机在特定任务上的计算速度比传统超级计算机快 1000 倍。',
-    category: '科技',
-    sourceCount: 7,
-    viewCount: 11234,
-    hotScore: 85.6,
-    occurredAt: '2026-03-03T14:20:00Z',
-  },
-  {
-    id: '6',
-    title: '国际空间站迎来新任务，多国宇航员入驻',
-    summary: '来自 5 个国家的 6 名宇航员成功抵达国际空间站，将开展为期 6 个月的科学实验和技术测试。',
-    category: '科技',
-    sourceCount: 5,
-    viewCount: 6789,
-    hotScore: 76.4,
-    occurredAt: '2026-03-03T05:15:00Z',
+    occurredAt: new Date().toISOString(),
+    storyAngle: '改变的开始',
+    storyTeaser: '当小岛屿国家的代表在谈判桌上落泪，世界终于听见了他们的呼救。',
   },
 ];
 
 export default function Home() {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [sortBy, setSortBy] = useState('hot_score');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [hoveredStory, setHoveredStory] = useState<string | null>(null);
+
+  // 从 API 获取数据
+  const fetchEvents = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const params = new URLSearchParams({
+        page: '1',
+        page_size: '20',
+        sort_by: sortBy,
+      });
+      
+      if (selectedCategory) {
+        params.append('category', selectedCategory);
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/api/events?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // 为每个事件添加故事化字段（如果后端没有返回）
+      const enrichedEvents = data.items.map((event: Event) => ({
+        ...event,
+        storyAngle: event.storyAngle || getCategoryStoryAngle(event.category),
+        storyTeaser: event.storyTeaser || getCategoryStoryTeaser(event.category, event.title),
+      }));
+      
+      setEvents(enrichedEvents);
+    } catch (err) {
+      console.error('Failed to fetch events:', err);
+      setError('无法连接到服务器，使用默认数据');
+      setEvents(defaultStories);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+  }, [sortBy, selectedCategory]);
+
+  // 辅助函数：根据分类生成故事角度
+  const getCategoryStoryAngle = (category?: string): string => {
+    const angles: Record<string, string> = {
+      '环境': '改变的开始',
+      '财经': '看不见的战场',
+      '科技': '未来的钥匙',
+      '政治': '权力的更迭',
+    };
+    return angles[category || ''] || '正在发生';
+  };
+
+  // 辅助函数：根据分类生成故事引子
+  const getCategoryStoryTeaser = (category?: string, title?: string): string => {
+    const teasers: Record<string, string> = {
+      '环境': '当大自然发出警告，人类终于开始倾听。',
+      '财经': '每一个数字背后，都是千万人的生计。',
+      '科技': '在实验室的角落，未来正在被书写。',
+      '政治': '权力的游戏，普通人的命运。',
+    };
+    return teasers[category || ''] || '故事，从这里开始。';
+  };
+
+  const featuredStory = events[0];
+  const regularStories = events.slice(1);
+
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen bg-stone-50">
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
-        {/* Hero Section */}
-        <section className="mb-8">
-          <div className="bg-gradient-to-r from-primary-600 to-primary-800 rounded-2xl p-8 text-white">
-            <h1 className="text-3xl md:text-4xl font-bold mb-4">
-              看到完整的故事
-            </h1>
-            <p className="text-lg md:text-xl text-primary-100 mb-6">
-              WRHITW 聚合全球媒体的多视角报道，让你形成独立的判断
-            </p>
-            <div className="flex flex-wrap gap-4">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-bias-left rounded-full"></div>
-                <span className="text-sm">左倾视角</span>
+      <main>
+        {/* 故事化 Hero */}
+        <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }}></div>
+          </div>
+          
+          <div className="relative z-10 container mx-auto px-6 py-20 md:py-32">
+            <div className="max-w-4xl">
+              <div className="flex items-center space-x-4 mb-8">
+                <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center shadow-lg">
+                  <Icons.BookOpen />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight">WRHITW</h1>
+                  <p className="text-sm text-slate-400">What's Really Happening In The World</p>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-bias-center rounded-full"></div>
-                <span className="text-sm">中立视角</span>
+              
+              <h2 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+                每个新闻，<br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-orange-200 to-amber-200">
+                  都是一个故事的开始
+                </span>
+              </h2>
+              
+              <p className="text-xl md:text-2xl text-slate-300 mb-12 leading-relaxed max-w-2xl">
+                在这个信息爆炸的时代，我们帮你慢下来，<br/>
+                看见事件的多个面向，听见不同的声音。
+              </p>
+              
+              <div className="flex flex-wrap gap-6">
+                <div className="flex items-center space-x-3 bg-white/10 px-5 py-3 rounded-full backdrop-blur-sm border border-white/20">
+                  <div className="w-2.5 h-2.5 bg-gradient-to-r from-red-400 to-rose-500 rounded-full"></div>
+                  <span className="text-sm font-medium">左倾 · 进步视角</span>
+                </div>
+                <div className="flex items-center space-x-3 bg-white/10 px-5 py-3 rounded-full backdrop-blur-sm border border-white/20">
+                  <div className="w-2.5 h-2.5 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full"></div>
+                  <span className="text-sm font-medium">中立 · 客观视角</span>
+                </div>
+                <div className="flex items-center space-x-3 bg-white/10 px-5 py-3 rounded-full backdrop-blur-sm border border-white/20">
+                  <div className="w-2.5 h-2.5 bg-gradient-to-r from-blue-400 to-cyan-500 rounded-full"></div>
+                  <span className="text-sm font-medium">右倾 · 保守视角</span>
+                </div>
               </div>
+            </div>
+          </div>
+          
+          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-stone-50 to-transparent"></div>
+        </section>
+
+        {/* 分类导航 */}
+        <section className="sticky top-0 z-20 bg-stone-50/95 backdrop-blur-sm border-b border-stone-200">
+          <div className="container mx-auto px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 text-sm text-stone-500">
+                <Icons.Compass />
+                <span>探索故事</span>
+              </div>
+              
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                    selectedCategory === null
+                      ? 'bg-stone-900 text-white shadow-lg'
+                      : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                  }`}
+                >
+                  全部故事
+                </button>
+                {['环境', '财经', '科技', '政治'].map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                      selectedCategory === cat
+                        ? 'bg-stone-900 text-white shadow-lg'
+                        : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+              
               <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-bias-right rounded-full"></div>
-                <span className="text-sm">右倾视角</span>
+                <button
+                  onClick={fetchEvents}
+                  className="p-2 text-stone-500 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition-all"
+                  title="刷新数据"
+                >
+                  <Icons.Refresh />
+                </button>
+                <span className="text-sm text-stone-500">排序</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="border border-stone-300 rounded-lg px-3 py-2 bg-white text-stone-700 text-sm focus:ring-2 focus:ring-stone-500 focus:border-transparent"
+                >
+                  <option value="hot_score">🔥 热度</option>
+                  <option value="view_count">👁 浏览</option>
+                  <option value="created_at">🕐 时间</option>
+                </select>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Hot Events */}
-        <section>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-neutral-900">
-              🔥 热门事件
-            </h2>
-            <div className="flex items-center space-x-2 text-sm text-neutral-600">
-              <span>排序：</span>
-              <select className="border border-neutral-300 rounded-md px-3 py-1 bg-white">
-                <option>热度</option>
-                <option>最新</option>
-                <option>浏览最多</option>
-              </select>
+        {/* 错误提示 */}
+        {error && (
+          <div className="container mx-auto px-6 py-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800">
+              <p>⚠️ {error}</p>
+              <p className="text-sm mt-1">提示：确保后端服务运行在 {API_BASE_URL}</p>
             </div>
           </div>
+        )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockEvents.map((event) => (
-              <EventCard key={event.id} {...event} />
-            ))}
+        {/* 主打故事 */}
+        {isLoading ? (
+          <section className="container mx-auto px-6 py-12">
+            <div className="animate-pulse bg-stone-200 rounded-3xl h-96"></div>
+          </section>
+        ) : featuredStory ? (
+          <section className="container mx-auto px-6 py-12">
+            <div className="mb-8">
+              <span className="text-sm font-medium text-stone-500 uppercase tracking-wider">封面故事</span>
+            </div>
+            
+            <article 
+              className={`group relative overflow-hidden rounded-3xl bg-gradient-to-br ${categoryStyles[featuredStory.category as keyof typeof categoryStyles].gradient} p-8 md:p-12 text-white shadow-2xl transition-all duration-500 hover:shadow-3xl cursor-pointer`}
+              onMouseEnter={() => setHoveredStory(featuredStory.id)}
+              onMouseLeave={() => setHoveredStory(null)}
+            >
+              <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl"></div>
+              
+              <div className="relative z-10 grid md:grid-cols-2 gap-8 items-center">
+                <div>
+                  <div className="flex items-center space-x-3 mb-6">
+                    <span className="inline-block bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full text-sm font-medium">
+                      {featuredStory.category}
+                    </span>
+                    <span className="text-white/70">·</span>
+                    <span className="text-sm text-white/80">{featuredStory.storyAngle}</span>
+                  </div>
+                  
+                  <h3 className="text-3xl md:text-4xl font-bold mb-6 leading-tight">
+                    {featuredStory.title}
+                  </h3>
+                  
+                  <div className="mb-6">
+                    <div className="flex items-start space-x-3">
+                      <div className="text-white/60 mt-1">
+                        <Icons.Quote />
+                      </div>
+                      <p className="text-lg md:text-xl text-white/90 leading-relaxed italic">
+                        {featuredStory.storyTeaser}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <p className="text-white/80 leading-relaxed mb-8">
+                    {featuredStory.summary}
+                  </p>
+                  
+                  <div className="flex items-center space-x-4 mb-8">
+                    <span className="text-sm text-white/70">多视角分析</span>
+                    <div className="flex space-x-2">
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-red-400 to-rose-500 flex items-center justify-center text-xs font-bold">左</div>
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 flex items-center justify-center text-xs font-bold">中</div>
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-cyan-500 flex items-center justify-center text-xs font-bold">右</div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-4">
+                    <button className="group/btn flex items-center space-x-2 bg-white text-stone-900 px-6 py-3 rounded-full font-semibold hover:bg-stone-100 transition-all duration-300 shadow-lg hover:shadow-xl">
+                      <span>阅读完整故事</span>
+                      <span className="group-hover/btn:translate-x-1 transition-transform duration-300">
+                        <Icons.ArrowRight />
+                      </span>
+                    </button>
+                    <div className="flex items-center space-x-4 text-sm text-white/70">
+                      <span>{featuredStory.sourceCount} 个来源</span>
+                      <span>·</span>
+                      <span>{featuredStory.viewCount?.toLocaleString() || 0} 次阅读</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="hidden md:flex items-center justify-center">
+                  <div className="relative">
+                    <div className="w-64 h-64 rounded-full border-2 border-white/20 absolute animate-spin-slow" style={{ animationDuration: '20s' }}></div>
+                    <div className="w-56 h-56 rounded-full border-2 border-white/30 absolute animate-spin-slow" style={{ animationDuration: '15s', animationDirection: 'reverse' }}></div>
+                    <div className="w-48 h-48 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
+                      <div className="text-6xl">
+                        {featuredStory.category === '环境' && '🌍'}
+                        {featuredStory.category === '财经' && '💰'}
+                        {featuredStory.category === '科技' && '🚀'}
+                        {featuredStory.category === '政治' && '🏛️'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </section>
+        ) : (
+          <section className="container mx-auto px-6 py-12">
+            <div className="text-center py-20">
+              <p className="text-stone-500 text-lg">暂无故事</p>
+              <p className="text-stone-400 text-sm mt-2">后端 API 可能没有数据</p>
+            </div>
+          </section>
+        )}
+
+        {/* 其他故事 */}
+        {!isLoading && regularStories.length > 0 && (
+          <section className="container mx-auto px-6 py-12">
+            <div className="mb-8">
+              <span className="text-sm font-medium text-stone-500 uppercase tracking-wider">更多故事</span>
+            </div>
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {regularStories.map((event, index) => (
+                <article
+                  key={event.id}
+                  className="group bg-white rounded-2xl border border-stone-200 overflow-hidden hover:shadow-xl hover:border-stone-300 transition-all duration-300 cursor-pointer"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <div className={`h-1.5 bg-gradient-to-r ${categoryStyles[event.category as keyof typeof categoryStyles].gradient}`}></div>
+                  
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${categoryStyles[event.category as keyof typeof categoryStyles].bg} ${categoryStyles[event.category as keyof typeof categoryStyles].text}`}>
+                        {event.category}
+                      </span>
+                      <span className="text-xs text-stone-500">{event.storyAngle}</span>
+                    </div>
+                    
+                    <h4 className="text-xl font-bold text-stone-900 mb-3 line-clamp-2 group-hover:text-stone-700 transition-colors duration-200">
+                      {event.title}
+                    </h4>
+                    
+                    <p className="text-stone-600 text-sm leading-relaxed mb-4 line-clamp-2 italic">
+                      {event.storyTeaser}
+                    </p>
+                    
+                    <p className="text-stone-500 text-sm leading-relaxed mb-6 line-clamp-2">
+                      {event.summary}
+                    </p>
+                    
+                    <div className="flex items-center justify-between pt-4 border-t border-stone-100">
+                      <div className="flex items-center space-x-3 text-xs text-stone-500">
+                        <span className="flex items-center">
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                          {event.sourceCount}
+                        </span>
+                        <span>·</span>
+                        <span>{event.hotScore?.toFixed(1) || 0}° 热度</span>
+                      </div>
+                      
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 rounded-full bg-gradient-to-r from-red-400 to-rose-500"></div>
+                        <div className="w-2 h-2 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500"></div>
+                        <div className="w-2 h-2 rounded-full bg-gradient-to-r from-blue-400 to-cyan-500"></div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 理念阐述 */}
+        <section className="bg-stone-900 text-stone-100 py-20 mt-20">
+          <div className="container mx-auto px-6">
+            <div className="max-w-3xl mx-auto text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg">
+                <Icons.Sparkles />
+              </div>
+              
+              <h3 className="text-3xl md:text-4xl font-bold mb-6">
+                为什么我们需要多视角？
+              </h3>
+              
+              <p className="text-lg text-stone-300 leading-relaxed mb-8">
+                每一条新闻，都是记者编辑选择后的结果。<br/>
+                他们选择了什么？又忽略了什么？<br/>
+                我们相信，真相不在单一的声音里，<br/>
+                而在不同视角的对话中。
+              </p>
+              
+              <div className="grid md:grid-cols-3 gap-8 mt-12">
+                <div className="text-center">
+                  <div className="text-4xl mb-4">📰</div>
+                  <h4 className="font-semibold mb-2">多源聚合</h4>
+                  <p className="text-sm text-stone-400">数百家媒体，同一个事件</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-4xl mb-4">🤖</div>
+                  <h4 className="font-semibold mb-2">AI 摘要</h4>
+                  <p className="text-sm text-stone-400">左中右，三种视角</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-4xl mb-4">🔍</div>
+                  <h4 className="font-semibold mb-2">偏见分析</h4>
+                  <p className="text-sm text-stone-400">识别立场，独立思考</p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* Coming Soon */}
-        <section className="mt-12 bg-white rounded-lg border border-neutral-200 p-6">
-          <h3 className="text-xl font-semibold text-neutral-900 mb-4">
-            🚧 开发中
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4">
-              <div className="text-3xl mb-2">📰</div>
-              <h4 className="font-medium text-neutral-900 mb-1">实时新闻抓取</h4>
-              <p className="text-sm text-neutral-600">正在接入更多媒体源</p>
+        {/* 页脚 */}
+        <footer className="bg-stone-100 border-t border-stone-200 py-12">
+          <div className="container mx-auto px-6">
+            <div className="flex flex-col md:flex-row justify-between items-center">
+              <div className="flex items-center space-x-3 mb-4 md:mb-0">
+                <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center text-white shadow">
+                  <Icons.BookOpen />
+                </div>
+                <div>
+                  <p className="font-semibold text-stone-900">WRHITW</p>
+                  <p className="text-xs text-stone-500">让世界看到完整的故事</p>
+                </div>
+              </div>
+              
+              <div className="flex items-center space-x-6 text-sm text-stone-600">
+                <a href="#" className="hover:text-stone-900 transition-colors">关于我们</a>
+                <a href="#" className="hover:text-stone-900 transition-colors">编辑理念</a>
+                <a href="#" className="hover:text-stone-900 transition-colors">隐私政策</a>
+                <a href="#" className="hover:text-stone-900 transition-colors">联系方式</a>
+              </div>
             </div>
-            <div className="text-center p-4">
-              <div className="text-3xl mb-2">🤖</div>
-              <h4 className="font-medium text-neutral-900 mb-1">AI 多视角摘要</h4>
-              <p className="text-sm text-neutral-600">预计 Sprint 2 上线</p>
-            </div>
-            <div className="text-center p-4">
-              <div className="text-3xl mb-2">👤</div>
-              <h4 className="font-medium text-neutral-900 mb-1">用户系统</h4>
-              <p className="text-sm text-neutral-600">收藏、历史记录</p>
+            
+            <div className="mt-8 pt-8 border-t border-stone-200 text-center text-sm text-stone-500">
+              <p>© 2026 WRHITW · 用故事的方式，看见世界</p>
             </div>
           </div>
-        </section>
+        </footer>
       </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-neutral-200 mt-12 py-8">
-        <div className="container mx-auto px-4 text-center text-neutral-600">
-          <p className="mb-2">
-            WRHITW - What's Really Happening In The World
-          </p>
-          <p className="text-sm">
-            🚧 开发中 • 预计 2026 年 4 月上线
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }
