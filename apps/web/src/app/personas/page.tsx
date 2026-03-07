@@ -130,7 +130,16 @@ export default function PersonaManagement() {
   };
 
   const handleDeletePersona = async (id: string, name: string) => {
-    if (!confirm(`Delete persona "${name}"? This cannot be undone.`)) return;
+    const confirmed = window.confirm(
+      `⚠️ Confirm Delete\n\n` +
+      `Are you sure you want to delete "${name}"?\n\n` +
+      `• Your comments will remain visible (shown as "Deleted User")\n` +
+      `• Verification records will be preserved\n` +
+      `• This action CANNOT be undone\n\n` +
+      `Click OK to confirm deletion.`
+    );
+    
+    if (!confirmed) return;
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/personas/${id}`, {
@@ -139,11 +148,15 @@ export default function PersonaManagement() {
       });
 
       if (response.ok) {
-        alert('Persona deleted');
+        const data = await response.json();
+        alert(`✅ Persona deleted\n\n${data.note || 'Comments and verifications are preserved'}`);
         fetchPersonas();
+      } else {
+        const errorData = await response.json();
+        alert(`Failed to delete: ${errorData.detail || 'Unknown error'}`);
       }
     } catch (err) {
-      alert('Failed to delete');
+      alert('Failed to delete: Network error');
     }
   };
 
@@ -277,10 +290,10 @@ export default function PersonaManagement() {
         </div>
 
         {/* Persona Limit Warning */}
-        {personas.length >= 5 && (
+        {personas.length >= 10 && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
             <p className="text-amber-800 text-sm">
-              ⚠️ You've reached the maximum limit of 5 personas. Delete one to create a new persona.
+              ⚠️ You've reached the maximum limit of 10 personas. Delete one to create a new persona.
             </p>
           </div>
         )}
@@ -290,25 +303,42 @@ export default function PersonaManagement() {
           {personas.map((persona) => (
             <div
               key={persona.id}
-              className="bg-white rounded-xl border border-stone-200 p-6 hover:shadow-lg transition-shadow"
+              className={`rounded-xl border p-6 transition-shadow ${
+                persona.is_deleted
+                  ? 'bg-stone-100 border-stone-300 opacity-75'
+                  : 'bg-white border-stone-200 hover:shadow-lg'
+              }`}
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
                   <div
-                    className={`w-12 h-12 rounded-full bg-${persona.avatar_color}-500 flex items-center justify-center text-white font-bold text-lg`}
-                    style={{ backgroundColor: getAvatarColor(persona.avatar_color) }}
+                    className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${
+                      persona.is_deleted ? 'bg-stone-400' : `bg-${persona.avatar_color}-500`
+                    }`}
+                    style={{ 
+                      backgroundColor: persona.is_deleted 
+                        ? '#9CA3AF' 
+                        : getAvatarColor(persona.avatar_color) 
+                    }}
                   >
                     {persona.persona_name.charAt(0).toUpperCase()}
                   </div>
                   <div>
-                    <h3 className="font-semibold text-stone-900">{persona.persona_name}</h3>
+                    <h3 className={`font-semibold ${persona.is_deleted ? 'text-stone-500 line-through' : 'text-stone-900'}`}>
+                      {persona.persona_name}
+                    </h3>
                     <p className="text-xs text-stone-500">
                       Created {new Date(persona.created_at).toLocaleDateString()}
                     </p>
+                    {persona.is_deleted && (
+                      <p className="text-xs text-red-600 font-medium mt-1">
+                        🗑️ Deleted
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                {persona.is_verified && (
+                {!persona.is_deleted && persona.is_verified && (
                   <span className="inline-block px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
                     ✅ Verified
                   </span>
@@ -316,26 +346,35 @@ export default function PersonaManagement() {
               </div>
 
               <div className="space-y-2">
-                <button
-                  onClick={() => handleViewVerifications(persona.id, persona.persona_name)}
-                  className="w-full text-left px-3 py-2 bg-stone-50 hover:bg-stone-100 rounded-lg text-sm text-stone-700 transition-colors"
-                >
-                  {showVerifications === persona.id ? 'Hide' : 'View'} Verifications
-                </button>
+                {persona.is_deleted ? (
+                  <div className="text-xs text-stone-500 italic px-3 py-2">
+                    ℹ️ This persona has been deleted<br/>
+                    Comments and verifications are preserved
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleViewVerifications(persona.id, persona.persona_name)}
+                      className="w-full text-left px-3 py-2 bg-stone-50 hover:bg-stone-100 rounded-lg text-sm text-stone-700 transition-colors"
+                    >
+                      {showVerifications === persona.id ? 'Hide' : 'View'} Verifications
+                    </button>
 
-                <button
-                  onClick={() => router.push(`/personas/${persona.id}/verify`)}
-                  className="w-full text-left px-3 py-2 bg-stone-50 hover:bg-stone-100 rounded-lg text-sm text-stone-700 transition-colors"
-                >
-                  Apply for Verification
-                </button>
+                    <button
+                      onClick={() => router.push(`/personas/${persona.id}/verify`)}
+                      className="w-full text-left px-3 py-2 bg-stone-50 hover:bg-stone-100 rounded-lg text-sm text-stone-700 transition-colors"
+                    >
+                      Apply for Verification
+                    </button>
 
-                <button
-                  onClick={() => handleDeletePersona(persona.id, persona.persona_name)}
-                  className="w-full text-left px-3 py-2 bg-red-50 hover:bg-red-100 rounded-lg text-sm text-red-700 transition-colors"
-                >
-                  Delete Persona
-                </button>
+                    <button
+                      onClick={() => handleDeletePersona(persona.id, persona.persona_name)}
+                      className="w-full text-left px-3 py-2 bg-red-50 hover:bg-red-100 rounded-lg text-sm text-red-700 transition-colors"
+                    >
+                      Delete Persona
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}

@@ -70,13 +70,24 @@ def get_current_user(
 
 @router.get("")
 async def get_my_personas(
+    include_deleted: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get current user's personas"""
-    personas = db.query(UserPersona).filter(
+    """
+    Get current user's personas
+    
+    - **include_deleted**: Optionally include deleted personas (default: false)
+    """
+    query = db.query(UserPersona).filter(
         UserPersona.user_id == current_user.id
-    ).order_by(UserPersona.created_at.desc()).all()
+    )
+    
+    # By default, filter out deleted personas
+    if not include_deleted:
+        query = query.filter(UserPersona.is_deleted == False)
+    
+    personas = query.order_by(UserPersona.created_at.desc()).all()
     
     return {
         "items": [
@@ -85,6 +96,8 @@ async def get_my_personas(
                 "persona_name": p.persona_name,
                 "avatar_color": p.avatar_color,
                 "is_verified": p.is_verified,
+                "is_deleted": p.is_deleted,
+                "deleted_at": p.deleted_at.isoformat() if p.deleted_at else None,
                 "created_at": p.created_at.isoformat() if p.created_at else None,
             }
             for p in personas
@@ -198,19 +211,27 @@ async def delete_persona(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Delete persona"""
+    """Soft delete persona (marks as deleted, keeps comments intact)"""
+    from datetime import datetime
+    
     persona = db.query(UserPersona).filter(
         UserPersona.id == persona_id,
-        UserPersona.user_id == current_user.id
+        UserPersona.user_id == current_user.id,
+        UserPersona.is_deleted == False  # Can't delete already deleted persona
     ).first()
     
     if not persona:
         raise HTTPException(status_code=404, detail="Persona not found")
     
-    db.delete(persona)
+    # Soft delete: mark as deleted instead of removing
+    persona.is_deleted = True
+    persona.deleted_at = datetime.utcnow()
     db.commit()
     
-    return {"message": "Persona deleted"}
+    return {
+        "message": "Persona deleted",
+        "note": "Comments and verifications are preserved"
+    }
 
 
 # ==================== Admin Review ====================

@@ -46,6 +46,11 @@ class UserPersona(Base):
     persona_name = Column(String(100), nullable=False)  # e.g., "Iranian Civilian"
     avatar_color = Column(String(20), default='blue')  # 随机颜色标识
     is_verified = Column(Boolean, default=False)  # 是否有已认证的关联
+    
+    # Soft delete fields
+    is_deleted = Column(Boolean, default=False)
+    deleted_at = Column(DateTime(timezone=True))
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
