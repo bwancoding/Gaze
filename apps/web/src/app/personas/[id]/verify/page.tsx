@@ -59,8 +59,8 @@ export default function VerifyForEvent() {
           setPassword(storedPassword);
           setIsAuthenticated(true);
           console.log('[Verify Page] Authenticated as:', storedUsername);
-          // Wait a bit for state to update, then fetch data
-          setTimeout(() => fetchData(), 100);
+          // Fetch data immediately (state will be updated synchronously)
+          fetchData();
           return;
         }
       } catch (err) {
@@ -129,7 +129,7 @@ export default function VerifyForEvent() {
       const [personasRes, stakeholdersRes, eventsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/personas`, { headers }),
         fetch(`${API_BASE_URL}/api/stakeholders/list`),  // Public endpoint, no auth needed
-        fetch(`${API_BASE_URL}/api/events?status=active&page_size=50`, { headers }),
+        fetch(`${API_BASE_URL}/api/events?status=active&page_size=50`),  // Public endpoint
       ]);
 
       console.log('[Verify Page] Personas response:', personasRes.status);
@@ -150,11 +150,10 @@ export default function VerifyForEvent() {
 
       if (stakeholdersRes.ok) {
         const data = await stakeholdersRes.json();
-        const activeStakeholders = data.items.filter((s: any) => s.is_active);
-        setStakeholders(activeStakeholders);
-        console.log('[Verify Page] Loaded stakeholders:', activeStakeholders.length);
-        if (activeStakeholders.length === 0) {
-          console.warn('[Verify Page] No active stakeholders found');
+        setStakeholders(data.items || []);
+        console.log('[Verify Page] Loaded stakeholders:', data.items?.length || 0);
+        if (!data.items || data.items.length === 0) {
+          console.warn('[Verify Page] No stakeholders found');
         }
       } else {
         const errorText = await stakeholdersRes.text();
