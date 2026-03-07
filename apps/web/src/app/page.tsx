@@ -104,7 +104,6 @@ const getCategoryStyle = (category: string | undefined) => {
   }
   return categoryStyles[category as keyof typeof categoryStyles];
 };
-};
 
 // Default stories (fallback when API fails)
 const defaultStories: Event[] = [

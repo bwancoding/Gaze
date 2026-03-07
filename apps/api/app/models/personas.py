@@ -6,6 +6,7 @@ WRHITW User Persona Models
 from sqlalchemy import Column, String, Text as _Text, Integer, Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 import uuid
 import os
@@ -55,7 +56,8 @@ class UserPersona(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # 关系
-    # verifications = relationship("EventStakeholderVerification", backref="persona")
+    user = relationship("User", backref="personas")
+    verifications = relationship("EventStakeholderVerification", backref="persona")
     # comments = relationship("Comment", backref="persona")
 
 
@@ -82,6 +84,10 @@ class EventStakeholderVerification(Base):
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # 关系
+    event = relationship("Event", backref="verifications")
+    stakeholder = relationship("Stakeholder", backref="verifications")
 
     # 唯一约束：一个身份在一个事件中只能有一个认证
     __table_args__ = (

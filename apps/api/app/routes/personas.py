@@ -280,7 +280,13 @@ async def list_all_verifications(
     username: str = Depends(verify_admin_credentials),
 ):
     """List all verification applications (admin)"""
-    query = db.query(EventStakeholderVerification)
+    from sqlalchemy.orm import joinedload
+    
+    query = db.query(EventStakeholderVerification).options(
+        joinedload(EventStakeholderVerification.persona).joinedload(UserPersona.user),
+        joinedload(EventStakeholderVerification.event),
+        joinedload(EventStakeholderVerification.stakeholder)
+    )
     
     if status_filter and status_filter != "all":
         query = query.filter(EventStakeholderVerification.status == status_filter)
