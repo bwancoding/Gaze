@@ -126,50 +126,35 @@ export default function VerifyForEvent() {
         return;
       }
       
+      // Fetch in parallel but handle errors individually
       const [personasRes, stakeholdersRes, eventsRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/personas`, { headers }),
-        fetch(`${API_BASE_URL}/api/stakeholders/list`),  // Public endpoint, no auth needed
-        fetch(`${API_BASE_URL}/api/events?status=active&page_size=50`),  // Public endpoint
+        fetch(`${API_BASE_URL}/api/personas`, { headers }).catch(() => null),
+        fetch(`${API_BASE_URL}/api/stakeholders/list`).catch(() => null),
+        fetch(`${API_BASE_URL}/api/events?status=active&page_size=50`).catch(() => null),
       ]);
 
-      console.log('[Verify Page] Personas response:', personasRes.status);
-      console.log('[Verify Page] Stakeholders response:', stakeholdersRes.status);
-      console.log('[Verify Page] Events response:', eventsRes.status);
+      console.log('[Verify Page] Responses:', {
+        personas: personasRes?.status,
+        stakeholders: stakeholdersRes?.status,
+        events: eventsRes?.status,
+      });
 
-      if (personasRes.ok) {
+      if (personasRes?.ok) {
         const data = await personasRes.json();
-        setPersonas(data.items);
+        setPersonas(data.items || []);
         console.log('[Verify Page] Loaded personas:', data.items.length);
-        if (data.items.length === 0) {
-          console.warn('[Verify Page] No personas found');
-        }
-      } else {
-        const errorText = await personasRes.text();
-        console.error('[Verify Page] Failed to load personas:', personasRes.status, errorText);
       }
 
-      if (stakeholdersRes.ok) {
+      if (stakeholdersRes?.ok) {
         const data = await stakeholdersRes.json();
         setStakeholders(data.items || []);
-        console.log('[Verify Page] Loaded stakeholders:', data.items?.length || 0);
-        if (!data.items || data.items.length === 0) {
-          console.warn('[Verify Page] No stakeholders found');
-        }
-      } else {
-        const errorText = await stakeholdersRes.text();
-        console.error('[Verify Page] Failed to load stakeholders:', stakeholdersRes.status, errorText);
+        console.log('[Verify Page] Loaded stakeholders:', data.items.length);
       }
 
-      if (eventsRes.ok) {
+      if (eventsRes?.ok) {
         const data = await eventsRes.json();
-        setEvents(data.items);
+        setEvents(data.items || []);
         console.log('[Verify Page] Loaded events:', data.items.length);
-        if (data.items.length === 0) {
-          console.warn('[Verify Page] No events found');
-        }
-      } else {
-        const errorText = await eventsRes.text();
-        console.error('[Verify Page] Failed to load events:', eventsRes.status, errorText);
       }
     } catch (err) {
       console.error('[Verify Page] Failed to fetch data:', err);

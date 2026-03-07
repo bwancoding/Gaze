@@ -49,7 +49,7 @@ class EventResponse(EventBase):
     """Event Response"""
     id: UUID
     source_count: int
-    view_count: int
+    view_count: Optional[int] = 0  # Allow None, default to 0
     hot_score: float
     status: str
     created_at: datetime
@@ -67,8 +67,8 @@ class EventResponse(EventBase):
             'summary': obj.summary,
             'category': translate_category(obj.category) if obj.category else None,
             'tags': obj.tags if hasattr(obj, 'tags') else [],
-            'source_count': obj.source_count,
-            'view_count': obj.view_count,
+            'source_count': obj.source_count or 0,
+            'view_count': obj.view_count or 0,  # Handle None
             'hot_score': float(obj.hot_score) if obj.hot_score else 0,
             'status': obj.status,
             'created_at': obj.created_at,
