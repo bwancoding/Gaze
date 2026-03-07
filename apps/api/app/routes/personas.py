@@ -375,6 +375,53 @@ async def revoke_verification(
     username: str = Depends(verify_admin_credentials),
 ):
     """Revoke an approved verification (admin)"""
+    from sqlalchemy.orm import joinedload
+    
+    verification = db.query(EventStakeholderVerification).options(
+        joinedload(EventStakeholderVerification.persona)
+    ).filter(
+        EventStakeholderVerification.id == verification_id
+    ).first()
+    
+    if not verification:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    if verification.status != 'approved':
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot revoke {verification.status} verification. Only approved verifications can be revoked."
+        )
+    
+    verification.status = 'revoked'
+    verification.reviewed_at = datetime.utcnow()
+    verification.review_notes = review_notes if review_notes else "Revoked by admin"
+    
+    # Update persona is_verified flag
+    if verification.persona:
+        # Check if there are any other approved verifications for this persona
+        other_approved = db.query(EventStakeholderVerification).filter(
+            EventStakeholderVerification.user_persona_id == verification.user_persona_id,
+            EventStakeholderVerification.status == 'approved',
+            EventStakeholderVerification.id != verification_id
+        ).first()
+        
+        # If no other approved verifications, set is_verified to False
+        if not other_approved:
+            verification.persona.is_verified = False
+    
+    db.commit()
+    
+    return {"message": "Verification revoked successfully"}
+
+
+@router.post("/admin/verifications/{verification_id}/revoke")
+async def revoke_verification(
+    verification_id: str,
+    review_notes: str = "",
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Revoke an approved verification (admin)"""
     verification = db.query(EventStakeholderVerification).filter(
         EventStakeholderVerification.id == verification_id
     ).first()
@@ -413,7 +460,11 @@ async def cancel_verification(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Cancel a pending verification application (user)"""
+    """Cancel/revoke a verification application (user)
+    
+    - For pending applications: cancels (deletes) the application
+    - For approved applications: revokes the verification (sets status to 'revoked')
+    """
     from sqlalchemy.orm import joinedload
     
     verification = db.query(EventStakeholderVerification).options(
@@ -429,18 +480,38 @@ async def cancel_verification(
     if not verification.persona or verification.persona.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to cancel this application")
     
-    # Can only cancel pending applications
-    if verification.status != 'pending':
+    # Handle based on status
+    if verification.status == 'pending':
+        # Delete pending applications
+        db.delete(verification)
+        db.commit()
+        return {"message": "Application cancelled successfully"}
+    elif verification.status == 'approved':
+        # Revoke approved verifications (set to 'revoked' status)
+        verification.status = 'revoked'
+        verification.reviewed_at = datetime.utcnow()
+        verification.review_notes = "Revoked by user"
+        
+        # Update persona is_verified flag if this was the only verified verification
+        if verification.persona:
+            # Check if there are any other approved verifications for this persona
+            other_approved = db.query(EventStakeholderVerification).filter(
+                EventStakeholderVerification.user_persona_id == verification.user_persona_id,
+                EventStakeholderVerification.status == 'approved',
+                EventStakeholderVerification.id != verification_id
+            ).first()
+            
+            # If no other approved verifications, set is_verified to False
+            if not other_approved:
+                verification.persona.is_verified = False
+        
+        db.commit()
+        return {"message": "Verification revoked successfully"}
+    else:
         raise HTTPException(
             status_code=400, 
-            detail=f"Cannot cancel {verification.status} application. Only pending applications can be cancelled."
+            detail=f"Cannot cancel {verification.status} application. Only pending or approved verifications can be cancelled."
         )
-    
-    # Delete the verification
-    db.delete(verification)
-    db.commit()
-    
-    return {"message": "Application cancelled successfully"}
 
 
 # ==================== Event-Level Verification ====================
@@ -530,6 +601,14 @@ async def apply_for_verification(
                 status_code=400,
                 detail="Application already pending review"
             )
+        elif existing.status == 'rejected':
+            # Allow re-application after rejection
+            pass
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Already have an application for this event"
+            )
     
     # Check stakeholder exists
     stakeholder = db.query(Stakeholder).filter(Stakeholder.id == stakeholder_id).first()
@@ -537,22 +616,32 @@ async def apply_for_verification(
         raise HTTPException(status_code=404, detail="Stakeholder not found")
     
     # Create application
-    application = EventStakeholderVerification(
-        id=uuid.uuid4(),
-        user_persona_id=persona_id,
-        event_id=event_id,
-        stakeholder_id=stakeholder_id,
-        application_text=application_text,
-        proof_type=proof_type,
-        proof_data=proof_data,
-        status='pending',
-    )
-    
-    db.add(application)
-    db.commit()
-    
-    return {
-        "message": "Application submitted",
-        "application_id": str(application.id),
-        "status": "pending"
-    }
+    try:
+        application = EventStakeholderVerification(
+            id=uuid.uuid4(),
+            user_persona_id=persona_id,
+            event_id=event_id,
+            stakeholder_id=stakeholder_id,
+            application_text=application_text,
+            proof_type=proof_type,
+            proof_data=proof_data,
+            status='pending',
+        )
+        
+        db.add(application)
+        db.commit()
+        
+        return {
+            "message": "Application submitted",
+            "application_id": str(application.id),
+            "status": "pending"
+        }
+    except Exception as e:
+        db.rollback()
+        # Check for unique constraint violation
+        if 'UNIQUE constraint failed' in str(e):
+            raise HTTPException(
+                status_code=400,
+                detail="You already have an application for this event"
+            )
+        raise

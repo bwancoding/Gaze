@@ -165,6 +165,25 @@ export default function VerifyForEvent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    // Validate required fields
+    if (!selectedPersona) {
+      setError('Please select an identity');
+      return;
+    }
+    if (!selectedEvent) {
+      setError('Please select an event');
+      return;
+    }
+    if (!selectedStakeholder) {
+      setError('Please select a stakeholder');
+      return;
+    }
+    if (!applicationText.trim()) {
+      setError('Please provide an application text');
+      return;
+    }
+    
     setIsLoading(true);
 
     try {
@@ -191,7 +210,8 @@ export default function VerifyForEvent() {
         setError(errorMessage || 'Failed to submit application');
       }
     } catch (err) {
-      setError('Network error');
+      console.error('Submit error:', err);
+      setError('Network error. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }

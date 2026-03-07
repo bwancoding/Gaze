@@ -215,8 +215,14 @@ export default function PersonaManagement() {
     }
   };
 
-  const handleCancelApplication = async (verificationId: string, personaName: string) => {
-    if (!confirm(`Cancel the verification application for ${personaName}?`)) {
+  const handleCancelApplication = async (e: React.MouseEvent, verificationId: string, personaName: string, status: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const actionText = status === 'approved' ? 'revoke' : 'cancel';
+    const actionLabel = status === 'approved' ? '撤销认证' : '取消申请';
+    
+    if (!confirm(`确定要${actionLabel} "${personaName}" 的${status === 'approved' ? '认证' : '申请'}吗？\n\n${status === 'approved' ? '撤销后该认证将显示为"已拒绝"状态' : ''}`)) {
       return;
     }
 
@@ -231,14 +237,21 @@ export default function PersonaManagement() {
       );
 
       if (response.ok) {
-        alert('Application cancelled successfully');
-        // Refresh verifications
-        if (selectedPersona) {
-          handleViewVerifications(selectedPersona.id, selectedPersona.persona_name);
+        alert(`${actionLabel}成功`);
+        // Refresh verifications - use the current persona ID directly to avoid state issues
+        const currentPersonaId = showVerifications;
+        if (currentPersonaId) {
+          const refreshResponse = await fetch(`${API_BASE_URL}/api/personas/${currentPersonaId}/verifications`, {
+            headers: getAuthHeaders(),
+          });
+          if (refreshResponse.ok) {
+            const data = await refreshResponse.json();
+            setVerifications(data.items);
+          }
         }
       } else {
         const result = await response.json();
-        alert(result.detail || 'Failed to cancel application');
+        alert(result.detail || `Failed to ${actionText} application`);
       }
     } catch (err) {
       alert('Network error');
@@ -519,20 +532,23 @@ export default function PersonaManagement() {
                           className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
                             v.status === 'approved'
                               ? 'bg-emerald-100 text-emerald-700'
-                              : v.status === 'rejected'
+                              : v.status === 'rejected' || v.status === 'revoked'
                               ? 'bg-red-100 text-red-700'
                               : 'bg-amber-100 text-amber-700'
                           }`}
                         >
-                          {v.status.charAt(0).toUpperCase() + v.status.slice(1)}
+                          {v.status === 'revoked' 
+                            ? 'Revoked' 
+                            : v.status.charAt(0).toUpperCase() + v.status.slice(1)}
                         </span>
-                        {v.status === 'pending' && (
+                        {(v.status === 'pending' || v.status === 'approved') && (
                           <button
-                            onClick={() => handleCancelApplication(v.id, v.persona_name)}
+                            onClick={(e) => handleCancelApplication(e, v.id, v.persona_name, v.status)}
                             className="text-xs text-red-600 hover:text-red-800 hover:underline"
                             disabled={isLoading}
+                            type="button"
                           >
-                            Cancel Application
+                            {v.status === 'approved' ? 'Revoke Certification' : 'Cancel Application'}
                           </button>
                         )}
                       </div>
