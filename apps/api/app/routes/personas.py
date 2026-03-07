@@ -71,6 +71,7 @@ def get_current_user(
 @router.get("")
 async def get_my_personas(
     include_deleted: bool = False,
+    auto_create: bool = True,  # Auto-create if user has no personas
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -78,6 +79,7 @@ async def get_my_personas(
     Get current user's personas
     
     - **include_deleted**: Optionally include deleted personas (default: false)
+    - **auto_create**: Auto-create a persona if user has none (default: true)
     """
     query = db.query(UserPersona).filter(
         UserPersona.user_id == current_user.id
@@ -88,6 +90,36 @@ async def get_my_personas(
         query = query.filter(UserPersona.is_deleted == False)
     
     personas = query.order_by(UserPersona.created_at.desc()).all()
+    
+    # Auto-create a persona if user has none
+    if auto_create and len(personas) == 0:
+        import random
+        from datetime import datetime
+        
+        # Generate recommended name
+        recommended_names = [
+            "在互联网冲浪的普通人",
+            "吃瓜群众",
+            "匿名观察者",
+            "路过的网友",
+            "普通市民",
+        ]
+        persona_name = random.choice(recommended_names)
+        avatar_color = random.choice(['blue', 'green', 'purple', 'orange', 'teal'])
+        
+        persona = UserPersona(
+            id=uuid.uuid4(),
+            user_id=current_user.id,
+            persona_name=persona_name,
+            avatar_color=avatar_color,
+            is_verified=False,
+        )
+        
+        db.add(persona)
+        db.commit()
+        db.refresh(persona)
+        
+        personas = [persona]
     
     return {
         "items": [
@@ -101,7 +133,9 @@ async def get_my_personas(
                 "created_at": p.created_at.isoformat() if p.created_at else None,
             }
             for p in personas
-        ]
+        ],
+        "auto_created": auto_create and len(personas) == 1 and personas[0].created_at and \
+                        (datetime.utcnow() - personas[0].created_at).total_seconds() < 5
     }
 
 

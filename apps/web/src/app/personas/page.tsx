@@ -34,6 +34,7 @@ export default function PersonaManagement() {
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
   const [showVerifications, setShowVerifications] = useState<string | null>(null);
   const [verifications, setVerifications] = useState<Verification[]>([]);
+  const [showAutoCreateTip, setShowAutoCreateTip] = useState(false);
 
   // Check authentication
   useEffect(() => {
@@ -59,13 +60,18 @@ export default function PersonaManagement() {
 
   const fetchPersonas = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/personas`, {
+      const response = await fetch(`${API_BASE_URL}/api/personas?auto_create=true`, {
         headers: getAuthHeaders(),
       });
 
       if (response.ok) {
         const data = await response.json();
         setPersonas(data.items);
+        
+        // Show auto-create tip if a new persona was created
+        if (data.auto_created) {
+          setShowAutoCreateTip(true);
+        }
       } else if (response.status === 401) {
         handleLogout();
       }
@@ -271,12 +277,35 @@ export default function PersonaManagement() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
+        {/* Auto-create Tip */}
+        {showAutoCreateTip && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start space-x-3">
+                <span className="text-2xl">💡</span>
+                <div>
+                  <p className="font-semibold text-blue-800">我们为你创建了一个默认身份</p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    你可以修改名称和颜色，或者创建更多身份来表达不同观点
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAutoCreateTip(false)}
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+              >
+                知道了
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header Actions */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-2xl font-bold text-stone-900">Your Identities</h2>
             <p className="text-sm text-stone-600 mt-1">
-              {personas.length} / 5 personas created
+              {personas.length} / 10 personas created
             </p>
           </div>
 
