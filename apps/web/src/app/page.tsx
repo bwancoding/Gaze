@@ -87,6 +87,23 @@ const categoryStyles = {
     text: 'text-amber-700',
     border: 'border-amber-200',
   },
+} as const;
+
+// Default style for unknown categories
+const defaultCategoryStyle = {
+  gradient: 'from-stone-500 to-gray-600',
+  bg: 'bg-stone-50',
+  text: 'text-stone-700',
+  border: 'border-stone-200',
+};
+
+// Helper function to get category style safely
+const getCategoryStyle = (category: string | undefined) => {
+  if (!category || !(category in categoryStyles)) {
+    return defaultCategoryStyle;
+  }
+  return categoryStyles[category as keyof typeof categoryStyles];
+};
 };
 
 // Default stories (fallback when API fails)
@@ -346,7 +363,7 @@ export default function Home() {
             
             <article 
               onClick={() => router.push(`/events/${featuredStory.id}`)}
-              className={`group relative overflow-hidden rounded-3xl bg-gradient-to-br ${categoryStyles[featuredStory.category as keyof typeof categoryStyles].gradient} p-8 md:p-12 text-white shadow-2xl transition-all duration-500 hover:shadow-3xl cursor-pointer`}
+              className={`group relative overflow-hidden rounded-3xl bg-gradient-to-br ${getCategoryStyle(featuredStory.category).gradient} p-8 md:p-12 text-white shadow-2xl transition-all duration-500 hover:shadow-3xl cursor-pointer`}
               onMouseEnter={() => setHoveredStory(featuredStory.id)}
               onMouseLeave={() => setHoveredStory(null)}
             >
@@ -447,11 +464,11 @@ export default function Home() {
                   className="group bg-white rounded-2xl border border-stone-200 overflow-hidden hover:shadow-xl hover:border-stone-300 transition-all duration-300 cursor-pointer"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
-                  <div className={`h-1.5 bg-gradient-to-r ${categoryStyles[event.category as keyof typeof categoryStyles].gradient}`}></div>
+                  <div className={`h-1.5 bg-gradient-to-r ${getCategoryStyle(event.category).gradient}`}></div>
                   
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
-                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${categoryStyles[event.category as keyof typeof categoryStyles].bg} ${categoryStyles[event.category as keyof typeof categoryStyles].text}`}>
+                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${getCategoryStyle(event.category).bg} ${getCategoryStyle(event.category).text}`}>
                         {event.category}
                       </span>
                       <span className="text-xs text-stone-500">{event.storyAngle}</span>

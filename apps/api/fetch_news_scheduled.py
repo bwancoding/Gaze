@@ -13,36 +13,41 @@ Cron Setup:
 
 import sys
 import os
+import ssl
+import requests
 from pathlib import Path
 from datetime import datetime, timezone
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Configure proxy for Clash Verge (mixed-port: 7897)
+PROXY_CONFIG = {
+    'http': 'http://127.0.0.1:7897',
+    'https': 'http://127.0.0.1:7897',
+}
+
+# Workaround for SSL issues - disable certificate verification
+ssl._create_default_https_context = ssl._create_unverified_context
+
 from app.core.database import SessionLocal, engine
 from app.models import Event, Source, EventSource
 import feedparser
 import hashlib
 
-# International news sources (English)
+# International news sources (English) - Updated with working RSS feeds
 NEWS_SOURCES = [
     {
-        "name": "Reuters World",
-        "url": "https://feeds.reuters.com/reuters/worldNews",
-        "category": "Politics",
-        "bias_label": "center"
-    },
-    {
-        "name": "AP News",
-        "url": "https://apnews.com/apf-internationalnews",
-        "category": "Politics",
-        "bias_label": "center"
-    },
-    {
-        "name": "BBC World",
-        "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
+        "name": "NY Times World",
+        "url": "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
         "category": "Politics",
         "bias_label": "center-left"
+    },
+    {
+        "name": "Hacker News",
+        "url": "https://hnrss.org/frontpage",
+        "category": "Technology",
+        "bias_label": "center"
     },
     {
         "name": "TechCrunch",
@@ -57,10 +62,10 @@ NEWS_SOURCES = [
         "bias_label": "center-left"
     },
     {
-        "name": "Bloomberg",
-        "url": "https://www.bloomberg.com/feed/podcast/etf.xml",
-        "category": "Economy",
-        "bias_label": "center"
+        "name": "BBC World",
+        "url": "http://feeds.bbci.co.uk/news/world/rss.xml",
+        "category": "Politics",
+        "bias_label": "center-left"
     },
 ]
 
@@ -82,11 +87,22 @@ def generate_event_id(title: str) -> str:
     return hashlib.md5(title.encode()).hexdigest()
 
 def fetch_rss_feed(source_url: str, source_name: str):
-    """Fetch and parse RSS feed"""
+    """Fetch and parse RSS feed using requests with proxy"""
     log(f"Fetching {source_name}...")
     
     try:
-        feed = feedparser.parse(source_url)
+        # Fetch content using requests with proxy
+        response = requests.get(
+            source_url, 
+            proxies=PROXY_CONFIG, 
+            headers={'User-Agent': 'Mozilla/5.0 (compatible; WRHITW News Fetcher)'},
+            timeout=30,
+            verify=False  # Skip SSL verification (proxy handles it)
+        )
+        response.raise_for_status()
+        
+        # Parse with feedparser
+        feed = feedparser.parse(response.content)
         entries = feed.entries if hasattr(feed, 'entries') else []
         log(f"  Retrieved {len(entries)} entries from {source_name}")
         return entries
