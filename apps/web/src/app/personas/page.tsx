@@ -36,6 +36,7 @@ export default function PersonaManagement() {
   const [verifications, setVerifications] = useState<Verification[]>([]);
   const [showAutoCreateTip, setShowAutoCreateTip] = useState(false);
   const [editingPersona, setEditingPersona] = useState<{id: string, name: string, color: string} | null>(null);
+  const [deletingPersona, setDeletingPersona] = useState<{id: string, name: string} | null>(null);
 
   // Check authentication
   useEffect(() => {
@@ -165,20 +166,11 @@ export default function PersonaManagement() {
     }
   };
 
-  const handleDeletePersona = async (id: string, name: string) => {
-    const confirmed = window.confirm(
-      `⚠️ Confirm Delete\n\n` +
-      `Are you sure you want to delete "${name}"?\n\n` +
-      `• Your comments will remain visible (shown as "Deleted User")\n` +
-      `• Verification records will be preserved\n` +
-      `• This action CANNOT be undone\n\n` +
-      `Click OK to confirm deletion.`
-    );
-    
-    if (!confirmed) return;
+  const handleDeleteConfirm = async () => {
+    if (!deletingPersona) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/personas/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/personas/${deletingPersona.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
       });
@@ -186,6 +178,7 @@ export default function PersonaManagement() {
       if (response.ok) {
         const data = await response.json();
         alert(`✅ Persona deleted\n\n${data.note || 'Comments and verifications are preserved'}`);
+        setDeletingPersona(null);
         fetchPersonas();
       } else {
         const errorData = await response.json();
@@ -194,6 +187,10 @@ export default function PersonaManagement() {
     } catch (err) {
       alert('Failed to delete: Network error');
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeletingPersona(null);
   };
 
   const handleViewVerifications = async (personaId: string, personaName: string) => {
@@ -434,7 +431,7 @@ export default function PersonaManagement() {
                     </button>
 
                     <button
-                      onClick={() => handleDeletePersona(persona.id, persona.persona_name)}
+                      onClick={() => setDeletingPersona({id: persona.id, name: persona.persona_name})}
                       className="w-full text-left px-3 py-2 bg-red-50 hover:bg-red-100 rounded-lg text-sm text-red-700 transition-colors"
                     >
                       Delete Persona
@@ -508,6 +505,16 @@ export default function PersonaManagement() {
           </div>
         )}
       </main>
+
+      {/* Delete Confirmation Modal */}
+      {deletingPersona && (
+        <DeleteConfirmModal
+          personaName={deletingPersona.name}
+          onConfirm={handleDeleteConfirm}
+          onCancel={handleDeleteCancel}
+          isLoading={isLoading}
+        />
+      )}
 
       {/* Edit Modal */}
       {editingPersona && (
@@ -617,6 +624,52 @@ function CreatePersonaModal({ onSubmit, onClose, isLoading }: any) {
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+// Delete Confirmation Modal Component
+function DeleteConfirmModal({ personaName, onConfirm, onCancel, isLoading }: any) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-md w-full mx-4 p-6">
+        <div className="mb-4">
+          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+            <span className="text-2xl">⚠️</span>
+          </div>
+          <h2 className="text-xl font-bold text-stone-900 mb-2">Confirm Delete</h2>
+          <p className="text-stone-600">
+            Are you sure you want to delete <strong className="text-stone-900">"{personaName}"</strong>?
+          </p>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
+          <ul className="text-sm text-amber-800 space-y-1">
+            <li>• Your comments will remain visible (shown as "Deleted User")</li>
+            <li>• Verification records will be preserved</li>
+            <li>• This action CANNOT be undone</li>
+          </ul>
+        </div>
+
+        <div className="flex items-center justify-end space-x-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isLoading}
+            className="px-4 py-2 border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isLoading}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+          >
+            {isLoading ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
       </div>
     </div>
   );
