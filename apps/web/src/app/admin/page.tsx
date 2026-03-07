@@ -245,9 +245,15 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-stone-900">WRHITW Admin</h1>
-              <p className="text-xs text-stone-500">Event Management Dashboard</p>
+              <p className="text-xs text-stone-500">Event & Verification Management</p>
             </div>
             <div className="flex items-center space-x-4">
+              <button
+                onClick={() => router.push('/admin/verifications')}
+                className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+              >
+                🔍 Review Verifications
+              </button>
               <button
                 onClick={() => router.push('/')}
                 className="text-stone-600 hover:text-stone-900 text-sm"
@@ -268,7 +274,7 @@ export default function AdminDashboard() {
       <main className="container mx-auto px-6 py-8">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
             <div className="bg-white p-6 rounded-xl border border-stone-200">
               <p className="text-sm text-stone-600 mb-1">Total Events</p>
               <p className="text-3xl font-bold text-stone-900">{stats.total_events}</p>
@@ -284,6 +290,13 @@ export default function AdminDashboard() {
             <div className="bg-white p-6 rounded-xl border border-stone-200">
               <p className="text-sm text-stone-600 mb-1">Closed</p>
               <p className="text-3xl font-bold text-stone-600">{stats.closed_events}</p>
+            </div>
+            <div 
+              className="bg-indigo-50 p-6 rounded-xl border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors"
+              onClick={() => router.push('/admin/verifications')}
+            >
+              <p className="text-sm text-indigo-600 mb-1">Pending Reviews</p>
+              <p className="text-3xl font-bold text-indigo-700">🔍</p>
             </div>
           </div>
         )}
