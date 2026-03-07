@@ -367,6 +367,82 @@ async def reject_verification(
     return {"message": "Application rejected"}
 
 
+@router.post("/admin/verifications/{verification_id}/revoke")
+async def revoke_verification(
+    verification_id: str,
+    review_notes: str = "",
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Revoke an approved verification (admin)"""
+    verification = db.query(EventStakeholderVerification).filter(
+        EventStakeholderVerification.id == verification_id
+    ).first()
+    
+    if not verification:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    if verification.status != 'approved':
+        raise HTTPException(status_code=400, detail="Can only revoke approved verifications")
+    
+    # Change status back to pending
+    verification.status = 'pending'
+    verification.reviewed_at = None
+    verification.review_notes = review_notes
+    
+    # Unset persona is_verified flag
+    if verification.persona:
+        # Check if persona has any other approved verifications
+        other_approved = db.query(EventStakeholderVerification).filter(
+            EventStakeholderVerification.user_persona_id == verification.user_persona_id,
+            EventStakeholderVerification.id != verification.id,
+            EventStakeholderVerification.status == 'approved'
+        ).count()
+        
+        if other_approved == 0:
+            verification.persona.is_verified = False
+    
+    db.commit()
+    
+    return {"message": "Verification revoked"}
+
+
+@router.post("/verifications/{verification_id}/cancel")
+async def cancel_verification(
+    verification_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Cancel a pending verification application (user)"""
+    from sqlalchemy.orm import joinedload
+    
+    verification = db.query(EventStakeholderVerification).options(
+        joinedload(EventStakeholderVerification.persona)
+    ).filter(
+        EventStakeholderVerification.id == verification_id
+    ).first()
+    
+    if not verification:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    # Check ownership
+    if not verification.persona or verification.persona.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to cancel this application")
+    
+    # Can only cancel pending applications
+    if verification.status != 'pending':
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Cannot cancel {verification.status} application. Only pending applications can be cancelled."
+        )
+    
+    # Delete the verification
+    db.delete(verification)
+    db.commit()
+    
+    return {"message": "Application cancelled successfully"}
+
+
 # ==================== Event-Level Verification ====================
 
 @router.get("/{persona_id}/verifications")

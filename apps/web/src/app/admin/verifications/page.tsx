@@ -31,7 +31,7 @@ export default function AdminVerifications() {
   const [reviewModal, setReviewModal] = useState<{
     isOpen: boolean;
     verificationId: string | null;
-    action: 'approve' | 'reject' | null;
+    action: 'approve' | 'reject' | 'revoke' | null;
     notes: string;
   }>({
     isOpen: false,
@@ -67,7 +67,7 @@ export default function AdminVerifications() {
   const fetchVerifications = async () => {
     try {
       const response = await fetch(
-        `${API_BASE_URL}/api/stakeholders/admin/applications?status_filter=${statusFilter}`,
+        `${API_BASE_URL}/api/personas/admin/verifications?status_filter=${statusFilter}`,
         {
           headers: getAuthHeaders(),
         }
@@ -117,11 +117,22 @@ export default function AdminVerifications() {
 
     setIsLoading(true);
     try {
-      const endpoint =
-        reviewModal.action === 'approve' ? 'approve' : 'reject';
+      let endpoint = '';
+      let successMessage = '';
+      
+      if (reviewModal.action === 'approve') {
+        endpoint = 'approve';
+        successMessage = 'Application approved successfully!';
+      } else if (reviewModal.action === 'reject') {
+        endpoint = 'reject';
+        successMessage = 'Application rejected successfully!';
+      } else if (reviewModal.action === 'revoke') {
+        endpoint = 'revoke';
+        successMessage = 'Approval revoked successfully!';
+      }
 
       const response = await fetch(
-        `${API_BASE_URL}/api/stakeholders/admin/applications/${reviewModal.verificationId}/${endpoint}`,
+        `${API_BASE_URL}/api/personas/admin/verifications/${reviewModal.verificationId}/${endpoint}`,
         {
           method: 'POST',
           headers: getAuthHeaders(),
@@ -130,7 +141,7 @@ export default function AdminVerifications() {
       );
 
       if (response.ok) {
-        alert(`Application ${reviewModal.action}d successfully!`);
+        alert(successMessage);
         setReviewModal({ isOpen: false, verificationId: null, action: null, notes: '' });
         fetchVerifications();
       } else {
@@ -144,7 +155,7 @@ export default function AdminVerifications() {
     }
   };
 
-  const openReviewModal = (verificationId: string, action: 'approve' | 'reject') => {
+  const openReviewModal = (verificationId: string, action: 'approve' | 'reject' | 'revoke') => {
     setReviewModal({
       isOpen: true,
       verificationId,
@@ -324,6 +335,15 @@ export default function AdminVerifications() {
                     </div>
                   )}
 
+                  {v.status === 'approved' && (
+                    <button
+                      onClick={() => openReviewModal(v.id, 'revoke')}
+                      className="px-3 py-1.5 bg-amber-600 text-white text-xs rounded-lg hover:bg-amber-700 transition-colors mt-2"
+                    >
+                      ↩️ Revoke Approval
+                    </button>
+                  )}
+
                   {v.review_notes && (
                     <div className="mt-2 text-xs text-stone-500 text-right">
                       <p className="font-medium">Admin Notes:</p>
@@ -358,7 +378,8 @@ export default function AdminVerifications() {
           <div className="bg-white rounded-xl max-w-md w-full mx-4">
             <div className="p-6 border-b border-stone-200">
               <h2 className="text-xl font-bold text-stone-900">
-                {reviewModal.action === 'approve' ? 'Approve' : 'Reject'} Application
+                {reviewModal.action === 'approve' ? 'Approve' : 
+                 reviewModal.action === 'reject' ? 'Reject' : 'Revoke'} Application
               </h2>
             </div>
 
@@ -407,14 +428,18 @@ export default function AdminVerifications() {
                   className={`px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 ${
                     reviewModal.action === 'approve'
                       ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                      : 'bg-red-600 text-white hover:bg-red-700'
+                      : reviewModal.action === 'reject'
+                      ? 'bg-red-600 text-white hover:bg-red-700'
+                      : 'bg-amber-600 text-white hover:bg-amber-700'
                   }`}
                 >
                   {isLoading
                     ? 'Processing...'
                     : reviewModal.action === 'approve'
                     ? 'Approve Application'
-                    : 'Reject Application'}
+                    : reviewModal.action === 'reject'
+                    ? 'Reject Application'
+                    : 'Revoke Approval'}
                 </button>
               </div>
             </div>

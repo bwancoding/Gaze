@@ -215,6 +215,38 @@ export default function PersonaManagement() {
     }
   };
 
+  const handleCancelApplication = async (verificationId: string, personaName: string) => {
+    if (!confirm(`Cancel the verification application for ${personaName}?`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/personas/verifications/${verificationId}/cancel`,
+        {
+          method: 'POST',
+          headers: getAuthHeaders(),
+        }
+      );
+
+      if (response.ok) {
+        alert('Application cancelled successfully');
+        // Refresh verifications
+        if (selectedPersona) {
+          handleViewVerifications(selectedPersona.id, selectedPersona.persona_name);
+        }
+      } else {
+        const result = await response.json();
+        alert(result.detail || 'Failed to cancel application');
+      }
+    } catch (err) {
+      alert('Network error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
@@ -473,27 +505,38 @@ export default function PersonaManagement() {
                     className="border border-stone-200 rounded-lg p-4"
                   >
                     <div className="flex items-start justify-between mb-2">
-                      <div>
+                      <div className="flex-1">
                         <h4 className="font-semibold text-stone-900">{v.event_title}</h4>
                         <p className="text-sm text-stone-600">
                           Applying as: {v.stakeholder_name}
                         </p>
+                        <p className="text-xs text-stone-500 mt-1">
+                          Applied on {new Date(v.created_at).toLocaleDateString()}
+                        </p>
                       </div>
-                      <span
-                        className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          v.status === 'approved'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : v.status === 'rejected'
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}
-                      >
-                        {v.status.charAt(0).toUpperCase() + v.status.slice(1)}
-                      </span>
+                      <div className="flex flex-col items-end space-y-2">
+                        <span
+                          className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                            v.status === 'approved'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : v.status === 'rejected'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {v.status.charAt(0).toUpperCase() + v.status.slice(1)}
+                        </span>
+                        {v.status === 'pending' && (
+                          <button
+                            onClick={() => handleCancelApplication(v.id, v.persona_name)}
+                            className="text-xs text-red-600 hover:text-red-800 hover:underline"
+                            disabled={isLoading}
+                          >
+                            Cancel Application
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-xs text-stone-500">
-                      Applied on {new Date(v.created_at).toLocaleDateString()}
-                    </p>
                   </div>
                 ))}
               </div>
@@ -631,9 +674,21 @@ function CreatePersonaModal({ onSubmit, onClose, isLoading }: any) {
 
 // Delete Confirmation Modal Component
 function DeleteConfirmModal({ personaName, onConfirm, onCancel, isLoading }: any) {
+  const handleConfirmClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onConfirm();
+  };
+
+  const handleCancelClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onCancel();
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl max-w-md w-full mx-4 p-6">
+      <div className="bg-white rounded-xl max-w-md w-full mx-4 p-6" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4">
           <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
             <span className="text-2xl">⚠️</span>
@@ -655,7 +710,7 @@ function DeleteConfirmModal({ personaName, onConfirm, onCancel, isLoading }: any
         <div className="flex items-center justify-end space-x-3">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleCancelClick}
             disabled={isLoading}
             className="px-4 py-2 border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-50 disabled:opacity-50"
           >
@@ -663,7 +718,7 @@ function DeleteConfirmModal({ personaName, onConfirm, onCancel, isLoading }: any
           </button>
           <button
             type="button"
-            onClick={onConfirm}
+            onClick={handleConfirmClick}
             disabled={isLoading}
             className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
           >

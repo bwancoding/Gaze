@@ -129,8 +129,8 @@ export default function VerifyForEvent() {
       // Fetch in parallel but handle errors individually
       const [personasRes, stakeholdersRes, eventsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/personas`, { headers }).catch(() => null),
-        fetch(`${API_BASE_URL}/api/stakeholders/list`).catch(() => null),
-        fetch(`${API_BASE_URL}/api/events?status=active&page_size=50`).catch(() => null),
+        fetch(`${API_BASE_URL}/api/stakeholders/list`, { headers }).catch(() => null),
+        fetch(`${API_BASE_URL}/api/events?status=active&page_size=50`, { headers }).catch(() => null),
       ]);
 
       console.log('[Verify Page] Responses:', {
@@ -325,13 +325,16 @@ export default function VerifyForEvent() {
                 onChange={(e) => setSelectedPersona(e.target.value)}
                 className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-500"
                 required
+                disabled={personas.length === 0}
               >
                 <option value="">Choose an identity...</option>
-                {personas.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.persona_name}
-                  </option>
-                ))}
+                {personas && personas.length > 0 ? (
+                  personas.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.persona_name}
+                    </option>
+                  ))
+                ) : null}
               </select>
               {personas.length === 0 && (
                 <p className="mt-2 text-sm text-amber-600">
@@ -357,13 +360,16 @@ export default function VerifyForEvent() {
                 onChange={(e) => setSelectedEvent(e.target.value)}
                 className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-500"
                 required
+                disabled={events.length === 0}
               >
                 <option value="">Choose an event...</option>
-                {events.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.title} ({e.category})
-                  </option>
-                ))}
+                {events && events.length > 0 ? (
+                  events.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.title} ({e.category})
+                    </option>
+                  ))
+                ) : null}
               </select>
               {events.length === 0 && (
                 <p className="mt-2 text-sm text-amber-600">
@@ -382,13 +388,16 @@ export default function VerifyForEvent() {
                 onChange={(e) => setSelectedStakeholder(e.target.value)}
                 className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-500"
                 required
+                disabled={stakeholders.length === 0}
               >
                 <option value="">Choose a stakeholder type...</option>
-                {stakeholders.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} - {s.description}
-                  </option>
-                ))}
+                {stakeholders && stakeholders.length > 0 ? (
+                  stakeholders.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} - {s.description}
+                    </option>
+                  ))
+                ) : null}
               </select>
               {stakeholders.length === 0 && (
                 <p className="mt-2 text-sm text-amber-600">
