@@ -404,11 +404,7 @@ async def get_persona_verifications(
 @router.post("/{persona_id}/verify")
 async def apply_for_verification(
     persona_id: str,
-    event_id: str,
-    stakeholder_id: str,
-    application_text: str = "",
-    proof_type: str = "self_declaration",
-    proof_data: str = "",
+    request: VerificationApply,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -416,10 +412,16 @@ async def apply_for_verification(
     Apply for stakeholder verification in a specific event
     
     - **persona_id**: ID of persona to use
-    - **event_id**: Event to apply for
-    - **stakeholder_id**: Stakeholder type to apply as
-    - **application_text**: Why you qualify
+    - **request.event_id**: Event to apply for
+    - **request.stakeholder_id**: Stakeholder type to apply as
+    - **request.application_text**: Why you qualify
     """
+    # Extract from request body
+    event_id = request.event_id
+    stakeholder_id = request.stakeholder_id
+    application_text = request.application_text
+    proof_type = request.proof_type or 'self_declaration'
+    proof_data = request.proof_data or ''
     # Check persona ownership
     persona = db.query(UserPersona).filter(
         UserPersona.id == persona_id,

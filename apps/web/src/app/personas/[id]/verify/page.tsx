@@ -184,7 +184,11 @@ export default function VerifyForEvent() {
         router.push('/personas');
       } else {
         const result = await response.json();
-        setError(result.detail || 'Failed to submit application');
+        // Handle both string and object error messages
+        const errorMessage = typeof result.detail === 'string' 
+          ? result.detail 
+          : JSON.stringify(result.detail);
+        setError(errorMessage || 'Failed to submit application');
       }
     } catch (err) {
       setError('Network error');
