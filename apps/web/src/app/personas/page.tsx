@@ -35,6 +35,7 @@ export default function PersonaManagement() {
   const [showVerifications, setShowVerifications] = useState<string | null>(null);
   const [verifications, setVerifications] = useState<Verification[]>([]);
   const [showAutoCreateTip, setShowAutoCreateTip] = useState(false);
+  const [editingPersona, setEditingPersona] = useState<{id: string, name: string, color: string} | null>(null);
 
   // Check authentication
   useEffect(() => {
@@ -127,6 +128,35 @@ export default function PersonaManagement() {
       } else {
         const result = await response.json();
         alert(result.detail || 'Failed to create');
+      }
+    } catch (err) {
+      alert('Network error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEditPersona = async (name: string, color: string) => {
+    if (!editingPersona) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/personas/${editingPersona.id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          persona_name: name,
+          avatar_color: color,
+        }),
+      });
+
+      if (response.ok) {
+        alert('✅ Persona updated!');
+        setEditingPersona(null);
+        fetchPersonas();
+      } else {
+        const result = await response.json();
+        alert(result.detail || 'Failed to update');
       }
     } catch (err) {
       alert('Network error');
@@ -383,6 +413,13 @@ export default function PersonaManagement() {
                 ) : (
                   <>
                     <button
+                      onClick={() => setEditingPersona({id: persona.id, name: persona.persona_name, color: persona.avatar_color})}
+                      className="w-full text-left px-3 py-2 bg-stone-50 hover:bg-stone-100 rounded-lg text-sm text-stone-700 transition-colors"
+                    >
+                      ✏️ Edit Persona
+                    </button>
+
+                    <button
                       onClick={() => handleViewVerifications(persona.id, persona.persona_name)}
                       className="w-full text-left px-3 py-2 bg-stone-50 hover:bg-stone-100 rounded-lg text-sm text-stone-700 transition-colors"
                     >
@@ -471,6 +508,16 @@ export default function PersonaManagement() {
           </div>
         )}
       </main>
+
+      {/* Edit Modal */}
+      {editingPersona && (
+        <EditPersonaModal
+          persona={editingPersona}
+          onSubmit={handleEditPersona}
+          onClose={() => setEditingPersona(null)}
+          isLoading={isLoading}
+        />
+      )}
 
       {/* Create Modal */}
       {showCreateModal && (
@@ -567,6 +614,82 @@ function CreatePersonaModal({ onSubmit, onClose, isLoading }: any) {
               className="px-4 py-2 bg-stone-900 text-white rounded-lg hover:bg-stone-800 disabled:opacity-50"
             >
               {isLoading ? 'Creating...' : 'Create Persona'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Edit Modal Component
+function EditPersonaModal({ persona, onSubmit, onClose, isLoading }: any) {
+  const [personaName, setPersonaName] = useState(persona.name);
+  const [avatarColor, setAvatarColor] = useState(persona.color);
+
+  const colors = ['blue', 'green', 'purple', 'orange', 'red', 'teal', 'indigo', 'pink'];
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(personaName, avatarColor);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl max-w-md w-full mx-4">
+        <div className="p-6 border-b border-stone-200">
+          <h2 className="text-xl font-bold text-stone-900">Edit Persona</h2>
+          <p className="text-sm text-stone-500 mt-1">Customize your identity</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">
+              Persona Name *
+            </label>
+            <input
+              type="text"
+              value={personaName}
+              onChange={(e) => setPersonaName(e.target.value)}
+              className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-500"
+              placeholder="e.g., Iranian Civilian, Tech Worker"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-2">
+              Avatar Color
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {colors.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setAvatarColor(color)}
+                  className={`w-10 h-10 rounded-full border-2 transition-transform ${
+                    avatarColor === color ? 'border-stone-900 scale-110' : 'border-transparent'
+                  }`}
+                  style={{ backgroundColor: getAvatarColor(color) }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-stone-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-stone-300 rounded-lg text-stone-700 hover:bg-stone-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="px-4 py-2 bg-stone-900 text-white rounded-lg hover:bg-stone-800 disabled:opacity-50"
+            >
+              {isLoading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

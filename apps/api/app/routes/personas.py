@@ -81,6 +81,8 @@ async def get_my_personas(
     - **include_deleted**: Optionally include deleted personas (default: false)
     - **auto_create**: Auto-create a persona if user has none (default: true)
     """
+    from datetime import datetime, timezone
+    
     query = db.query(UserPersona).filter(
         UserPersona.user_id == current_user.id
     )
@@ -94,7 +96,6 @@ async def get_my_personas(
     # Auto-create a persona if user has none
     if auto_create and len(personas) == 0:
         import random
-        from datetime import datetime
         
         # Generate recommended name
         recommended_names = [
@@ -135,7 +136,7 @@ async def get_my_personas(
             for p in personas
         ],
         "auto_created": auto_create and len(personas) == 1 and personas[0].created_at and \
-                        (datetime.utcnow() - personas[0].created_at).total_seconds() < 5
+                        (datetime.now(timezone.utc) - (personas[0].created_at.replace(tzinfo=timezone.utc) if personas[0].created_at.tzinfo is None else personas[0].created_at)).total_seconds() < 5
     }
 
 
