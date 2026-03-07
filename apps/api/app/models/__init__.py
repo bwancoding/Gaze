@@ -1,6 +1,6 @@
 """
 WRHITW Database Models
-数据库模型定义
+Database models for multi-perspective news aggregation
 """
 
 from sqlalchemy import Column, String, Text as _Text, Integer, Boolean, DateTime, DECIMAL, ForeignKey, UniqueConstraint
@@ -62,6 +62,19 @@ else:
     TIMESTAMP = PG_TIMESTAMP
 
 
+# Category translation mapping (Chinese to English)
+CATEGORY_TRANSLATIONS = {
+    '环境': 'Environment',
+    '财经': 'Economy',
+    '科技': 'Technology',
+    '政治': 'Politics',
+}
+
+def translate_category(category: str) -> str:
+    """Translate Chinese category to English"""
+    return CATEGORY_TRANSLATIONS.get(category, category)
+
+
 class Source(Base):
     """信息源表"""
     __tablename__ = "sources"
@@ -85,7 +98,7 @@ class Source(Base):
 
 
 class Event(Base):
-    """事件表"""
+    """Event Table"""
     __tablename__ = "events"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -97,10 +110,12 @@ class Event(Base):
     occurred_at = Column(TIMESTAMP(timezone=True))
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
+    archived_at = Column(TIMESTAMP(timezone=True))
+    closed_at = Column(TIMESTAMP(timezone=True))
     hot_score = Column(DECIMAL(5, 2), default=0)
     view_count = Column(Integer, default=0)
     bookmark_count = Column(Integer, default=0)
-    status = Column(String(20), default='active')
+    status = Column(String(20), default='active')  # active, archived, closed
     source_count = Column(Integer, default=0)
 
 

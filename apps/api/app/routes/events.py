@@ -1,11 +1,11 @@
 """
 WRHITW Event API Routes
-事件相关 API 接口
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from datetime import datetime
 from app.core.database import get_db
 from app.models import Event, EventSource, Source, AiSummary
 from app.schemas import EventResponse, EventListResponse, EventCreate, EventUpdate
@@ -18,28 +18,33 @@ async def list_events(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     category: Optional[str] = None,
+    status: Optional[str] = Query("active", regex="^(active|archived|closed|all)$"),
     sort_by: str = Query("hot_score", regex="^(hot_score|created_at|view_count)$"),
     db: Session = Depends(get_db),
 ):
     """
-    获取事件列表
+    Get event list
     
-    - **page**: 页码
-    - **page_size**: 每页数量
-    - **category**: 分类筛选
-    - **sort_by**: 排序字段 (hot_score, created_at, view_count)
+    - **page**: Page number
+    - **page_size**: Items per page
+    - **category**: Filter by category
+    - **status**: Filter by status (active, archived, closed, all)
+    - **sort_by**: Sort field (hot_score, created_at, view_count)
     """
-    # 基础查询
-    query = db.query(Event).filter(Event.status == 'active')
+    # Base query
+    if status == "all":
+        query = db.query(Event)
+    else:
+        query = db.query(Event).filter(Event.status == status)
     
-    # 分类筛选
+    # Category filter
     if category:
         query = query.filter(Event.category == category)
     
-    # 总数
+    # Total count
     total = query.count()
     
-    # 排序
+    # Sorting
     if sort_by == "hot_score":
         query = query.order_by(Event.hot_score.desc())
     elif sort_by == "created_at":
@@ -47,7 +52,7 @@ async def list_events(
     elif sort_by == "view_count":
         query = query.order_by(Event.view_count.desc())
     
-    # 分页
+    # Pagination
     offset = (page - 1) * page_size
     events = query.offset(offset).limit(page_size).all()
     
@@ -65,16 +70,16 @@ async def get_event(
     db: Session = Depends(get_db),
 ):
     """
-    获取事件详情
+    Get event details
     
-    - **event_id**: 事件 ID
+    - **event_id**: Event ID
     """
     event = db.query(Event).filter(Event.id == event_id).first()
     
     if not event:
-        raise HTTPException(status_code=404, detail="事件不存在")
+        raise HTTPException(status_code=404, detail="Event not found")
     
-    # 增加浏览次数
+    # Increment view count
     event.view_count += 1
     db.commit()
     
@@ -87,17 +92,17 @@ async def create_event(
     db: Session = Depends(get_db),
 ):
     """
-    创建新事件
+    Create new event
     
-    - **title**: 事件标题
-    - **summary**: 事件摘要
-    - **category**: 分类
-    - **tags**: 标签
+    - **title**: Event title
+    - **summary**: Event summary
+    - **category**: Category
+    - **tags**: Tags
     """
     import json
     data = event_data.model_dump()
     
-    # SQLite 需要将 tags 序列化为 JSON 字符串
+    # Serialize tags to JSON for SQLite
     if 'tags' in data and isinstance(data['tags'], list):
         data['tags'] = json.dumps(data['tags'])
     
@@ -116,16 +121,16 @@ async def update_event(
     db: Session = Depends(get_db),
 ):
     """
-    更新事件
+    Update event
     
-    - **event_id**: 事件 ID
+    - **event_id**: Event ID
     """
     event = db.query(Event).filter(Event.id == event_id).first()
     
     if not event:
-        raise HTTPException(status_code=404, detail="事件不存在")
+        raise HTTPException(status_code=404, detail="Event not found")
     
-    # 更新字段
+    # Update fields
     update_data = event_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(event, field, value)
@@ -142,20 +147,65 @@ async def delete_event(
     db: Session = Depends(get_db),
 ):
     """
-    删除事件（软删除）
+    Delete event (soft delete - archive)
     
-    - **event_id**: 事件 ID
+    - **event_id**: Event ID
     """
     event = db.query(Event).filter(Event.id == event_id).first()
     
     if not event:
-        raise HTTPException(status_code=404, detail="事件不存在")
+        raise HTTPException(status_code=404, detail="Event not found")
     
-    # 软删除
+    # Soft delete - set to archived
     event.status = 'archived'
+    event.archived_at = datetime.utcnow()
     db.commit()
     
-    return {"message": "事件已删除"}
+    return {"message": "Event archived"}
+
+
+@router.post("/{event_id}/archive")
+async def archive_event(
+    event_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Archive event
+    
+    - **event_id**: Event ID
+    """
+    event = db.query(Event).filter(Event.id == event_id).first()
+    
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    event.status = 'archived'
+    event.archived_at = datetime.utcnow()
+    db.commit()
+    
+    return {"message": "Event archived"}
+
+
+@router.post("/{event_id}/close")
+async def close_event(
+    event_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Close event (no new comments allowed)
+    
+    - **event_id**: Event ID
+    """
+    event = db.query(Event).filter(Event.id == event_id).first()
+    
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    event.status = 'closed'
+    event.closed_at = datetime.utcnow()
+    db.commit()
+    
+    return {"message": "Event closed"}
 
 
 @router.get("/{event_id}/sources")
@@ -164,14 +214,14 @@ async def get_event_sources(
     db: Session = Depends(get_db),
 ):
     """
-    获取事件的所有来源
+    Get all sources for an event
     
-    - **event_id**: 事件 ID
+    - **event_id**: Event ID
     """
     event = db.query(Event).filter(Event.id == event_id).first()
     
     if not event:
-        raise HTTPException(status_code=404, detail="事件不存在")
+        raise HTTPException(status_code=404, detail="Event not found")
     
     sources = db.query(EventSource, Source).join(
         Source, EventSource.source_id == Source.id
@@ -200,19 +250,19 @@ async def get_event_summary(
     db: Session = Depends(get_db),
 ):
     """
-    获取事件的 AI 多视角摘要
+    Get AI multi-perspective summary for an event
     
-    - **event_id**: 事件 ID
+    - **event_id**: Event ID
     """
     event = db.query(Event).filter(Event.id == event_id).first()
     
     if not event:
-        raise HTTPException(status_code=404, detail="事件不存在")
+        raise HTTPException(status_code=404, detail="Event not found")
     
     summary = db.query(AiSummary).filter(AiSummary.event_id == event_id).first()
     
     if not summary:
-        raise HTTPException(status_code=404, detail="摘要尚未生成")
+        raise HTTPException(status_code=404, detail="Summary not generated yet")
     
     return {
         "event_id": str(summary.event_id),

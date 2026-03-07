@@ -24,16 +24,16 @@ export default function Header({ title = 'WRHITW', subtitle = "What's Really Hap
           {/* Navigation */}
           <nav className="flex items-center space-x-4">
             <a href="/" className="text-neutral-600 hover:text-primary-600 transition-colors">
-              首页
+              Home
             </a>
             <a href="/categories" className="text-neutral-600 hover:text-primary-600 transition-colors">
-              分类
+              Categories
             </a>
             <a href="/about" className="text-neutral-600 hover:text-primary-600 transition-colors">
-              关于
+              About
             </a>
             <button className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 transition-colors">
-              登录
+              Sign In
             </button>
           </nav>
         </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
 import EventCard from '../components/EventCard';
 
@@ -60,27 +61,27 @@ const Icons = {
   ),
 };
 
-// 分类颜色映射
+// Category styles
 const categoryStyles = {
-  '环境': {
+  'Environment': {
     gradient: 'from-emerald-500 to-teal-600',
     bg: 'bg-emerald-50',
     text: 'text-emerald-700',
     border: 'border-emerald-200',
   },
-  '财经': {
+  'Economy': {
     gradient: 'from-blue-500 to-indigo-600',
     bg: 'bg-blue-50',
     text: 'text-blue-700',
     border: 'border-blue-200',
   },
-  '科技': {
+  'Technology': {
     gradient: 'from-violet-500 to-purple-600',
     bg: 'bg-violet-50',
     text: 'text-violet-700',
     border: 'border-violet-200',
   },
-  '政治': {
+  'Politics': {
     gradient: 'from-amber-500 to-orange-600',
     bg: 'bg-amber-50',
     text: 'text-amber-700',
@@ -88,23 +89,48 @@ const categoryStyles = {
   },
 };
 
-// 默认故事数据（API 失败时使用）
+// Default stories (fallback when API fails)
 const defaultStories: Event[] = [
   {
-    id: '1',
-    title: '全球气候峰会达成新协议，各国承诺减少碳排放',
-    summary: '为期两周的气候峰会在迪拜落幕，近 200 个国家同意逐步减少化石燃料使用。',
-    category: '环境',
+    id: 'e62c83ae-94e9-41b8-8322-0a675f057a5a',
+    title: 'Global Climate Summit Reaches New Agreement, Nations Commit to Carbon Reduction',
+    summary: 'Two-week climate summit concludes in Dubai with nearly 200 countries agreeing to phase out fossil fuels.',
+    category: 'Environment',
     sourceCount: 8,
     viewCount: 12453,
     hotScore: 95.8,
     occurredAt: new Date().toISOString(),
-    storyAngle: '改变的开始',
-    storyTeaser: '当小岛屿国家的代表在谈判桌上落泪，世界终于听见了他们的呼救。',
+    storyAngle: 'The Beginning of Change',
+    storyTeaser: 'When representatives from small island nations shed tears at the negotiating table, the world finally heard their cry.',
+  },
+  {
+    id: '5724c881-6dd5-44ae-a37e-6bbb854bdcb0',
+    title: 'Fed Announces Interest Rate Hold, Inflation Pressures Remain',
+    summary: 'Federal Reserve Committee decides to maintain benchmark rate at 5.25%-5.50% range.',
+    category: 'Economy',
+    sourceCount: 5,
+    viewCount: 8234,
+    hotScore: 88.5,
+    occurredAt: new Date().toISOString(),
+    storyAngle: 'The Invisible Battlefield',
+    storyTeaser: 'Behind every number lies the livelihood of millions.',
+  },
+  {
+    id: '0eeafff2-5e27-45a2-9b18-034105eff7f9',
+    title: 'AI Regulation Bill Passes European Parliament',
+    summary: 'European Parliament passes AI Act with overwhelming majority, implementing strict oversight on high-risk AI systems.',
+    category: 'Technology',
+    sourceCount: 6,
+    viewCount: 9876,
+    hotScore: 92.3,
+    occurredAt: new Date().toISOString(),
+    storyAngle: 'Key to the Future',
+    storyTeaser: 'In the corners of laboratories, the future is being written.',
   },
 ];
 
 export default function Home() {
+  const router = useRouter();
   const [events, setEvents] = useState<Event[]>([]);
   const [sortBy, setSortBy] = useState('hot_score');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -146,7 +172,7 @@ export default function Home() {
       setEvents(enrichedEvents);
     } catch (err) {
       console.error('Failed to fetch events:', err);
-      setError('无法连接到服务器，使用默认数据');
+      setError('Unable to connect to server, using default data');
       setEvents(defaultStories);
     } finally {
       setIsLoading(false);
@@ -157,26 +183,26 @@ export default function Home() {
     fetchEvents();
   }, [sortBy, selectedCategory]);
 
-  // 辅助函数：根据分类生成故事角度
+  // Helper: Get story angle by category
   const getCategoryStoryAngle = (category?: string): string => {
     const angles: Record<string, string> = {
-      '环境': '改变的开始',
-      '财经': '看不见的战场',
-      '科技': '未来的钥匙',
-      '政治': '权力的更迭',
+      'Environment': 'The Beginning of Change',
+      'Economy': 'The Invisible Battlefield',
+      'Technology': 'Key to the Future',
+      'Politics': 'The Shift of Power',
     };
-    return angles[category || ''] || '正在发生';
+    return angles[category || ''] || 'Unfolding Now';
   };
 
-  // 辅助函数：根据分类生成故事引子
+  // Helper: Get story teaser by category
   const getCategoryStoryTeaser = (category?: string, title?: string): string => {
     const teasers: Record<string, string> = {
-      '环境': '当大自然发出警告，人类终于开始倾听。',
-      '财经': '每一个数字背后，都是千万人的生计。',
-      '科技': '在实验室的角落，未来正在被书写。',
-      '政治': '权力的游戏，普通人的命运。',
+      'Environment': 'When nature sounds the alarm, humanity finally listens.',
+      'Economy': 'Behind every number lies the livelihood of millions.',
+      'Technology': 'In the corners of laboratories, the future is being written.',
+      'Politics': 'The game of power, the fate of ordinary people.',
     };
-    return teasers[category || ''] || '故事，从这里开始。';
+    return teasers[category || ''] || 'Where the story begins.';
   };
 
   const featuredStory = events[0];
@@ -208,29 +234,29 @@ export default function Home() {
               </div>
               
               <h2 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
-                每个新闻，<br/>
+                Every News Story,<br/>
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-orange-200 to-amber-200">
-                  都是一个故事的开始
+                  Is the Beginning of a Story
                 </span>
               </h2>
               
               <p className="text-xl md:text-2xl text-slate-300 mb-12 leading-relaxed max-w-2xl">
-                在这个信息爆炸的时代，我们帮你慢下来，<br/>
-                看见事件的多个面向，听见不同的声音。
+                In this age of information overload, we help you slow down,<br/>
+                See multiple perspectives, hear different voices.
               </p>
               
               <div className="flex flex-wrap gap-6">
                 <div className="flex items-center space-x-3 bg-white/10 px-5 py-3 rounded-full backdrop-blur-sm border border-white/20">
                   <div className="w-2.5 h-2.5 bg-gradient-to-r from-red-400 to-rose-500 rounded-full"></div>
-                  <span className="text-sm font-medium">左倾 · 进步视角</span>
+                  <span className="text-sm font-medium">Left · Progressive View</span>
                 </div>
                 <div className="flex items-center space-x-3 bg-white/10 px-5 py-3 rounded-full backdrop-blur-sm border border-white/20">
                   <div className="w-2.5 h-2.5 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full"></div>
-                  <span className="text-sm font-medium">中立 · 客观视角</span>
+                  <span className="text-sm font-medium">Center · Objective View</span>
                 </div>
                 <div className="flex items-center space-x-3 bg-white/10 px-5 py-3 rounded-full backdrop-blur-sm border border-white/20">
                   <div className="w-2.5 h-2.5 bg-gradient-to-r from-blue-400 to-cyan-500 rounded-full"></div>
-                  <span className="text-sm font-medium">右倾 · 保守视角</span>
+                  <span className="text-sm font-medium">Right · Conservative View</span>
                 </div>
               </div>
             </div>
@@ -239,13 +265,13 @@ export default function Home() {
           <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-stone-50 to-transparent"></div>
         </section>
 
-        {/* 分类导航 */}
+        {/* Category Navigation */}
         <section className="sticky top-0 z-20 bg-stone-50/95 backdrop-blur-sm border-b border-stone-200">
           <div className="container mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-sm text-stone-500">
                 <Icons.Compass />
-                <span>探索故事</span>
+                <span>Explore Stories</span>
               </div>
               
               <div className="flex flex-wrap gap-2">
@@ -257,9 +283,9 @@ export default function Home() {
                       : 'bg-white text-stone-600 hover:bg-stone-100 border border-stone-200'
                   }`}
                 >
-                  全部故事
+                  All Stories
                 </button>
-                {['环境', '财经', '科技', '政治'].map(cat => (
+                {['Environment', 'Economy', 'Technology', 'Politics'].map(cat => (
                   <button
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
@@ -278,47 +304,48 @@ export default function Home() {
                 <button
                   onClick={fetchEvents}
                   className="p-2 text-stone-500 hover:text-stone-700 hover:bg-stone-100 rounded-lg transition-all"
-                  title="刷新数据"
+                  title="Refresh Data"
                 >
                   <Icons.Refresh />
                 </button>
-                <span className="text-sm text-stone-500">排序</span>
+                <span className="text-sm text-stone-500">Sort by</span>
                 <select
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
                   className="border border-stone-300 rounded-lg px-3 py-2 bg-white text-stone-700 text-sm focus:ring-2 focus:ring-stone-500 focus:border-transparent"
                 >
-                  <option value="hot_score">🔥 热度</option>
-                  <option value="view_count">👁 浏览</option>
-                  <option value="created_at">🕐 时间</option>
+                  <option value="hot_score">🔥 Hot</option>
+                  <option value="view_count">👁 Views</option>
+                  <option value="created_at">🕐 Time</option>
                 </select>
               </div>
             </div>
           </div>
         </section>
 
-        {/* 错误提示 */}
+        {/* Error Message */}
         {error && (
           <div className="container mx-auto px-6 py-4">
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-amber-800">
               <p>⚠️ {error}</p>
-              <p className="text-sm mt-1">提示：确保后端服务运行在 {API_BASE_URL}</p>
+              <p className="text-sm mt-1">Tip: Make sure the backend is running at {API_BASE_URL}</p>
             </div>
           </div>
         )}
 
-        {/* 主打故事 */}
-        {isLoading ? (
-          <section className="container mx-auto px-6 py-12">
-            <div className="animate-pulse bg-stone-200 rounded-3xl h-96"></div>
-          </section>
-        ) : featuredStory ? (
+      {/* Loading State */}
+      {isLoading ? (
+        <section className="container mx-auto px-6 py-12">
+          <div className="animate-pulse bg-stone-200 rounded-3xl h-96"></div>
+        </section>
+      ) : featuredStory ? (
           <section className="container mx-auto px-6 py-12">
             <div className="mb-8">
-              <span className="text-sm font-medium text-stone-500 uppercase tracking-wider">封面故事</span>
+              <span className="text-sm font-medium text-stone-500 uppercase tracking-wider">Featured Story</span>
             </div>
             
             <article 
+              onClick={() => router.push(`/events/${featuredStory.id}`)}
               className={`group relative overflow-hidden rounded-3xl bg-gradient-to-br ${categoryStyles[featuredStory.category as keyof typeof categoryStyles].gradient} p-8 md:p-12 text-white shadow-2xl transition-all duration-500 hover:shadow-3xl cursor-pointer`}
               onMouseEnter={() => setHoveredStory(featuredStory.id)}
               onMouseLeave={() => setHoveredStory(null)}
@@ -356,25 +383,25 @@ export default function Home() {
                   </p>
                   
                   <div className="flex items-center space-x-4 mb-8">
-                    <span className="text-sm text-white/70">多视角分析</span>
+                    <span className="text-sm text-white/70">Multi-perspective Analysis</span>
                     <div className="flex space-x-2">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-red-400 to-rose-500 flex items-center justify-center text-xs font-bold">左</div>
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 flex items-center justify-center text-xs font-bold">中</div>
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-cyan-500 flex items-center justify-center text-xs font-bold">右</div>
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-red-400 to-rose-500 flex items-center justify-center text-xs font-bold">L</div>
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-400 to-teal-500 flex items-center justify-center text-xs font-bold">C</div>
+                      <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-400 to-cyan-500 flex items-center justify-center text-xs font-bold">R</div>
                     </div>
                   </div>
                   
                   <div className="flex items-center space-x-4">
-                    <button className="group/btn flex items-center space-x-2 bg-white text-stone-900 px-6 py-3 rounded-full font-semibold hover:bg-stone-100 transition-all duration-300 shadow-lg hover:shadow-xl">
-                      <span>阅读完整故事</span>
+                    <div className="group/btn inline-flex items-center space-x-2 bg-white text-stone-900 px-6 py-3 rounded-full font-semibold hover:bg-stone-100 transition-all duration-300 shadow-lg hover:shadow-xl">
+                      <span>Read Full Story</span>
                       <span className="group-hover/btn:translate-x-1 transition-transform duration-300">
                         <Icons.ArrowRight />
                       </span>
-                    </button>
+                    </div>
                     <div className="flex items-center space-x-4 text-sm text-white/70">
-                      <span>{featuredStory.sourceCount} 个来源</span>
+                      <span>{featuredStory.sourceCount} Sources</span>
                       <span>·</span>
-                      <span>{featuredStory.viewCount?.toLocaleString() || 0} 次阅读</span>
+                      <span>{featuredStory.viewCount?.toLocaleString() || 0} Reads</span>
                     </div>
                   </div>
                 </div>
@@ -385,10 +412,10 @@ export default function Home() {
                     <div className="w-56 h-56 rounded-full border-2 border-white/30 absolute animate-spin-slow" style={{ animationDuration: '15s', animationDirection: 'reverse' }}></div>
                     <div className="w-48 h-48 rounded-full bg-white/10 backdrop-blur-sm flex items-center justify-center">
                       <div className="text-6xl">
-                        {featuredStory.category === '环境' && '🌍'}
-                        {featuredStory.category === '财经' && '💰'}
-                        {featuredStory.category === '科技' && '🚀'}
-                        {featuredStory.category === '政治' && '🏛️'}
+                        {featuredStory.category === 'Environment' && '🌍'}
+                        {featuredStory.category === 'Economy' && '💰'}
+                        {featuredStory.category === 'Technology' && '🚀'}
+                        {featuredStory.category === 'Politics' && '🏛️'}
                       </div>
                     </div>
                   </div>
@@ -399,23 +426,24 @@ export default function Home() {
         ) : (
           <section className="container mx-auto px-6 py-12">
             <div className="text-center py-20">
-              <p className="text-stone-500 text-lg">暂无故事</p>
-              <p className="text-stone-400 text-sm mt-2">后端 API 可能没有数据</p>
+              <p className="text-stone-500 text-lg">No Stories Yet</p>
+              <p className="text-stone-400 text-sm mt-2">Backend API may not have data</p>
             </div>
           </section>
         )}
 
-        {/* 其他故事 */}
+        {/* More Stories */}
         {!isLoading && regularStories.length > 0 && (
           <section className="container mx-auto px-6 py-12">
             <div className="mb-8">
-              <span className="text-sm font-medium text-stone-500 uppercase tracking-wider">更多故事</span>
+              <span className="text-sm font-medium text-stone-500 uppercase tracking-wider">More Stories</span>
             </div>
             
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
               {regularStories.map((event, index) => (
                 <article
                   key={event.id}
+                  onClick={() => router.push(`/events/${event.id}`)}
                   className="group bg-white rounded-2xl border border-stone-200 overflow-hidden hover:shadow-xl hover:border-stone-300 transition-all duration-300 cursor-pointer"
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
@@ -450,7 +478,7 @@ export default function Home() {
                           {event.sourceCount}
                         </span>
                         <span>·</span>
-                        <span>{event.hotScore?.toFixed(1) || 0}° 热度</span>
+                        <span>{event.hotScore?.toFixed(1) || 0}° Hot</span>
                       </div>
                       
                       <div className="flex space-x-1">
@@ -466,7 +494,7 @@ export default function Home() {
           </section>
         )}
 
-        {/* 理念阐述 */}
+        {/* Why Multi-perspective */}
         <section className="bg-stone-900 text-stone-100 py-20 mt-20">
           <div className="container mx-auto px-6">
             <div className="max-w-3xl mx-auto text-center">
@@ -475,31 +503,31 @@ export default function Home() {
               </div>
               
               <h3 className="text-3xl md:text-4xl font-bold mb-6">
-                为什么我们需要多视角？
+                Why Do We Need Multi-perspective?
               </h3>
               
               <p className="text-lg text-stone-300 leading-relaxed mb-8">
-                每一条新闻，都是记者编辑选择后的结果。<br/>
-                他们选择了什么？又忽略了什么？<br/>
-                我们相信，真相不在单一的声音里，<br/>
-                而在不同视角的对话中。
+                Every news story is the result of editorial choices.<br/>
+                What did they choose? What did they ignore?<br/>
+                We believe truth is not in a single voice,<br/>
+                But in the dialogue between different perspectives.
               </p>
               
               <div className="grid md:grid-cols-3 gap-8 mt-12">
                 <div className="text-center">
                   <div className="text-4xl mb-4">📰</div>
-                  <h4 className="font-semibold mb-2">多源聚合</h4>
-                  <p className="text-sm text-stone-400">数百家媒体，同一个事件</p>
+                  <h4 className="font-semibold mb-2">Multi-source Aggregation</h4>
+                  <p className="text-sm text-stone-400">Hundreds of media, one event</p>
                 </div>
                 <div className="text-center">
                   <div className="text-4xl mb-4">🤖</div>
-                  <h4 className="font-semibold mb-2">AI 摘要</h4>
-                  <p className="text-sm text-stone-400">左中右，三种视角</p>
+                  <h4 className="font-semibold mb-2">AI Summary</h4>
+                  <p className="text-sm text-stone-400">Left, Center, Right - Three Views</p>
                 </div>
                 <div className="text-center">
                   <div className="text-4xl mb-4">🔍</div>
-                  <h4 className="font-semibold mb-2">偏见分析</h4>
-                  <p className="text-sm text-stone-400">识别立场，独立思考</p>
+                  <h4 className="font-semibold mb-2">Bias Analysis</h4>
+                  <p className="text-sm text-stone-400">Identify Stance, Think Independently</p>
                 </div>
               </div>
             </div>
@@ -516,20 +544,20 @@ export default function Home() {
                 </div>
                 <div>
                   <p className="font-semibold text-stone-900">WRHITW</p>
-                  <p className="text-xs text-stone-500">让世界看到完整的故事</p>
+                  <p className="text-xs text-stone-500">See the Full Story</p>
                 </div>
               </div>
               
               <div className="flex items-center space-x-6 text-sm text-stone-600">
-                <a href="#" className="hover:text-stone-900 transition-colors">关于我们</a>
-                <a href="#" className="hover:text-stone-900 transition-colors">编辑理念</a>
-                <a href="#" className="hover:text-stone-900 transition-colors">隐私政策</a>
-                <a href="#" className="hover:text-stone-900 transition-colors">联系方式</a>
+                <a href="#" className="hover:text-stone-900 transition-colors">About Us</a>
+                <a href="#" className="hover:text-stone-900 transition-colors">Editorial</a>
+                <a href="#" className="hover:text-stone-900 transition-colors">Privacy</a>
+                <a href="#" className="hover:text-stone-900 transition-colors">Contact</a>
               </div>
             </div>
             
             <div className="mt-8 pt-8 border-t border-stone-200 text-center text-sm text-stone-500">
-              <p>© 2026 WRHITW · 用故事的方式，看见世界</p>
+              <p>© 2026 WRHITW · See the World Through Stories</p>
             </div>
           </div>
         </footer>

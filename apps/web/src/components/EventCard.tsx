@@ -1,4 +1,5 @@
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import BiasBadge from './BiasBadge';
 
 interface EventCardProps {
@@ -22,6 +23,7 @@ export default function EventCard({
   hotScore = 0,
   occurredAt,
 }: EventCardProps) {
+  const router = useRouter();
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -29,14 +31,17 @@ export default function EventCard({
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
     
-    if (hours < 1) return '刚刚';
-    if (hours < 24) return `${hours}小时前`;
-    if (days < 7) return `${days}天前`;
-    return date.toLocaleDateString('zh-CN');
+    if (hours < 1) return 'Just now';
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString('en-US');
   };
 
   return (
-    <article className="group bg-white rounded-2xl border border-neutral-200 p-5 hover:shadow-xl hover:border-indigo-200 hover:-translate-y-1 transition-all duration-300 cursor-pointer h-full flex flex-col">
+    <article 
+      onClick={() => router.push(`/events/${id}`)}
+      className="group bg-white rounded-2xl border border-neutral-200 p-5 hover:shadow-xl hover:border-indigo-200 hover:-translate-y-1 transition-all duration-300 cursor-pointer h-full flex flex-col"
+    >
       {/* Header */}
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
@@ -62,20 +67,20 @@ export default function EventCard({
         )}
       </div>
 
-      {/* Summary - 增强版 */}
+      {/* Summary */}
       {summary && (
         <p className="text-neutral-600 text-sm mb-4 line-clamp-2 leading-relaxed flex-1">
           {summary}
         </p>
       )}
 
-      {/* Multi-perspective Indicator - 增强版 */}
+      {/* Multi-perspective Indicator */}
       <div className="mb-4 p-3 bg-gradient-to-r from-slate-50 to-neutral-50 rounded-xl border border-neutral-100">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <span className="text-xs font-medium text-neutral-600">多视角分析</span>
+            <span className="text-xs font-medium text-neutral-600">Multi-perspective Analysis</span>
             <span className="text-xs text-neutral-400">·</span>
-            <span className="text-xs text-neutral-500">{sourceCount}个来源</span>
+            <span className="text-xs text-neutral-500">{sourceCount} Sources</span>
           </div>
           <div className="flex space-x-1.5">
             <BiasBadge bias="left" size="sm" />
@@ -85,7 +90,7 @@ export default function EventCard({
         </div>
       </div>
 
-      {/* Footer - 增强版 */}
+      {/* Footer */}
       <div className="flex items-center justify-between pt-4 border-t border-neutral-100">
         <div className="flex items-center space-x-4 text-sm text-neutral-500">
           {/* Source Count */}
@@ -108,7 +113,7 @@ export default function EventCard({
           )}
         </div>
 
-        {/* Time - 增强版 */}
+        {/* Time */}
         {occurredAt && (
           <time dateTime={occurredAt} className="text-xs text-neutral-400 group-hover:text-neutral-600 transition-colors duration-200">
             {formatTime(occurredAt)}

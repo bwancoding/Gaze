@@ -7,17 +7,17 @@ interface BiasBadgeProps {
 
 const biasConfig = {
   left: {
-    label: '左倾',
+    label: 'Left',
     color: 'bg-bias-left',
     textColor: 'text-bias-left',
   },
   center: {
-    label: '中立',
+    label: 'Center',
     color: 'bg-bias-center',
     textColor: 'text-bias-center',
   },
   right: {
-    label: '右倾',
+    label: 'Right',
     color: 'bg-bias-right',
     textColor: 'text-bias-right',
   },

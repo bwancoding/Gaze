@@ -1,0 +1,416 @@
+"""
+User Persona Management API
+用户身份管理接口
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from sqlalchemy.orm import Session
+from typing import List, Optional
+from datetime import datetime
+import uuid
+import secrets
+
+from pydantic import BaseModel
+from typing import Optional
+
+from app.core.database import get_db
+from app.models.personas import UserPersona, EventStakeholderVerification
+from app.models.stakeholders import Stakeholder
+from app.models import User, Event
+from app.routes.admin import verify_admin_credentials
+
+# Request schemas
+class PersonaCreate(BaseModel):
+    persona_name: str
+    avatar_color: Optional[str] = None
+
+class PersonaUpdate(BaseModel):
+    persona_name: Optional[str] = None
+    avatar_color: Optional[str] = None
+
+class VerificationApply(BaseModel):
+    event_id: str
+    stakeholder_id: str
+    application_text: str = ""
+    proof_type: str = "self_declaration"
+    proof_data: str = ""
+
+router = APIRouter(prefix="/personas", tags=["User Personas"])
+
+# User authentication
+security = HTTPBasic()
+
+
+def get_current_user(
+    credentials: HTTPBasicCredentials = Depends(security),
+    db: Session = Depends(get_db)
+) -> User:
+    """Get current user from credentials"""
+    # Try to find user by email
+    user = db.query(User).filter(User.email == credentials.username).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+    
+    # Simple password check (in production, use proper hashing)
+    if user.password_hash and not secrets.compare_digest(credentials.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
+        )
+    
+    return user
+
+
+# ==================== Persona Management ====================
+
+@router.get("")
+async def get_my_personas(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get current user's personas"""
+    personas = db.query(UserPersona).filter(
+        UserPersona.user_id == current_user.id
+    ).order_by(UserPersona.created_at.desc()).all()
+    
+    return {
+        "items": [
+            {
+                "id": str(p.id),
+                "persona_name": p.persona_name,
+                "avatar_color": p.avatar_color,
+                "is_verified": p.is_verified,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            }
+            for p in personas
+        ]
+    }
+
+
+@router.post("")
+async def create_persona(
+    request: PersonaCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Create new persona
+    
+    - **persona_name**: Name for the persona (e.g., "Iranian Civilian")
+    - **avatar_color**: Optional color identifier
+    """
+    # Check persona limit (max 5)
+    existing_count = db.query(UserPersona).filter(
+        UserPersona.user_id == current_user.id
+    ).count()
+    
+    if existing_count >= 5:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum 5 personas allowed per user"
+        )
+    
+    # Check if name already exists for this user
+    existing = db.query(UserPersona).filter(
+        UserPersona.user_id == current_user.id,
+        UserPersona.persona_name == request.persona_name
+    ).first()
+    
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="Persona name already exists"
+        )
+    
+    # Create persona
+    import random
+    colors = ['blue', 'green', 'purple', 'orange', 'red', 'teal', 'indigo', 'pink']
+    
+    persona = UserPersona(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        persona_name=request.persona_name,
+        avatar_color=request.avatar_color or random.choice(colors),
+        is_verified=False,
+    )
+    
+    db.add(persona)
+    db.commit()
+    db.refresh(persona)
+    
+    return {
+        "message": "Persona created",
+        "id": str(persona.id),
+        "persona_name": persona.persona_name,
+        "avatar_color": persona.avatar_color,
+    }
+
+
+@router.put("/{persona_id}")
+async def update_persona(
+    persona_id: str,
+    persona_name: Optional[str] = None,
+    avatar_color: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update persona details"""
+    persona = db.query(UserPersona).filter(
+        UserPersona.id == persona_id,
+        UserPersona.user_id == current_user.id
+    ).first()
+    
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    
+    if persona_name:
+        # Check if name already exists
+        existing = db.query(UserPersona).filter(
+            UserPersona.user_id == current_user.id,
+            UserPersona.persona_name == persona_name,
+            UserPersona.id != persona_id
+        ).first()
+        
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail="Persona name already exists"
+            )
+        
+        persona.persona_name = persona_name
+    
+    if avatar_color:
+        persona.avatar_color = avatar_color
+    
+    db.commit()
+    
+    return {"message": "Persona updated"}
+
+
+@router.delete("/{persona_id}")
+async def delete_persona(
+    persona_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete persona"""
+    persona = db.query(UserPersona).filter(
+        UserPersona.id == persona_id,
+        UserPersona.user_id == current_user.id
+    ).first()
+    
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    
+    db.delete(persona)
+    db.commit()
+    
+    return {"message": "Persona deleted"}
+
+
+# ==================== Event-Level Verification ====================
+
+@router.get("/{persona_id}/verifications")
+async def get_persona_verifications(
+    persona_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get verification applications for a persona"""
+    persona = db.query(UserPersona).filter(
+        UserPersona.id == persona_id,
+        UserPersona.user_id == current_user.id
+    ).first()
+    
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    
+    verifications = db.query(EventStakeholderVerification).filter(
+        EventStakeholderVerification.user_persona_id == persona_id
+    ).order_by(EventStakeholderVerification.created_at.desc()).all()
+    
+    return {
+        "items": [
+            {
+                "id": str(v.id),
+                "event_id": str(v.event_id),
+                "event_title": v.event.title if v.event else "Unknown",
+                "stakeholder_id": str(v.stakeholder_id),
+                "stakeholder_name": v.stakeholder.name if v.stakeholder else "Unknown",
+                "application_text": v.application_text,
+                "status": v.status,
+                "review_notes": v.review_notes,
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+                "reviewed_at": v.reviewed_at.isoformat() if v.reviewed_at else None,
+            }
+            for v in verifications
+        ]
+    }
+
+
+@router.post("/{persona_id}/verify")
+async def apply_for_verification(
+    persona_id: str,
+    event_id: str,
+    stakeholder_id: str,
+    application_text: str = "",
+    proof_type: str = "self_declaration",
+    proof_data: str = "",
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Apply for stakeholder verification in a specific event
+    
+    - **persona_id**: ID of persona to use
+    - **event_id**: Event to apply for
+    - **stakeholder_id**: Stakeholder type to apply as
+    - **application_text**: Why you qualify
+    """
+    # Check persona ownership
+    persona = db.query(UserPersona).filter(
+        UserPersona.id == persona_id,
+        UserPersona.user_id == current_user.id
+    ).first()
+    
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    
+    # Check if already verified in this event
+    existing = db.query(EventStakeholderVerification).filter(
+        EventStakeholderVerification.user_persona_id == persona_id,
+        EventStakeholderVerification.event_id == event_id
+    ).first()
+    
+    if existing:
+        if existing.status == 'approved':
+            raise HTTPException(
+                status_code=400,
+                detail="Already verified for this event"
+            )
+        elif existing.status == 'pending':
+            raise HTTPException(
+                status_code=400,
+                detail="Application already pending review"
+            )
+    
+    # Check stakeholder exists
+    stakeholder = db.query(Stakeholder).filter(Stakeholder.id == stakeholder_id).first()
+    if not stakeholder:
+        raise HTTPException(status_code=404, detail="Stakeholder not found")
+    
+    # Create application
+    application = EventStakeholderVerification(
+        id=uuid.uuid4(),
+        user_persona_id=persona_id,
+        event_id=event_id,
+        stakeholder_id=stakeholder_id,
+        application_text=application_text,
+        proof_type=proof_type,
+        proof_data=proof_data,
+        status='pending',
+    )
+    
+    db.add(application)
+    db.commit()
+    
+    return {
+        "message": "Application submitted",
+        "application_id": str(application.id),
+        "status": "pending"
+    }
+
+
+# ==================== Admin Review ====================
+
+@router.get("/admin/verifications")
+async def list_all_verifications(
+    status_filter: str = "pending",
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """List all verification applications (admin)"""
+    query = db.query(EventStakeholderVerification)
+    
+    if status_filter and status_filter != "all":
+        query = query.filter(EventStakeholderVerification.status == status_filter)
+    
+    verifications = query.order_by(EventStakeholderVerification.created_at.desc()).all()
+    
+    return {
+        "items": [
+            {
+                "id": str(v.id),
+                "user_persona_id": str(v.user_persona_id),
+                "persona_name": v.persona.persona_name if v.persona else "Unknown",
+                "user_email": v.persona.user.email if v.persona and v.persona.user else None,
+                "event_id": str(v.event_id),
+                "event_title": v.event.title if v.event else "Unknown",
+                "stakeholder_id": str(v.stakeholder_id),
+                "stakeholder_name": v.stakeholder.name if v.stakeholder else "Unknown",
+                "application_text": v.application_text,
+                "proof_type": v.proof_type,
+                "status": v.status,
+                "review_notes": v.review_notes,
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+            }
+            for v in verifications
+        ]
+    }
+
+
+@router.post("/admin/verifications/{verification_id}/approve")
+async def approve_verification(
+    verification_id: str,
+    review_notes: str = "",
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Approve verification application (admin)"""
+    verification = db.query(EventStakeholderVerification).filter(
+        EventStakeholderVerification.id == verification_id
+    ).first()
+    
+    if not verification:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    verification.status = 'approved'
+    verification.reviewed_at = datetime.utcnow()
+    verification.review_notes = review_notes
+    
+    # Update persona is_verified flag
+    if verification.persona:
+        verification.persona.is_verified = True
+    
+    db.commit()
+    
+    return {"message": "Application approved"}
+
+
+@router.post("/admin/verifications/{verification_id}/reject")
+async def reject_verification(
+    verification_id: str,
+    review_notes: str = "",
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Reject verification application (admin)"""
+    verification = db.query(EventStakeholderVerification).filter(
+        EventStakeholderVerification.id == verification_id
+    ).first()
+    
+    if not verification:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    verification.status = 'rejected'
+    verification.reviewed_at = datetime.utcnow()
+    verification.review_notes = review_notes
+    
+    db.commit()
+    
+    return {"message": "Application rejected"}

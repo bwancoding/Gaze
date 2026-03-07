@@ -1,0 +1,10 @@
+# WRHITW News Fetcher - Cron Job
+# Runs every 4 hours to fetch international news
+
+# Add to crontab with: crontab -e
+
+# Every 4 hours (0:00, 4:00, 8:00, 12:00, 16:00, 20:00)
+0 */4 * * * cd /Users/bwan/.openclaw/workspace/wrhitw/apps/api && ./venv/bin/python fetch_news_scheduled.py >> /tmp/wrhitw_fetcher.log 2>&1
+
+# Alternative: Every hour for testing
+# 0 * * * * cd /Users/bwan/.openclaw/workspace/wrhitw/apps/api && ./venv/bin/python fetch_news_scheduled.py >> /tmp/wrhitw_fetcher.log 2>&1

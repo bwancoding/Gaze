@@ -1,0 +1,39 @@
+# WRHITW News Fetcher - Cron Job Configuration
+# =============================================
+# 
+# This file contains cron job configurations for automated news fetching.
+# 
+# IMPORTANT: Replace /path/to/wrhitw with your actual installation path
+#
+# To install:
+#   1. Find your wrhitw path:
+#      pwd  # Should be something like /Users/bwan/.openclaw/workspace/wrhitw
+#
+#   2. Update the path in cron commands below
+#
+#   3. Install cron job:
+#      crontab wrhitw_cron.txt
+#
+#   4. Verify installation:
+#      crontab -l
+#
+# To remove:
+#      crontab -r
+#
+# To view logs:
+#      tail -f /tmp/wrhitw_fetcher.log
+#
+# =============================================
+
+# Option 1: Run every 4 hours (RECOMMENDED for production)
+# Runs at: 00:00, 04:00, 08:00, 12:00, 16:00, 20:00
+0 */4 * * * cd /Users/bwan/.openclaw/workspace/wrhitw/apps/api && ./venv/bin/python fetch_news_scheduled.py >> /tmp/wrhitw_fetcher.log 2>&1
+
+# Option 2: Run every hour (for testing)
+# 0 * * * * cd /Users/bwan/.openclaw/workspace/wrhitw/apps/api && ./venv/bin/python fetch_news_scheduled.py >> /tmp/wrhitw_fetcher.log 2>&1
+
+# Option 3: Run every 15 minutes (intensive testing)
+# */15 * * * * cd /Users/bwan/.openclaw/workspace/wrhitw/apps/api && ./venv/bin/python fetch_news_scheduled.py >> /tmp/wrhitw_fetcher.log 2>&1
+
+# Option 4: Run twice daily (minimal resource usage)
+# 0 0,12 * * * cd /Users/bwan/.openclaw/workspace/wrhitw/apps/api && ./venv/bin/python fetch_news_scheduled.py >> /tmp/wrhitw_fetcher.log 2>&1

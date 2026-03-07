@@ -1,12 +1,15 @@
 """
 WRHITW API Schemas
-Pydantic 模型定义
+Pydantic model definitions
 """
 
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 import os
+
+# Import category translation
+from app.models import translate_category
 
 # SQLite 用 string，PostgreSQL 用 UUID
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./wrhitw.db")
@@ -43,7 +46,7 @@ class EventUpdate(BaseModel):
 
 
 class EventResponse(EventBase):
-    """事件响应"""
+    """Event Response"""
     id: UUID
     source_count: int
     view_count: int
@@ -54,6 +57,24 @@ class EventResponse(EventBase):
 
     class Config:
         from_attributes = True
+    
+    @classmethod
+    def from_orm(cls, obj):
+        """Override to translate category"""
+        data = {
+            'id': str(obj.id) if hasattr(obj.id, '__str__') else obj.id,
+            'title': obj.title,
+            'summary': obj.summary,
+            'category': translate_category(obj.category) if obj.category else None,
+            'tags': obj.tags if hasattr(obj, 'tags') else [],
+            'source_count': obj.source_count,
+            'view_count': obj.view_count,
+            'hot_score': float(obj.hot_score) if obj.hot_score else 0,
+            'status': obj.status,
+            'created_at': obj.created_at,
+            'occurred_at': obj.occurred_at,
+        }
+        return cls(**data)
 
 
 class EventListResponse(BaseModel):
