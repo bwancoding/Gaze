@@ -128,7 +128,7 @@ export default function VerifyForEvent() {
       
       const [personasRes, stakeholdersRes, eventsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/personas`, { headers }),
-        fetch(`${API_BASE_URL}/api/admin/stakeholders`, { headers }),
+        fetch(`${API_BASE_URL}/api/stakeholders/list`),  // Public endpoint, no auth needed
         fetch(`${API_BASE_URL}/api/events?status=active&page_size=50`, { headers }),
       ]);
 

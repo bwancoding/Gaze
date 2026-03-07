@@ -213,6 +213,98 @@ async def delete_persona(
     return {"message": "Persona deleted"}
 
 
+# ==================== Admin Review ====================
+# Note: Admin routes MUST be before dynamic routes like /{persona_id}/...
+# to avoid "admin" being matched as a persona_id
+
+@router.get("/admin/verifications")
+async def list_all_verifications(
+    status_filter: str = "pending",
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """List all verification applications (admin)"""
+    query = db.query(EventStakeholderVerification)
+    
+    if status_filter and status_filter != "all":
+        query = query.filter(EventStakeholderVerification.status == status_filter)
+    
+    verifications = query.order_by(EventStakeholderVerification.created_at.desc()).all()
+    
+    return {
+        "items": [
+            {
+                "id": str(v.id),
+                "user_persona_id": str(v.user_persona_id),
+                "persona_name": v.persona.persona_name if v.persona else "Unknown",
+                "user_email": v.persona.user.email if v.persona and v.persona.user else None,
+                "event_id": str(v.event_id),
+                "event_title": v.event.title if v.event else "Unknown",
+                "stakeholder_id": str(v.stakeholder_id),
+                "stakeholder_name": v.stakeholder.name if v.stakeholder else "Unknown",
+                "application_text": v.application_text,
+                "proof_type": v.proof_type,
+                "status": v.status,
+                "review_notes": v.review_notes,
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+            }
+            for v in verifications
+        ]
+    }
+
+
+@router.post("/admin/verifications/{verification_id}/approve")
+async def approve_verification(
+    verification_id: str,
+    review_notes: str = "",
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Approve verification application (admin)"""
+    verification = db.query(EventStakeholderVerification).filter(
+        EventStakeholderVerification.id == verification_id
+    ).first()
+    
+    if not verification:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    verification.status = 'approved'
+    verification.reviewed_at = datetime.utcnow()
+    verification.review_notes = review_notes
+    
+    # Update persona is_verified flag
+    if verification.persona:
+        verification.persona.is_verified = True
+    
+    db.commit()
+    
+    return {"message": "Application approved"}
+
+
+@router.post("/admin/verifications/{verification_id}/reject")
+async def reject_verification(
+    verification_id: str,
+    review_notes: str = "",
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Reject verification application (admin)"""
+    verification = db.query(EventStakeholderVerification).filter(
+        EventStakeholderVerification.id == verification_id
+    ).first()
+    
+    if not verification:
+        raise HTTPException(status_code=404, detail="Application not found")
+    
+    verification.status = 'rejected'
+    verification.reviewed_at = datetime.utcnow()
+    verification.review_notes = review_notes
+    
+    db.commit()
+    
+    return {"message": "Application rejected"}
+
+
 # ==================== Event-Level Verification ====================
 
 @router.get("/{persona_id}/verifications")
@@ -324,93 +416,3 @@ async def apply_for_verification(
         "application_id": str(application.id),
         "status": "pending"
     }
-
-
-# ==================== Admin Review ====================
-
-@router.get("/admin/verifications")
-async def list_all_verifications(
-    status_filter: str = "pending",
-    db: Session = Depends(get_db),
-    username: str = Depends(verify_admin_credentials),
-):
-    """List all verification applications (admin)"""
-    query = db.query(EventStakeholderVerification)
-    
-    if status_filter and status_filter != "all":
-        query = query.filter(EventStakeholderVerification.status == status_filter)
-    
-    verifications = query.order_by(EventStakeholderVerification.created_at.desc()).all()
-    
-    return {
-        "items": [
-            {
-                "id": str(v.id),
-                "user_persona_id": str(v.user_persona_id),
-                "persona_name": v.persona.persona_name if v.persona else "Unknown",
-                "user_email": v.persona.user.email if v.persona and v.persona.user else None,
-                "event_id": str(v.event_id),
-                "event_title": v.event.title if v.event else "Unknown",
-                "stakeholder_id": str(v.stakeholder_id),
-                "stakeholder_name": v.stakeholder.name if v.stakeholder else "Unknown",
-                "application_text": v.application_text,
-                "proof_type": v.proof_type,
-                "status": v.status,
-                "review_notes": v.review_notes,
-                "created_at": v.created_at.isoformat() if v.created_at else None,
-            }
-            for v in verifications
-        ]
-    }
-
-
-@router.post("/admin/verifications/{verification_id}/approve")
-async def approve_verification(
-    verification_id: str,
-    review_notes: str = "",
-    db: Session = Depends(get_db),
-    username: str = Depends(verify_admin_credentials),
-):
-    """Approve verification application (admin)"""
-    verification = db.query(EventStakeholderVerification).filter(
-        EventStakeholderVerification.id == verification_id
-    ).first()
-    
-    if not verification:
-        raise HTTPException(status_code=404, detail="Application not found")
-    
-    verification.status = 'approved'
-    verification.reviewed_at = datetime.utcnow()
-    verification.review_notes = review_notes
-    
-    # Update persona is_verified flag
-    if verification.persona:
-        verification.persona.is_verified = True
-    
-    db.commit()
-    
-    return {"message": "Application approved"}
-
-
-@router.post("/admin/verifications/{verification_id}/reject")
-async def reject_verification(
-    verification_id: str,
-    review_notes: str = "",
-    db: Session = Depends(get_db),
-    username: str = Depends(verify_admin_credentials),
-):
-    """Reject verification application (admin)"""
-    verification = db.query(EventStakeholderVerification).filter(
-        EventStakeholderVerification.id == verification_id
-    ).first()
-    
-    if not verification:
-        raise HTTPException(status_code=404, detail="Application not found")
-    
-    verification.status = 'rejected'
-    verification.reviewed_at = datetime.utcnow()
-    verification.review_notes = review_notes
-    
-    db.commit()
-    
-    return {"message": "Application rejected"}
