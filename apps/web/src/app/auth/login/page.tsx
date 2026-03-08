@@ -3,8 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+import { login } from '../../../lib/auth';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,28 +18,13 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // 临时使用 Basic Auth 验证
-      const credentials = btoa(`${email}:${password}`);
+      // 使用 JWT 登录
+      await login(email, password);
       
-      const response = await fetch(`${API_BASE_URL}/api/personas`, {
-        headers: {
-          'Authorization': `Basic ${credentials}`,
-        },
-      });
-
-      if (response.ok) {
-        // 保存登录状态
-        localStorage.setItem('user_email', email);
-        localStorage.setItem('user_password', password);
-        
-        // 跳转到首页
-        router.push('/');
-      } else {
-        const errorData = await response.json();
-        setError(errorData.detail || 'Invalid email or password');
-      }
+      // 跳转到首页
+      router.push('/');
     } catch (err: any) {
-      setError('Network error. Please try again.');
+      setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setIsLoading(false);
     }

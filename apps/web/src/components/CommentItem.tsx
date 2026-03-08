@@ -67,7 +67,7 @@ export default function CommentItem({ comment, onReply, depth, currentUser }: Co
       const response = await fetch(`${API_BASE_URL}/api/comments/${comment.id}/like?action=like`, {
         method: 'POST',
         headers: {
-          'Authorization': 'Basic ' + btoa('test@example.com:test123'),
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
       });
 
@@ -95,7 +95,7 @@ export default function CommentItem({ comment, onReply, depth, currentUser }: Co
       const response = await fetch(`${API_BASE_URL}/api/comments/${comment.id}/like?action=dislike`, {
         method: 'POST',
         headers: {
-          'Authorization': 'Basic ' + btoa('test@example.com:test123'),
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
       });
 
@@ -121,7 +121,7 @@ export default function CommentItem({ comment, onReply, depth, currentUser }: Co
       const response = await fetch(`${API_BASE_URL}/api/comments/${comment.id}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': 'Basic ' + btoa('test@example.com:test123'),
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
         },
       });
 

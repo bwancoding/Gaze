@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import CommentForm from './CommentForm';
 import CommentItem from './CommentItem';
+import LoginPrompt from './LoginPrompt';
+import { isAuthenticated } from '../lib/auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -31,28 +33,36 @@ interface CommentSectionProps {
 }
 
 export default function CommentSection({ eventId }: CommentSectionProps) {
-  // 从 localStorage 获取当前用户
-  const currentUser = typeof window !== 'undefined' ? {
-    id: 'current-user',
-    email: localStorage.getItem('user_email') || '',
-  } : null;
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<{ id: string; personaName: string } | null>(null);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loginRequiredForMore, setLoginRequiredForMore] = useState(false);
+
+  // 检查登录状态
+  useEffect(() => {
+    setIsLoggedIn(isAuthenticated());
+  }, []);
 
   // 获取评论列表
   const fetchComments = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/comments/event/${eventId}`);
+      const limit = isLoggedIn ? 50 : 20; // 登录用户加载更多
+      const response = await fetch(`${API_BASE_URL}/api/comments/event/${eventId}?limit=${limit}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
       setComments(data.items || []);
+      setTotal(data.total || 0);
+      setHasMore(data.has_more || false);
+      setLoginRequiredForMore(data.login_required_for_more || false);
     } catch (err) {
       console.error('Failed to fetch comments:', err);
-      setError('无法加载评论');
+      setError('Failed to load comments');
     } finally {
       setIsLoading(false);
     }
@@ -62,7 +72,7 @@ export default function CommentSection({ eventId }: CommentSectionProps) {
     if (eventId) {
       fetchComments();
     }
-  }, [eventId]);
+  }, [eventId, isLoggedIn]);
 
   // 处理发表评论成功
   const handleCommentSuccess = () => {
@@ -98,7 +108,7 @@ export default function CommentSection({ eventId }: CommentSectionProps) {
     <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8">
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-stone-900 mb-2">
-          Comments ({comments.length})
+          Comments ({total})
         </h2>
         <p className="text-stone-600 text-sm">
           Share your perspective on this event
@@ -140,33 +150,53 @@ export default function CommentSection({ eventId }: CommentSectionProps) {
           <p className="text-sm text-stone-500">Be the first to share your perspective!</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {topLevelComments.map(comment => (
-            <div key={comment.id}>
-              <CommentItem
-                comment={comment}
-                onReply={handleReply}
-                onDelete={handleDelete}
-                depth={0}
-                currentUser={currentUser}
-              />
-              {/* 回复嵌套 */}
-              {getReplies(comment.id).length > 0 && (
-                <div className="ml-12 mt-4 space-y-4 border-l-2 border-stone-100 pl-6">
-                  {getReplies(comment.id).map(reply => (
-                    <CommentItem
-                      key={reply.id}
-                      comment={reply}
-                      onReply={handleReply}
-                      onDelete={handleDelete}
-                      depth={1}
-                      currentUser={currentUser}
-                    />
-                  ))}
-                </div>
-              )}
+        <div>
+          <div className="space-y-6">
+            {topLevelComments.map(comment => (
+              <div key={comment.id}>
+                <CommentItem
+                  comment={comment}
+                  onReply={handleReply}
+                  onDelete={handleDelete}
+                  depth={0}
+                />
+                {/* 回复嵌套 */}
+                {getReplies(comment.id).length > 0 && (
+                  <div className="ml-12 mt-4 space-y-4 border-l-2 border-stone-100 pl-6">
+                    {getReplies(comment.id).map(reply => (
+                      <CommentItem
+                        key={reply.id}
+                        comment={reply}
+                        onReply={handleReply}
+                        onDelete={handleDelete}
+                        depth={1}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* 未登录 + 有更多评论 → 显示登录提示 */}
+          {!isLoggedIn && loginRequiredForMore && (
+            <LoginPrompt
+              total={total}
+              shown={comments.length}
+            />
+          )}
+
+          {/* 已登录 + 有更多 → 显示加载更多 */}
+          {isLoggedIn && hasMore && (
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => fetchComments()}
+                className="px-6 py-3 bg-stone-100 text-stone-700 rounded-full font-medium hover:bg-stone-200 transition-colors"
+              >
+                Load More ({total - comments.length} remaining)
+              </button>
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { isAuthenticated, getAuthHeaders, fetchWithAuth } from '../lib/auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -25,26 +26,23 @@ export default function CommentForm({ eventId, onSuccess, parentId, onCancel }: 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // 检查登录状态
-    const email = localStorage.getItem('user_email');
-    const password = localStorage.getItem('user_password');
-    
-    if (email && password) {
-      setIsLoggedIn(true);
-      fetchPersonas(email, password);
-    } else {
-      setIsLoggedIn(false);
-      setIsLoading(false);
-    }
+    checkLoginAndFetchPersonas();
   }, []);
 
-  const fetchPersonas = async (email: string, password: string) => {
+  const checkLoginAndFetchPersonas = async () => {
+    const authenticated = isAuthenticated();
+    setIsLoggedIn(authenticated);
+    
+    if (authenticated) {
+      await fetchPersonas();
+    } else {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchPersonas = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/personas`, {
-        headers: {
-          'Authorization': 'Basic ' + btoa(`${email}:${password}`),
-        },
-      });
+      const response = await fetchWithAuth(`${API_BASE_URL}/api/personas`);
       if (response.ok) {
         const data = await response.json();
         setPersonas(data.items || []);
@@ -76,11 +74,10 @@ export default function CommentForm({ eventId, onSuccess, parentId, onCancel }: 
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/comments`, {
+      const response = await fetchWithAuth(`${API_BASE_URL}/api/comments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Basic ' + btoa('test@example.com:test123'),
         },
         body: JSON.stringify({
           event_id: eventId,

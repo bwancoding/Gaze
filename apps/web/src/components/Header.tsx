@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { isAuthenticated, logout, getCurrentUser } from '../lib/auth';
 
 interface HeaderProps {
   title?: string;
@@ -14,21 +15,27 @@ export default function Header({ title = 'WRHITW', subtitle = "What's Really Hap
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    // 检查登录状态
-    const email = localStorage.getItem('user_email');
-    if (email) {
-      setIsLoggedIn(true);
-      setUserEmail(email);
-    }
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    const authenticated = isAuthenticated();
+    setIsLoggedIn(authenticated);
+    
+    if (authenticated) {
+      const user = await getCurrentUser();
+      if (user) {
+        setUserEmail(user.email);
+      }
+    }
+  };
 
   const handleSignIn = () => {
     router.push('/auth/login');
   };
 
-  const handleSignOut = () => {
-    localStorage.removeItem('user_email');
-    localStorage.removeItem('user_password');
+  const handleSignOut = async () => {
+    await logout();
     setIsLoggedIn(false);
     setUserEmail(null);
     router.push('/');

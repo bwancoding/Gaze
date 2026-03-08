@@ -40,29 +40,18 @@ export default function PersonaManagement() {
 
   // Check authentication
   useEffect(() => {
-    // 支持两种存储格式（向后兼容）
-    const storedAuth = localStorage.getItem('user_auth');
-    const email = localStorage.getItem('user_email');
-    const password = localStorage.getItem('user_password');
-    
-    if (storedAuth) {
-      const { username, password: pwd } = JSON.parse(storedAuth);
-      setUsername(username);
-      setPassword(pwd);
-      setIsAuthenticated(true);
-      fetchPersonas();
-    } else if (email && password) {
-      setUsername(email);
-      setPassword(password);
+    const token = localStorage.getItem('access_token');
+    if (token) {
       setIsAuthenticated(true);
       fetchPersonas();
     }
   }, []);
 
   const getAuthHeaders = () => {
-    if (username && password) {
+    const token = localStorage.getItem('access_token');
+    if (token) {
       return {
-        'Authorization': 'Basic ' + btoa(`${username}:${password}`),
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       };
     }
