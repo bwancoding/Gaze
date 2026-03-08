@@ -460,10 +460,10 @@ async def cancel_verification(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Cancel/revoke a verification application (user)
+    """Cancel a pending verification application (user only)
     
-    - For pending applications: cancels (deletes) the application
-    - For approved applications: revokes the verification (sets status to 'revoked')
+    Users can only cancel their own PENDING applications.
+    Approved verifications can only be revoked by admins.
     """
     from sqlalchemy.orm import joinedload
     
@@ -480,38 +480,18 @@ async def cancel_verification(
     if not verification.persona or verification.persona.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to cancel this application")
     
-    # Handle based on status
-    if verification.status == 'pending':
-        # Delete pending applications
-        db.delete(verification)
-        db.commit()
-        return {"message": "Application cancelled successfully"}
-    elif verification.status == 'approved':
-        # Revoke approved verifications (set to 'revoked' status)
-        verification.status = 'revoked'
-        verification.reviewed_at = datetime.utcnow()
-        verification.review_notes = "Revoked by user"
-        
-        # Update persona is_verified flag if this was the only verified verification
-        if verification.persona:
-            # Check if there are any other approved verifications for this persona
-            other_approved = db.query(EventStakeholderVerification).filter(
-                EventStakeholderVerification.user_persona_id == verification.user_persona_id,
-                EventStakeholderVerification.status == 'approved',
-                EventStakeholderVerification.id != verification_id
-            ).first()
-            
-            # If no other approved verifications, set is_verified to False
-            if not other_approved:
-                verification.persona.is_verified = False
-        
-        db.commit()
-        return {"message": "Verification revoked successfully"}
-    else:
+    # Users can ONLY cancel pending applications
+    if verification.status != 'pending':
         raise HTTPException(
             status_code=400, 
-            detail=f"Cannot cancel {verification.status} application. Only pending or approved verifications can be cancelled."
+            detail=f"Cannot cancel {verification.status} application. Users can only cancel pending applications. Approved verifications can only be revoked by admins."
         )
+    
+    # Delete the pending application
+    db.delete(verification)
+    db.commit()
+    
+    return {"message": "Application cancelled successfully"}
 
 
 # ==================== Event-Level Verification ====================

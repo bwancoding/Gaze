@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
-from app.routes import events, admin, stakeholders, stakeholder_verify, personas
+from app.routes import events, admin, stakeholders, stakeholder_verify, personas, comments
 
 # 创建数据库表
 Base.metadata.create_all(bind=engine)
@@ -27,6 +27,7 @@ app.include_router(admin.router, prefix="/api", tags=["Admin"])
 app.include_router(stakeholders.router, prefix="/api", tags=["Stakeholders"])
 app.include_router(stakeholder_verify.router, prefix="/api", tags=["Verification"])
 app.include_router(personas.router, prefix="/api", tags=["Personas"])
+app.include_router(comments.router, tags=["Comments"])
 
 @app.get("/")
 async def root():

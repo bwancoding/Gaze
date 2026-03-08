@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from app.core.database import SessionLocal
 from app.models import User
+from app.utils.security import hash_password
 
 def create_test_user():
     db = SessionLocal()
@@ -22,11 +23,11 @@ def create_test_user():
             print("⚠ Test user already exists")
             return
         
-        # Create test user
+        # Create test user (password is hashed before storage)
         user = User(
             id=uuid.uuid4(),
             email="test@example.com",
-            password_hash="test123",  # Simple password for testing
+            password_hash=hash_password("test123"),  # 🔐 Hashed password
             display_name="Test User",
             is_active=True,
         )

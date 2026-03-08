@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from app.core.database import SessionLocal
 from app.models import User
+from app.utils.security import hash_password
 
 def create_admin():
     db = SessionLocal()
@@ -22,11 +23,11 @@ def create_admin():
             print("⚠ Admin user already exists")
             return
         
-        # Create admin user
+        # Create admin user (password is hashed before storage)
         admin = User(
             id=uuid.uuid4(),
             email="admin",
-            password_hash="wrhitw_admin_2026",
+            password_hash=hash_password("wrhitw_admin_2026"),  # 🔐 Hashed password
             display_name="Admin",
             is_active=True,
         )

@@ -199,8 +199,19 @@ export default function VerifyForEvent() {
       });
 
       if (response.ok) {
+        const result = await response.json();
+        console.log('[Submit] Success:', result);
+        
+        // Ensure auth is saved before navigating
+        if (!localStorage.getItem('user_auth')) {
+          localStorage.setItem('user_auth', JSON.stringify({ username, password }));
+          console.log('[Submit] Saved auth to localStorage');
+        }
+        
         alert('Application submitted successfully! Your request will be reviewed by an admin.');
-        router.push('/personas');
+        
+        // Use replace instead of push to prevent back button issues
+        router.replace('/personas');
       } else {
         const result = await response.json();
         // Handle both string and object error messages
@@ -208,6 +219,7 @@ export default function VerifyForEvent() {
           ? result.detail 
           : JSON.stringify(result.detail);
         setError(errorMessage || 'Failed to submit application');
+        console.error('[Submit] Error:', errorMessage);
       }
     } catch (err) {
       console.error('Submit error:', err);

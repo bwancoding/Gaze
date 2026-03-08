@@ -75,10 +75,15 @@ export default function PersonaManagement() {
           setShowAutoCreateTip(true);
         }
       } else if (response.status === 401) {
+        // Only logout on confirmed 401, not on network errors
+        console.warn('Authentication failed, clearing stored auth');
         handleLogout();
+      } else {
+        console.error('Failed to fetch personas:', response.status);
       }
     } catch (err) {
       console.error('Failed to fetch personas:', err);
+      // Don't logout on network errors - keep user logged in
     }
   };
 
@@ -215,14 +220,11 @@ export default function PersonaManagement() {
     }
   };
 
-  const handleCancelApplication = async (e: React.MouseEvent, verificationId: string, personaName: string, status: string) => {
+  const handleCancelApplication = async (e: React.MouseEvent, verificationId: string, personaName: string) => {
     e.preventDefault();
     e.stopPropagation();
     
-    const actionText = status === 'approved' ? 'revoke' : 'cancel';
-    const actionLabel = status === 'approved' ? '撤销认证' : '取消申请';
-    
-    if (!confirm(`确定要${actionLabel} "${personaName}" 的${status === 'approved' ? '认证' : '申请'}吗？\n\n${status === 'approved' ? '撤销后该认证将显示为"已拒绝"状态' : ''}`)) {
+    if (!confirm(`确定要取消 "${personaName}" 的申请吗？\n\n此操作不可恢复。`)) {
       return;
     }
 
@@ -237,24 +239,15 @@ export default function PersonaManagement() {
       );
 
       if (response.ok) {
-        alert(`${actionLabel}成功`);
-        // Refresh verifications - use the current persona ID directly to avoid state issues
-        const currentPersonaId = showVerifications;
-        if (currentPersonaId) {
-          const refreshResponse = await fetch(`${API_BASE_URL}/api/personas/${currentPersonaId}/verifications`, {
-            headers: getAuthHeaders(),
-          });
-          if (refreshResponse.ok) {
-            const data = await refreshResponse.json();
-            setVerifications(data.items);
-          }
-        }
+        alert('申请已取消');
+        // 直接从本地状态中移除已取消的申请，避免重新获取数据导致面板关闭
+        setVerifications(prev => prev.filter(v => v.id !== verificationId));
       } else {
         const result = await response.json();
-        alert(result.detail || `Failed to ${actionText} application`);
+        alert(result.detail || '取消失败');
       }
     } catch (err) {
-      alert('Network error');
+      alert('网络错误');
     } finally {
       setIsLoading(false);
     }
@@ -541,14 +534,14 @@ export default function PersonaManagement() {
                             ? 'Revoked' 
                             : v.status.charAt(0).toUpperCase() + v.status.slice(1)}
                         </span>
-                        {(v.status === 'pending' || v.status === 'approved') && (
+                        {v.status === 'pending' && (
                           <button
-                            onClick={(e) => handleCancelApplication(e, v.id, v.persona_name, v.status)}
+                            onClick={(e) => handleCancelApplication(e, v.id, v.persona_name)}
                             className="text-xs text-red-600 hover:text-red-800 hover:underline"
                             disabled={isLoading}
                             type="button"
                           >
-                            {v.status === 'approved' ? 'Revoke Certification' : 'Cancel Application'}
+                            Cancel Application
                           </button>
                         )}
                       </div>

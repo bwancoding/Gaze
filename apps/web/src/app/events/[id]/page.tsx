@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Header from '../../../components/Header';
 import BiasBadge from '../../../components/BiasBadge';
 import EventCard from '../../../components/EventCard';
+import CommentSection from '../../../components/CommentSection';
 
 // API 配置
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
@@ -677,6 +678,19 @@ export default function EventDetailPage() {
                 </div>
               )}
             </div>
+          </div>
+        </section>
+
+        {/* 评论区 */}
+        <section className="container mx-auto px-6 py-12">
+          <div className="max-w-4xl">
+            <CommentSection
+              eventId={eventId}
+              currentUser={{
+                id: 'test-user-id',
+                email: 'test@example.com',
+              }}
+            />
           </div>
         </section>
 

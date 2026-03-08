@@ -180,6 +180,19 @@ class User(Base):
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    def check_password(self, password: str) -> bool:
+        """
+        验证密码
+        
+        Args:
+            password: 明文密码
+            
+        Returns:
+            True 如果密码匹配，否则 False
+        """
+        from app.utils.security import verify_password
+        return verify_password(password, self.password_hash)
+
 
 class ReadingHistory(Base):
     """阅读历史表"""
