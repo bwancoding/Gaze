@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -12,38 +13,51 @@ interface CommentFormProps {
 }
 
 export default function CommentForm({ eventId, onSuccess, parentId, onCancel }: CommentFormProps) {
+  const router = useRouter();
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<string>('');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   // 获取用户 Persona 列表
   const [personas, setPersonas] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  React.useEffect(() => {
-    const fetchPersonas = async () => {
-      try {
-        // TODO: 需要从登录状态获取用户信息
-        // 这里暂时用 Basic Auth
-        const response = await fetch(`${API_BASE_URL}/api/personas`, {
-          headers: {
-            'Authorization': 'Basic ' + btoa('test@example.com:test123'),
-          },
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setPersonas(data.items || []);
-          if (data.items && data.items.length > 0) {
-            setSelectedPersona(data.items[0].id);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch personas:', err);
-      }
-    };
-
-    fetchPersonas();
+  useEffect(() => {
+    // 检查登录状态
+    const email = localStorage.getItem('user_email');
+    const password = localStorage.getItem('user_password');
+    
+    if (email && password) {
+      setIsLoggedIn(true);
+      fetchPersonas(email, password);
+    } else {
+      setIsLoggedIn(false);
+      setIsLoading(false);
+    }
   }, []);
+
+  const fetchPersonas = async (email: string, password: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/personas`, {
+        headers: {
+          'Authorization': 'Basic ' + btoa(`${email}:${password}`),
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPersonas(data.items || []);
+        if (data.items && data.items.length > 0) {
+          setSelectedPersona(data.items[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch personas:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,6 +103,36 @@ export default function CommentForm({ eventId, onSuccess, parentId, onCancel }: 
       setIsSubmitting(false);
     }
   };
+
+  // 未登录状态
+  if (!isLoggedIn) {
+    return (
+      <div className="p-6 bg-stone-50 rounded-xl border border-stone-200 text-center">
+        <div className="text-4xl mb-4">🔐</div>
+        <p className="text-stone-700 font-medium mb-2">
+          Sign in to share your perspective
+        </p>
+        <p className="text-sm text-stone-500 mb-4">
+          Join the discussion and comment on this event
+        </p>
+        <button
+          onClick={() => router.push('/auth/login')}
+          className="inline-flex items-center space-x-2 bg-stone-900 text-white px-6 py-2.5 rounded-full font-medium hover:bg-stone-800 transition-colors"
+        >
+          <span>Sign In</span>
+        </button>
+      </div>
+    );
+  }
+
+  // 加载中
+  if (isLoading) {
+    return (
+      <div className="animate-pulse space-y-4">
+        <div className="h-24 bg-stone-200 rounded-xl"></div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">

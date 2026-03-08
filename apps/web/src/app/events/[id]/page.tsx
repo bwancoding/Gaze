@@ -684,13 +684,7 @@ export default function EventDetailPage() {
         {/* 评论区 */}
         <section className="container mx-auto px-6 py-12">
           <div className="max-w-4xl">
-            <CommentSection
-              eventId={eventId}
-              currentUser={{
-                id: 'test-user-id',
-                email: 'test@example.com',
-              }}
-            />
+            <CommentSection eventId={eventId} />
           </div>
         </section>
 

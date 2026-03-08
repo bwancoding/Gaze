@@ -28,13 +28,14 @@ interface Comment {
 
 interface CommentSectionProps {
   eventId: string;
-  currentUser?: {
-    id: string;
-    email: string;
-  };
 }
 
-export default function CommentSection({ eventId, currentUser }: CommentSectionProps) {
+export default function CommentSection({ eventId }: CommentSectionProps) {
+  // 从 localStorage 获取当前用户
+  const currentUser = typeof window !== 'undefined' ? {
+    id: 'current-user',
+    email: localStorage.getItem('user_email') || '',
+  } : null;
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,22 +106,14 @@ export default function CommentSection({ eventId, currentUser }: CommentSectionP
       </div>
 
       {/* 发表评论表单 */}
-      {currentUser ? (
-        <div className="mb-8">
-          <CommentForm
-            eventId={eventId}
-            onSuccess={handleCommentSuccess}
-            parentId={replyTo?.id}
-            onCancel={replyTo ? handleCancelReply : undefined}
-          />
-        </div>
-      ) : (
-        <div className="mb-8 p-6 bg-stone-50 rounded-xl border border-stone-200 text-center">
-          <p className="text-stone-600">
-            Please log in to comment
-          </p>
-        </div>
-      )}
+      <div className="mb-8">
+        <CommentForm
+          eventId={eventId}
+          onSuccess={handleCommentSuccess}
+          parentId={replyTo?.id}
+          onCancel={replyTo ? handleCancelReply : undefined}
+        />
+      </div>
 
       {/* 评论列表 */}
       {isLoading ? (
