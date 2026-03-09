@@ -56,12 +56,14 @@ def get_current_user(
             detail="Invalid credentials"
         )
     
-    # Simple password check (in production, use proper hashing)
-    if user.password_hash and not secrets.compare_digest(credentials.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
+    # Check password with bcrypt hash
+    if user.password_hash:
+        from app.utils.security import verify_password
+        if not verify_password(credentials.password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid credentials"
+            )
     
     return user
 
