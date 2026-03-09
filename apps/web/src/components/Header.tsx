@@ -70,6 +70,12 @@ export default function Header({ title = 'WRHITW', subtitle = "What's Really Hap
             
             {isLoggedIn ? (
               <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => router.push('/personas')}
+                  className="text-sm text-neutral-600 hover:text-primary-600 font-medium transition-colors"
+                >
+                  My Personas
+                </button>
                 <span className="text-sm text-neutral-600">
                   {userEmail}
                 </span>

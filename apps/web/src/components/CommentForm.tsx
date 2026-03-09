@@ -46,12 +46,17 @@ export default function CommentForm({ eventId, onSuccess, parentId, onCancel }: 
       if (response.ok) {
         const data = await response.json();
         setPersonas(data.items || []);
+        // Auto-select first persona if available
         if (data.items && data.items.length > 0) {
           setSelectedPersona(data.items[0].id);
+        } else {
+          // No personas - user needs to create one first
+          setError('You need to create a persona before commenting. Please visit your profile to create one.');
         }
       }
     } catch (err) {
       console.error('Failed to fetch personas:', err);
+      setError('Failed to load personas. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -149,7 +154,7 @@ export default function CommentForm({ eventId, onSuccess, parentId, onCancel }: 
       )}
 
       {/* Persona 选择 */}
-      {personas.length > 1 && (
+      {personas.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-stone-700 mb-2">
             Comment as
