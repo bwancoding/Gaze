@@ -91,18 +91,45 @@ export default function PersonaManagement() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/personas`, {
-        headers: getAuthHeaders(),
+      // 1. Call login API to get token
+      const loginResponse = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: username, password }),
       });
 
-      if (response.ok) {
+      if (!loginResponse.ok) {
+        const errorData = await loginResponse.json();
+        setError(errorData.detail || 'Invalid credentials');
+        setIsLoading(false);
+        return;
+      }
+
+      const loginData = await loginResponse.json();
+      
+      // 2. Save token to localStorage
+      localStorage.setItem('access_token', loginData.access_token);
+      localStorage.setItem('refresh_token', loginData.refresh_token);
+      localStorage.setItem('token_expires_at', (Date.now() + loginData.expires_in * 1000).toString());
+      
+      // 3. Fetch personas with new token
+      const personasResponse = await fetch(`${API_BASE_URL}/api/personas?auto_create=true`, {
+        headers: {
+          'Authorization': `Bearer ${loginData.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (personasResponse.ok) {
         setIsAuthenticated(true);
-        localStorage.setItem('user_auth', JSON.stringify({ username, password }));
         fetchPersonas();
       } else {
-        setError('Invalid credentials');
+        setError('Failed to load personas');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('Network error');
     } finally {
       setIsLoading(false);
