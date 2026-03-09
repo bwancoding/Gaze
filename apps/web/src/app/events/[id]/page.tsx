@@ -646,7 +646,13 @@ export default function EventDetailPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-stone-600">Updated</span>
                     <span className="font-semibold text-stone-900 text-sm">
-                      {new Date(event.updatedAt || event.createdAt || '').toLocaleDateString('en-US')}
+                      {(() => {
+                        const dateStr = event.updatedAt || event.createdAt;
+                        if (!dateStr) return 'N/A';
+                        const date = new Date(dateStr);
+                        if (isNaN(date.getTime())) return 'N/A';
+                        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                      })()}
                     </span>
                   </div>
                 </div>

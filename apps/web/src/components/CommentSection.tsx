@@ -44,7 +44,16 @@ export default function CommentSection({ eventId }: CommentSectionProps) {
 
   // 检查登录状态
   useEffect(() => {
-    setIsLoggedIn(isAuthenticated());
+    const checkAuth = () => {
+      setIsLoggedIn(isAuthenticated());
+    };
+    
+    checkAuth();
+    
+    // 每 5 秒检查一次登录状态
+    const interval = setInterval(checkAuth, 5000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // 获取评论列表
