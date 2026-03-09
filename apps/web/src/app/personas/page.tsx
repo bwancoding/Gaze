@@ -48,12 +48,17 @@ export default function PersonaManagement() {
   }, []);
 
   const getAuthHeaders = () => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      return {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      };
+    const auth = localStorage.getItem('user_auth');
+    if (auth) {
+      try {
+        const { username, password } = JSON.parse(auth);
+        return {
+          'Authorization': 'Basic ' + btoa(`${username}:${password}`),
+          'Content-Type': 'application/json',
+        };
+      } catch (err) {
+        console.error('Failed to parse auth:', err);
+      }
     }
     return {};
   };
@@ -91,42 +96,22 @@ export default function PersonaManagement() {
     setIsLoading(true);
 
     try {
-      // 1. Call login API to get token
-      const loginResponse = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
+      // Test credentials by fetching personas with HTTP Basic Auth
+      const response = await fetch(`${API_BASE_URL}/api/personas?auto_create=true`, {
         headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: username, password }),
-      });
-
-      if (!loginResponse.ok) {
-        const errorData = await loginResponse.json();
-        setError(errorData.detail || 'Invalid credentials');
-        setIsLoading(false);
-        return;
-      }
-
-      const loginData = await loginResponse.json();
-      
-      // 2. Save token to localStorage
-      localStorage.setItem('access_token', loginData.access_token);
-      localStorage.setItem('refresh_token', loginData.refresh_token);
-      localStorage.setItem('token_expires_at', (Date.now() + loginData.expires_in * 1000).toString());
-      
-      // 3. Fetch personas with new token
-      const personasResponse = await fetch(`${API_BASE_URL}/api/personas?auto_create=true`, {
-        headers: {
-          'Authorization': `Bearer ${loginData.access_token}`,
+          'Authorization': 'Basic ' + btoa(`${username}:${password}`),
           'Content-Type': 'application/json',
         },
       });
 
-      if (personasResponse.ok) {
+      if (response.ok) {
+        // Save credentials for future requests
+        localStorage.setItem('user_auth', JSON.stringify({ username, password }));
         setIsAuthenticated(true);
         fetchPersonas();
       } else {
-        setError('Failed to load personas');
+        const errorData = await response.json();
+        setError(errorData.detail || 'Invalid credentials');
       }
     } catch (err) {
       console.error('Login error:', err);
