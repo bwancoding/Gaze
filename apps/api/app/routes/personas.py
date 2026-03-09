@@ -3,13 +3,14 @@ User Persona Management API
 用户身份管理接口
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 import uuid
-import secrets
+import jwt
+import os
 
 from pydantic import BaseModel
 from typing import Optional
@@ -36,36 +37,59 @@ class VerificationApply(BaseModel):
     proof_type: str = "self_declaration"
     proof_data: str = ""
 
+# JWT 配置
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "wrhitw-secret-key-change-in-production-2026")
+ALGORITHM = "HS256"
+
 router = APIRouter(prefix="/personas", tags=["User Personas"])
 
-# User authentication
-security = HTTPBasic()
 
-
-def get_current_user(
-    credentials: HTTPBasicCredentials = Depends(security),
-    db: Session = Depends(get_db)
-) -> User:
-    """Get current user from credentials"""
-    # Try to find user by email
-    user = db.query(User).filter(User.email == credentials.username).first()
-    
-    if not user:
+async def get_current_user_from_token(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> User:
+    """Get current user from JWT token"""
+    if not authorization:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
+            detail="Not authenticated"
         )
     
-    # Check password with bcrypt hash
-    if user.password_hash:
-        from app.utils.security import verify_password
-        if not verify_password(credentials.password, user.password_hash):
+    # Parse Bearer token
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication scheme"
+        )
+    
+    try:
+        # Decode JWT token
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub") or payload.get("email")
+        
+        if not email:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid credentials"
+                detail="Invalid token"
             )
-    
-    return user
+        
+        # Get user from database
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found"
+            )
+        
+        return user
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expired"
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
 
 
 # ==================== Persona Management ====================
@@ -75,7 +99,7 @@ async def get_my_personas(
     include_deleted: bool = False,
     auto_create: bool = True,  # Auto-create if user has no personas
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_token),
 ):
     """
     Get current user's personas
@@ -146,7 +170,7 @@ async def get_my_personas(
 async def create_persona(
     request: PersonaCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_token),
 ):
     """
     Create new persona
@@ -207,7 +231,7 @@ async def update_persona(
     persona_name: Optional[str] = None,
     avatar_color: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_token),
 ):
     """Update persona details"""
     persona = db.query(UserPersona).filter(
@@ -246,7 +270,7 @@ async def update_persona(
 async def delete_persona(
     persona_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_token),
 ):
     """Soft delete persona (marks as deleted, keeps comments intact)"""
     from datetime import datetime
@@ -460,7 +484,7 @@ async def revoke_verification(
 async def cancel_verification(
     verification_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_token),
 ):
     """Cancel a pending verification application (user only)
     
@@ -502,7 +526,7 @@ async def cancel_verification(
 async def get_persona_verifications(
     persona_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_token),
 ):
     """Get verification applications for a persona"""
     persona = db.query(UserPersona).filter(
@@ -541,7 +565,7 @@ async def apply_for_verification(
     persona_id: str,
     request: VerificationApply,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_from_token),
 ):
     """
     Apply for stakeholder verification in a specific event
