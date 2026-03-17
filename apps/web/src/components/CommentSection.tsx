@@ -6,7 +6,7 @@ import CommentItem from './CommentItem';
 import LoginPrompt from './LoginPrompt';
 import { isAuthenticated } from '../lib/auth';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Comment {
   id: string;
@@ -30,9 +30,10 @@ interface Comment {
 
 interface CommentSectionProps {
   eventId: string;
+  threadId?: string;
 }
 
-export default function CommentSection({ eventId }: CommentSectionProps) {
+export default function CommentSection({ eventId, threadId }: CommentSectionProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,8 +60,11 @@ export default function CommentSection({ eventId }: CommentSectionProps) {
   // 获取评论列表
   const fetchComments = async () => {
     try {
-      const limit = isLoggedIn ? 50 : 20; // 登录用户加载更多
-      const response = await fetch(`${API_BASE_URL}/api/comments/event/${eventId}?limit=${limit}`);
+      const limit = isLoggedIn ? 50 : 20;
+      const endpoint = threadId
+        ? `${API_BASE_URL}/api/comments/thread/${threadId}?limit=${limit}`
+        : `${API_BASE_URL}/api/comments/event/${eventId}?limit=${limit}`;
+      const response = await fetch(endpoint);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -128,6 +132,7 @@ export default function CommentSection({ eventId }: CommentSectionProps) {
       <div className="mb-8">
         <CommentForm
           eventId={eventId}
+          threadId={threadId}
           onSuccess={handleCommentSuccess}
           parentId={replyTo?.id}
           onCancel={replyTo ? handleCancelReply : undefined}

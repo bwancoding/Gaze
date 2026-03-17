@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Persona {
   id: string;
@@ -32,12 +32,10 @@ export default function VerifyForEvent() {
   const eventIdFromUrl = searchParams.get('event');
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
-  
+
   const [selectedPersona, setSelectedPersona] = useState('');
   const [selectedEvent, setSelectedEvent] = useState('');
   const [selectedStakeholder, setSelectedStakeholder] = useState('');
@@ -45,32 +43,15 @@ export default function VerifyForEvent() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Check authentication on mount
+  // Check authentication via JWT token
   useEffect(() => {
-    console.log('[Verify Page] Checking authentication...');
-    const storedAuth = localStorage.getItem('user_auth');
-    console.log('[Verify Page] Stored auth:', storedAuth ? 'Found' : 'Not found');
-    
-    if (storedAuth) {
-      try {
-        const { username: storedUsername, password: storedPassword } = JSON.parse(storedAuth);
-        if (storedUsername && storedPassword) {
-          setUsername(storedUsername);
-          setPassword(storedPassword);
-          setIsAuthenticated(true);
-          console.log('[Verify Page] Authenticated as:', storedUsername);
-          // Fetch data immediately (state will be updated synchronously)
-          fetchData();
-          return;
-        }
-      } catch (err) {
-        console.error('[Verify Page] Failed to parse stored auth:', err);
-      }
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      setIsAuthenticated(true);
+      fetchData();
     }
-    
-    console.log('[Verify Page] No valid auth found, showing login form');
   }, []);
-  
+
   // Set pre-selected values from URL
   useEffect(() => {
     if (personaIdFromUrl) {
@@ -81,37 +62,13 @@ export default function VerifyForEvent() {
     }
   }, [personaIdFromUrl, eventIdFromUrl]);
 
-  const getAuthHeaders = () => {
-    // First check local state
-    if (username && password) {
-      const authString = btoa(`${username}:${password}`);
-      console.log('[Auth] Using state credentials:', username);
-      return {
-        'Authorization': 'Basic ' + authString,
-        'Content-Type': 'application/json',
-      };
+  const getAuthHeaders = (): HeadersInit => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
-    
-    // Fallback: try to get from localStorage
-    try {
-      const storedAuth = localStorage.getItem('user_auth');
-      if (storedAuth) {
-        const { username: storedUsername, password: storedPassword } = JSON.parse(storedAuth);
-        if (storedUsername && storedPassword) {
-          const authString = btoa(`${storedUsername}:${storedPassword}`);
-          console.log('[Auth] Using stored credentials:', storedUsername);
-          return {
-            'Authorization': 'Basic ' + authString,
-            'Content-Type': 'application/json',
-          };
-        }
-      }
-    } catch (err) {
-      console.error('[Auth] Failed to parse stored auth:', err);
-    }
-    
-    console.warn('[Auth] No auth credentials found');
-    return {};
+    return headers;
   };
 
   const fetchData = async () => {
@@ -202,15 +159,7 @@ export default function VerifyForEvent() {
         const result = await response.json();
         console.log('[Submit] Success:', result);
         
-        // Ensure auth is saved before navigating
-        if (!localStorage.getItem('user_auth')) {
-          localStorage.setItem('user_auth', JSON.stringify({ username, password }));
-          console.log('[Submit] Saved auth to localStorage');
-        }
-        
         alert('Application submitted successfully! Your request will be reviewed by an admin.');
-        
-        // Use replace instead of push to prevent back button issues
         router.replace('/personas');
       } else {
         const result = await response.json();
@@ -229,83 +178,19 @@ export default function VerifyForEvent() {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-
-    try {
-      // Test credentials with personas API
-      const response = await fetch(`${API_BASE_URL}/api/personas`, {
-        headers: getAuthHeaders(),
-      });
-
-      if (response.ok) {
-        setIsAuthenticated(true);
-        localStorage.setItem('user_auth', JSON.stringify({ username, password }));
-        fetchData();
-      } else if (response.status === 401) {
-        setError('Invalid credentials. Please check your email and password.');
-      } else {
-        setError('Failed to connect to server');
-      }
-    } catch (err) {
-      setError('Network error. Please make sure the backend is running.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-stone-900 mb-2">Apply for Verification</h1>
-            <p className="text-stone-600">Sign in to apply as a stakeholder</p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-500"
-                required
-              />
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-2 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-stone-900 text-white py-2.5 rounded-lg font-medium hover:bg-stone-800 transition-colors disabled:opacity-50"
-            >
-              {isLoading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </form>
+        <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
+          <div className="text-6xl mb-4">🔒</div>
+          <h1 className="text-2xl font-bold text-stone-900 mb-2">Apply for Verification</h1>
+          <p className="text-stone-600 mb-6">Sign in to apply as a stakeholder</p>
+          <button
+            onClick={() => router.push('/auth/login')}
+            className="w-full bg-stone-900 text-white py-2.5 rounded-lg font-medium hover:bg-stone-800 transition-colors"
+          >
+            Sign In
+          </button>
         </div>
       </div>
     );
@@ -322,7 +207,6 @@ export default function VerifyForEvent() {
               <p className="text-xs text-stone-500">Get verified as a stakeholder for an event</p>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-stone-600">{username}</span>
               <button
                 onClick={() => router.push('/personas')}
                 className="text-stone-600 hover:text-stone-900 text-sm"

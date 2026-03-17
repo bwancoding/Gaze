@@ -4,38 +4,10 @@ WRHITW Stakeholder Models
 """
 
 from sqlalchemy import Column, String, Text as _Text, Integer, Boolean, DateTime, DECIMAL, ForeignKey, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
 from app.core.database import Base
+from app.core.types import UUID, JSONColumn
 import uuid
-import os
-
-# 根据数据库类型选择兼容的类型
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./wrhitw.db")
-IS_SQLITE = DATABASE_URL.startswith("sqlite")
-
-if IS_SQLITE:
-    from sqlalchemy import String as _String
-    from sqlalchemy import TypeDecorator
-    import json
-    
-    class SQLiteUUID(TypeDecorator):
-        """SQLite UUID 类型，存储为字符串"""
-        impl = _String
-        cache_ok = True
-        
-        def process_bind_param(self, value, dialect):
-            if value is None:
-                return value
-            return str(value) if hasattr(value, '__str__') else value
-        
-        def process_result_value(self, value, dialect):
-            return value
-    
-    def UUID(as_uuid=False):
-        return SQLiteUUID(36)
-else:
-    UUID = PG_UUID
 
 
 class StakeholderType(Base):
@@ -79,6 +51,9 @@ class EventStakeholder(Base):
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
     stakeholder_id = Column(UUID(as_uuid=True), ForeignKey('stakeholders.id'), nullable=False)
     relevance_score = Column(DECIMAL(3, 2), default=0.5)  # AI 判断的相关性分数 0-1
+    perspective_summary = Column(_Text)  # AI-generated stakeholder perspective for this event
+    key_concerns = Column(JSONColumn)  # ["concern1", "concern2"]
+    is_ai_generated = Column(Boolean, default=False)  # Whether this was auto-created by AI
     status = Column(String(20), default='pending')  # pending, approved, rejected
     approved_at = Column(DateTime(timezone=True))
     approved_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))

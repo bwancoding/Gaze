@@ -2,7 +2,7 @@
 WRHITW Event API Routes
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
@@ -247,36 +247,125 @@ async def get_event_sources(
 @router.get("/{event_id}/summary")
 async def get_event_summary(
     event_id: str,
+    force: bool = Query(False, description="Force regeneration of cached summary"),
     db: Session = Depends(get_db),
 ):
     """
-    Get AI multi-perspective summary for an event
-    
+    Get AI multi-perspective summary for an event.
+
+    Auto-generates if no cached summary exists or if it has expired.
+    Use ?force=true to regenerate even if a valid cache exists.
+
     - **event_id**: Event ID
+    - **force**: Force regeneration
     """
+    from app.services.ai_service import get_cached_summary, generate_and_cache_summary
+
     event = db.query(Event).filter(Event.id == event_id).first()
-    
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    
+
+    # Try cache first (unless force)
+    if not force:
+        cached = get_cached_summary(db, event_id)
+        if cached:
+            return cached
+
+    # Auto-generate
+    try:
+        result = await generate_and_cache_summary(db, event_id, force=force)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/{event_id}/analysis")
+async def get_event_analysis(
+    event_id: str,
+    force: bool = Query(False, description="Force regeneration"),
+    db: Session = Depends(get_db),
+):
+    """
+    Get stakeholder-based deep analysis for an event.
+    Auto-generates if no cached analysis exists.
+    """
+    from app.services.event_analysis_service import get_cached_analysis, generate_event_analysis
+
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    if not force:
+        cached = get_cached_analysis(db, event_id)
+        if cached:
+            return cached
+
+    try:
+        result = await generate_event_analysis(db, event_id, force=force)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/{event_id}/stakeholders")
+async def get_event_stakeholders(
+    event_id: str,
+    db: Session = Depends(get_db),
+):
+    """Get stakeholders and their perspectives for an event."""
+    from app.models.stakeholders import EventStakeholder, Stakeholder
+
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    results = (
+        db.query(EventStakeholder, Stakeholder)
+        .join(Stakeholder, EventStakeholder.stakeholder_id == Stakeholder.id)
+        .filter(EventStakeholder.event_id == event_id)
+        .all()
+    )
+
+    return [
+        {
+            "id": str(es.id),
+            "stakeholder_id": str(es.stakeholder_id),
+            "stakeholder_name": s.name,
+            "perspective_summary": es.perspective_summary,
+            "key_concerns": es.key_concerns or [],
+            "relevance_score": float(es.relevance_score) if es.relevance_score else None,
+            "is_ai_generated": es.is_ai_generated,
+            "status": es.status,
+        }
+        for es, s in results
+    ]
+
+
+@router.post("/{event_id}/summary/feedback")
+async def submit_summary_feedback(
+    event_id: str,
+    helpful: bool = Body(..., embed=True, description="Was the summary helpful?"),
+    perspective: Optional[str] = Body(None, embed=True, description="Which perspective (left/center/right)?"),
+    db: Session = Depends(get_db),
+):
+    """
+    Submit feedback on an AI summary.
+
+    - **helpful**: Was the summary helpful? (true/false)
+    - **perspective**: Optional — which perspective the feedback is about
+    """
     summary = db.query(AiSummary).filter(AiSummary.event_id == event_id).first()
-    
     if not summary:
-        raise HTTPException(status_code=404, detail="Summary not generated yet")
-    
+        raise HTTPException(status_code=404, detail="No summary found for this event")
+
+    # Adjust quality score based on feedback (simple moving average)
+    current_score = float(summary.quality_score) if summary.quality_score else 0.5
+    feedback_value = 1.0 if helpful else 0.0
+    # Weighted: 90% existing score, 10% new feedback
+    summary.quality_score = round(current_score * 0.9 + feedback_value * 0.1, 4)
+    db.commit()
+
     return {
-        "event_id": str(summary.event_id),
-        "left_perspective": {
-            "summary": summary.left_perspective,
-            "sources": summary.left_sources or []
-        },
-        "center_perspective": {
-            "summary": summary.center_perspective,
-            "sources": summary.center_sources or []
-        },
-        "right_perspective": {
-            "summary": summary.right_perspective,
-            "sources": summary.right_sources or []
-        },
-        "generated_at": summary.generated_at,
+        "message": "Feedback recorded",
+        "updated_quality_score": float(summary.quality_score),
     }

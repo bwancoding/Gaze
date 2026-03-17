@@ -4,38 +4,11 @@ WRHITW User Persona Models
 """
 
 from sqlalchemy import Column, String, Text as _Text, Integer, Boolean, DateTime, ForeignKey, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
+from app.core.types import UUID
 import uuid
-import os
-
-# 根据数据库类型选择兼容的类型
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./wrhitw.db")
-IS_SQLITE = DATABASE_URL.startswith("sqlite")
-
-if IS_SQLITE:
-    from sqlalchemy import String as _String
-    from sqlalchemy import TypeDecorator
-    
-    class SQLiteUUID(TypeDecorator):
-        """SQLite UUID 类型，存储为字符串"""
-        impl = _String
-        cache_ok = True
-        
-        def process_bind_param(self, value, dialect):
-            if value is None:
-                return value
-            return str(value) if hasattr(value, '__str__') else value
-        
-        def process_result_value(self, value, dialect):
-            return value
-    
-    def UUID(as_uuid=False):
-        return SQLiteUUID(36)
-else:
-    UUID = PG_UUID
 
 
 class UserPersona(Base):
@@ -80,7 +53,12 @@ class EventStakeholderVerification(Base):
     reviewed_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     reviewed_at = Column(DateTime(timezone=True))
     review_notes = Column(_Text)
-    
+
+    # AI review fields
+    ai_review_score = Column(Integer)  # 0-100, AI confidence that application is legitimate
+    ai_review_notes = Column(_Text)    # AI analysis text
+    ai_flags = Column(_Text)           # JSON list of flags (e.g. ["too_short", "copy_paste"])
+
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

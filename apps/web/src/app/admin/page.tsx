@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Event {
   id: string;
@@ -19,8 +19,10 @@ interface Event {
 interface Stats {
   total_events: number;
   active_events: number;
+  candidate_events: number;
   archived_events: number;
   closed_events: number;
+  pending_trending: number;
 }
 
 export default function AdminDashboard() {
@@ -73,16 +75,14 @@ export default function AdminDashboard() {
     }
   }, [statusFilter, isAuthenticated]);
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = (): HeadersInit => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const storedAuth = localStorage.getItem('admin_auth');
     if (storedAuth) {
       const { username, password } = JSON.parse(storedAuth);
-      return {
-        'Authorization': 'Basic ' + btoa(`${username}:${password}`),
-        'Content-Type': 'application/json',
-      };
+      headers['Authorization'] = 'Basic ' + btoa(`${username}:${password}`);
     }
-    return {};
+    return headers;
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -173,6 +173,40 @@ export default function AdminDashboard() {
     }
   };
 
+  const handlePublish = async (eventId: string) => {
+    if (!confirm('Publish this event?')) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/events/${eventId}/publish`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (response.ok) {
+        fetchData();
+      } else {
+        alert('Failed to publish event');
+      }
+    } catch {
+      alert('Failed to publish event');
+    }
+  };
+
+  const handleReject = async (eventId: string) => {
+    if (!confirm('Reject this candidate?')) return;
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/events/${eventId}/reject`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+      });
+      if (response.ok) {
+        fetchData();
+      } else {
+        alert('Failed to reject event');
+      }
+    } catch {
+      alert('Failed to reject event');
+    }
+  };
+
   const handleCreateEvent = () => {
     router.push('/admin/events/new');
   };
@@ -247,12 +281,24 @@ export default function AdminDashboard() {
               <h1 className="text-xl font-bold text-stone-900">WRHITW Admin</h1>
               <p className="text-xs text-stone-500">Event & Verification Management</p>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => router.push('/admin/candidates')}
+                className="bg-amber-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors"
+              >
+                📋 Candidates
+              </button>
+              <button
+                onClick={() => router.push('/admin/stakeholders')}
+                className="bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors"
+              >
+                👥 Stakeholders
+              </button>
               <button
                 onClick={() => router.push('/admin/verifications')}
                 className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
               >
-                🔍 Review Verifications
+                🔍 Verifications
               </button>
               <button
                 onClick={() => router.push('/')}
@@ -274,29 +320,36 @@ export default function AdminDashboard() {
       <main className="container mx-auto px-6 py-8">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-            <div className="bg-white p-6 rounded-xl border border-stone-200">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+            <div className="bg-white p-5 rounded-xl border border-stone-200">
               <p className="text-sm text-stone-600 mb-1">Total Events</p>
               <p className="text-3xl font-bold text-stone-900">{stats.total_events}</p>
             </div>
-            <div className="bg-white p-6 rounded-xl border border-stone-200">
+            <div className="bg-white p-5 rounded-xl border border-stone-200">
               <p className="text-sm text-stone-600 mb-1">Active</p>
               <p className="text-3xl font-bold text-emerald-600">{stats.active_events}</p>
             </div>
-            <div className="bg-white p-6 rounded-xl border border-stone-200">
+            <div
+              className="bg-amber-50 p-5 rounded-xl border border-amber-200 cursor-pointer hover:bg-amber-100 transition-colors"
+              onClick={() => router.push('/admin/candidates')}
+            >
+              <p className="text-sm text-amber-700 mb-1">Candidates</p>
+              <p className="text-3xl font-bold text-amber-600">{stats.candidate_events}</p>
+            </div>
+            <div
+              className="bg-orange-50 p-5 rounded-xl border border-orange-200 cursor-pointer hover:bg-orange-100 transition-colors"
+              onClick={() => router.push('/admin/candidates')}
+            >
+              <p className="text-sm text-orange-700 mb-1">Trending 🔥</p>
+              <p className="text-3xl font-bold text-orange-600">{stats.pending_trending}</p>
+            </div>
+            <div className="bg-white p-5 rounded-xl border border-stone-200">
               <p className="text-sm text-stone-600 mb-1">Archived</p>
               <p className="text-3xl font-bold text-amber-600">{stats.archived_events}</p>
             </div>
-            <div className="bg-white p-6 rounded-xl border border-stone-200">
+            <div className="bg-white p-5 rounded-xl border border-stone-200">
               <p className="text-sm text-stone-600 mb-1">Closed</p>
-              <p className="text-3xl font-bold text-stone-600">{stats.closed_events}</p>
-            </div>
-            <div 
-              className="bg-indigo-50 p-6 rounded-xl border border-indigo-200 cursor-pointer hover:bg-indigo-100 transition-colors"
-              onClick={() => router.push('/admin/verifications')}
-            >
-              <p className="text-sm text-indigo-600 mb-1">Pending Reviews</p>
-              <p className="text-3xl font-bold text-indigo-700">🔍</p>
+              <p className="text-3xl font-bold text-stone-500">{stats.closed_events}</p>
             </div>
           </div>
         )}
@@ -312,6 +365,7 @@ export default function AdminDashboard() {
             >
               <option value="all">All Events</option>
               <option value="active">Active</option>
+              <option value="candidate">Candidate</option>
               <option value="archived">Archived</option>
               <option value="closed">Closed</option>
             </select>
@@ -353,8 +407,9 @@ export default function AdminDashboard() {
                   <td className="px-6 py-4">
                     <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
                       event.status === 'active' ? 'bg-emerald-100 text-emerald-700' :
-                      event.status === 'archived' ? 'bg-amber-100 text-amber-700' :
-                      'bg-stone-100 text-stone-700'
+                      event.status === 'candidate' ? 'bg-amber-100 text-amber-700' :
+                      event.status === 'archived' ? 'bg-stone-200 text-stone-600' :
+                      'bg-stone-100 text-stone-500'
                     }`}>
                       {event.status}
                     </span>
@@ -366,19 +421,33 @@ export default function AdminDashboard() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end space-x-2">
+                      {event.status === 'candidate' && (
+                        <>
+                          <button
+                            onClick={() => handlePublish(event.id)}
+                            className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
+                          >
+                            Publish
+                          </button>
+                          <button
+                            onClick={() => handleReject(event.id)}
+                            className="text-red-600 hover:text-red-700 text-sm font-medium"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
                       {event.status === 'active' && (
                         <>
                           <button
                             onClick={() => handleArchive(event.id)}
                             className="text-amber-600 hover:text-amber-700 text-sm font-medium"
-                            title="Archive"
                           >
                             Archive
                           </button>
                           <button
                             onClick={() => handleClose(event.id)}
                             className="text-stone-600 hover:text-stone-700 text-sm font-medium"
-                            title="Close"
                           >
                             Close
                           </button>
@@ -387,7 +456,6 @@ export default function AdminDashboard() {
                       <button
                         onClick={() => handleDelete(event.id)}
                         className="text-red-600 hover:text-red-700 text-sm font-medium"
-                        title="Delete Permanently"
                       >
                         Delete
                       </button>

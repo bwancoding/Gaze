@@ -13,3 +13,10 @@ openai==1.12.0
 bcrypt==4.1.2
 passlib==1.7.4
 python-jose[cryptography]==3.5.0
+# Trending module dependencies
+aiohttp==3.9.1
+feedparser==6.0.10
+apscheduler==3.10.4
+pydantic-settings==2.1.0
+slowapi==0.1.9
+alembic==1.13.1

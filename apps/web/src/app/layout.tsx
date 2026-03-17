@@ -6,7 +6,18 @@ const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'WRHITW - What\'s Really Happening In The World',
-  description: '多视角新闻聚合平台，让你看到完整的故事',
+  description: 'Multi-perspective news aggregation platform. See every side of the story through diverse global voices.',
+  openGraph: {
+    title: 'WRHITW - What\'s Really Happening In The World',
+    description: 'Multi-perspective news aggregation platform. See every side of the story through diverse global voices.',
+    type: 'website',
+    siteName: 'WRHITW',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'WRHITW - What\'s Really Happening In The World',
+    description: 'Multi-perspective news aggregation platform.',
+  },
 }
 
 export default function RootLayout({
@@ -15,7 +26,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="zh-CN">
+    <html lang="en">
       <body className={inter.className}>{children}</body>
     </html>
   )

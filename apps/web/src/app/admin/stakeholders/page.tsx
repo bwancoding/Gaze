@@ -3,13 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface StakeholderType {
   id: string;
   name: string;
   description: string;
   category: string;
+  verification_required?: boolean;
+  verification_method?: string;
 }
 
 interface Stakeholder {
@@ -19,6 +21,7 @@ interface Stakeholder {
   description: string;
   category: string;
   is_active: boolean;
+  is_ai_generated?: boolean;
 }
 
 export default function StakeholderManagement() {
@@ -41,16 +44,14 @@ export default function StakeholderManagement() {
     }
   }, []);
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = (): HeadersInit => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const storedAuth = localStorage.getItem('admin_auth');
     if (storedAuth) {
       const { username, password } = JSON.parse(storedAuth);
-      return {
-        'Authorization': 'Basic ' + btoa(`${username}:${password}`),
-        'Content-Type': 'application/json',
-      };
+      headers['Authorization'] = 'Basic ' + btoa(`${username}:${password}`);
     }
-    return {};
+    return headers;
   };
 
   const fetchData = async () => {
@@ -194,7 +195,12 @@ export default function StakeholderManagement() {
                 {stakeholders.map((stakeholder) => (
                   <tr key={stakeholder.id} className="hover:bg-stone-50">
                     <td className="px-6 py-4">
-                      <p className="font-medium text-stone-900">{stakeholder.name}</p>
+                      <div className="flex items-center space-x-2">
+                        <p className="font-medium text-stone-900">{stakeholder.name}</p>
+                        {stakeholder.is_ai_generated && (
+                          <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">AI</span>
+                        )}
+                      </div>
                       <p className="text-xs text-stone-500 truncate max-w-xs">{stakeholder.description}</p>
                     </td>
                     <td className="px-6 py-4">

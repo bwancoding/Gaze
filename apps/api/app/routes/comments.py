@@ -3,95 +3,23 @@ WRHITW Comment System API
 评论系统 API 接口
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional
 from datetime import datetime
-from jose import jwt, JWTError
-import os
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 
 from app.core.database import get_db
-from app.models import User  # User 在 __init__.py 中
+from app.core.auth import get_current_user, get_current_user_optional
+from app.models import User
 from app.models.comments import Comment
 from app.models.personas import UserPersona, EventStakeholderVerification
 
 router = APIRouter(prefix="/api/comments", tags=["Comments"])
-
-# JWT 配置
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "wrhitw-secret-key-change-in-production-2026")
-ALGORITHM = "HS256"
-
-# Bearer Token 认证
-security = HTTPBearer(auto_error=False)
-
-
-class TokenData:
-    def __init__(self, user_id: str, email: str):
-        self.user_id = user_id
-        self.email = email
-
-
-def decode_token(token: str) -> Optional[TokenData]:
-    """解码 Token"""
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        email: str = payload.get("email")
-        
-        if user_id is None:
-            return None
-        
-        return TokenData(user_id=user_id, email=email)
-    except JWTError:
-        return None
-
-
-def get_current_user_optional(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    db: Session = Depends(get_db)
-) -> Optional[User]:
-    """获取当前登录用户（可选，未登录返回 None）"""
-    if credentials is None:
-        return None
-    
-    token_data = decode_token(credentials.credentials)
-    if token_data is None:
-        return None
-    
-    user = db.query(User).filter(User.id == token_data.user_id).first()
-    
-    if user is None or not user.is_active:
-        return None
-    
-    return user
-
-
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
-) -> User:
-    """获取当前登录用户（必须登录）"""
-    token_data = decode_token(credentials.credentials)
-    
-    if token_data is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    user = db.query(User).filter(User.id == token_data.user_id).first()
-    
-    if user is None or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found or inactive",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    return user
 
 
 def check_persona_ownership(db: Session, persona_id: str, user_id: str):
@@ -171,7 +99,9 @@ def get_event_comments(
 
 
 @router.post("")
+@limiter.limit("10/minute")
 def create_comment(
+    request: Request,
     event_id: str = Body(..., embed=True),
     user_persona_id: str = Body(..., embed=True),
     content: str = Body(..., embed=True),
@@ -212,11 +142,22 @@ def create_comment(
         content=content.strip(),
         parent_id=parent_id
     )
-    
+
     db.add(comment)
+
+    # Notify parent comment author on reply
+    if parent_id and parent_comment:
+        from app.models.notifications import create_notification
+        create_notification(
+            db, parent_comment.user_id, "reply",
+            f'{persona.persona_name} replied to your comment',
+            f'/events/{event_id}',
+            source_user_id=current_user.id, comment_id=parent_id,
+        )
+
     db.commit()
     db.refresh(comment)
-    
+
     return {
         "message": "Comment created successfully",
         "comment": {
@@ -297,33 +238,195 @@ def delete_comment(
     return {"message": "Comment deleted successfully"}
 
 
-@router.post("/{comment_id}/like")
-def like_comment(
-    comment_id: str,
-    action: str = Query("like", description="like or dislike"),
+@router.get("/thread/{thread_id}")
+def get_thread_comments(
+    thread_id: str,
+    parent_id: Optional[str] = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # 必须登录
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """点赞/点踩评论（简化版：只增加计数，不记录用户）"""
+    """Get comments for a thread."""
+    from app.models.threads import Thread
+
+    thread = db.query(Thread).filter(Thread.id == thread_id, Thread.is_deleted == False).first()
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    query = db.query(Comment).options(
+        joinedload(Comment.persona),
+    ).filter(
+        Comment.thread_id == thread_id,
+        Comment.is_deleted == False,
+    )
+
+    if parent_id:
+        query = query.filter(Comment.parent_id == parent_id)
+    else:
+        query = query.filter(Comment.parent_id == None)
+
+    total = query.count()
+    comments = query.order_by(desc(Comment.created_at)).offset(offset).limit(limit).all()
+
+    return {
+        "items": [comment.to_dict(include_verified_badge=True) for comment in comments],
+        "total": total,
+        "has_more": total > offset + limit,
+    }
+
+
+@router.post("/thread/{thread_id}")
+@limiter.limit("10/minute")
+def create_thread_comment(
+    request: Request,
+    thread_id: str,
+    user_persona_id: str = Body(..., embed=True),
+    content: str = Body(..., embed=True),
+    parent_id: Optional[str] = Body(None, embed=True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Create a comment in a thread."""
+    from app.models.threads import Thread
+
+    thread = db.query(Thread).filter(Thread.id == thread_id, Thread.is_deleted == False).first()
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    if thread.is_locked:
+        raise HTTPException(status_code=403, detail="Thread is locked")
+
+    if not content or len(content.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Comment content cannot be empty")
+    if len(content) > 5000:
+        raise HTTPException(status_code=400, detail="Comment content too long (max 5000 characters)")
+
+    persona = check_persona_ownership(db, user_persona_id, str(current_user.id))
+
+    if parent_id:
+        parent_comment = db.query(Comment).filter(
+            Comment.id == parent_id,
+            Comment.thread_id == thread_id,
+            Comment.is_deleted == False,
+        ).first()
+        if not parent_comment:
+            raise HTTPException(status_code=404, detail="Parent comment not found")
+        parent_comment.reply_count += 1
+
+    comment = Comment(
+        user_id=current_user.id,
+        user_persona_id=user_persona_id,
+        event_id=thread.event_id,
+        thread_id=thread_id,
+        content=content.strip(),
+        parent_id=parent_id,
+    )
+
+    db.add(comment)
+    thread.reply_count += 1
+
+    # Notifications
+    from app.models.notifications import create_notification
+    link = f'/events/{thread.event_id}/threads/{thread_id}'
+
+    # Notify parent comment author on reply
+    if parent_id and parent_comment:
+        create_notification(
+            db, parent_comment.user_id, "reply",
+            f'{persona.persona_name} replied to your comment',
+            link, source_user_id=current_user.id, comment_id=parent_id,
+        )
+
+    # Notify thread owner of new comment (if not replying to thread owner's own comment)
+    if thread.user_id:
+        create_notification(
+            db, thread.user_id, "thread_reply",
+            f'{persona.persona_name} commented on your thread "{thread.title[:50]}"',
+            link, source_user_id=current_user.id, thread_id=thread_id,
+        )
+
+    db.commit()
+    db.refresh(comment)
+
+    return {
+        "message": "Comment created successfully",
+        "comment": comment.to_dict(include_verified_badge=True),
+    }
+
+
+@router.post("/{comment_id}/vote")
+def vote_comment(
+    comment_id: str,
+    action: str = Query(..., regex="^(like|dislike)$", description="like or dislike"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Vote on a comment (like/dislike). Toggle behavior:
+    - Same vote again → cancel (remove vote)
+    - Different vote → switch (e.g. like→dislike)
+    """
+    from app.models.user_likes import UserLike
+
     comment = db.query(Comment).filter(
         Comment.id == comment_id,
         Comment.is_deleted == False
     ).first()
-    
+
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
-    
-    if action == "like":
-        comment.like_count += 1
-    elif action == "dislike":
-        comment.dislike_count += 1
+
+    existing = db.query(UserLike).filter(
+        UserLike.user_id == current_user.id,
+        UserLike.comment_id == comment_id,
+    ).first()
+
+    if existing:
+        if existing.vote_type == action:
+            # Same vote → cancel
+            if action == 'like':
+                comment.like_count = max(0, comment.like_count - 1)
+            else:
+                comment.dislike_count = max(0, comment.dislike_count - 1)
+            db.delete(existing)
+            db.commit()
+            return {"like_count": comment.like_count, "dislike_count": comment.dislike_count, "user_vote": None}
+        else:
+            # Switch vote
+            if existing.vote_type == 'like':
+                comment.like_count = max(0, comment.like_count - 1)
+            else:
+                comment.dislike_count = max(0, comment.dislike_count - 1)
+            if action == 'like':
+                comment.like_count += 1
+            else:
+                comment.dislike_count += 1
+            existing.vote_type = action
+            db.commit()
+            return {"like_count": comment.like_count, "dislike_count": comment.dislike_count, "user_vote": action}
     else:
-        raise HTTPException(status_code=400, detail="Invalid action. Use 'like' or 'dislike'")
-    
-    db.commit()
-    
-    return {
-        "message": f"Comment {action}d successfully",
-        "like_count": comment.like_count,
-        "dislike_count": comment.dislike_count
-    }
+        # New vote
+        if action == 'like':
+            comment.like_count += 1
+        else:
+            comment.dislike_count += 1
+        vote = UserLike(user_id=current_user.id, comment_id=comment_id, vote_type=action)
+        db.add(vote)
+
+        # Notify comment owner
+        from app.models.notifications import create_notification
+        from app.models.personas import UserPersona
+        persona = db.query(UserPersona).filter(UserPersona.user_id == current_user.id, UserPersona.is_deleted == False).first()
+        actor_name = persona.persona_name if persona else "Someone"
+        link = f'/events/{comment.event_id}'
+        if comment.thread_id:
+            link = f'/events/{comment.event_id}/threads/{comment.thread_id}'
+        create_notification(
+            db, comment.user_id, action,
+            f'{actor_name} {action}d your comment',
+            link, source_user_id=current_user.id, comment_id=comment_id,
+        )
+
+        db.commit()
+        return {"like_count": comment.like_count, "dislike_count": comment.dislike_count, "user_vote": action}

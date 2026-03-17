@@ -5,17 +5,16 @@ User Persona Management API
 
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime
 import uuid
-import jwt
-import os
+import json
 
 from pydantic import BaseModel
-from typing import Optional
 
 from app.core.database import get_db
+from app.core.auth import get_current_user_from_header as get_current_user_from_token
 from app.models.personas import UserPersona, EventStakeholderVerification
 from app.models.stakeholders import Stakeholder
 from app.models import User, Event
@@ -37,59 +36,7 @@ class VerificationApply(BaseModel):
     proof_type: str = "self_declaration"
     proof_data: str = ""
 
-# JWT 配置
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "wrhitw-secret-key-change-in-production-2026")
-ALGORITHM = "HS256"
-
 router = APIRouter(prefix="/personas", tags=["User Personas"])
-
-
-async def get_current_user_from_token(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> User:
-    """Get current user from JWT token"""
-    if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
-        )
-    
-    # Parse Bearer token
-    scheme, _, token = authorization.partition(" ")
-    if scheme.lower() != "bearer" or not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication scheme"
-        )
-    
-    try:
-        # Decode JWT token
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub") or payload.get("email")
-        
-        if not email:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
-            )
-        
-        # Get user from database
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found"
-            )
-        
-        return user
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token expired"
-        )
-    except jwt.InvalidTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
 
 
 # ==================== Persona Management ====================
@@ -125,11 +72,11 @@ async def get_my_personas(
         
         # Generate recommended name
         recommended_names = [
-            "在互联网冲浪的普通人",
-            "吃瓜群众",
-            "匿名观察者",
-            "路过的网友",
-            "普通市民",
+            "Anonymous Observer",
+            "Curious Reader",
+            "Global Citizen",
+            "News Follower",
+            "Concerned Individual",
         ]
         persona_name = random.choice(recommended_names)
         avatar_color = random.choice(['blue', 'green', 'purple', 'orange', 'teal'])
@@ -280,10 +227,22 @@ async def delete_persona(
         UserPersona.user_id == current_user.id,
         UserPersona.is_deleted == False  # Can't delete already deleted persona
     ).first()
-    
+
     if not persona:
         raise HTTPException(status_code=404, detail="Persona not found")
-    
+
+    # Check if this is the last active persona
+    active_count = db.query(UserPersona).filter(
+        UserPersona.user_id == current_user.id,
+        UserPersona.is_deleted == False
+    ).count()
+
+    if active_count <= 1:
+        raise HTTPException(
+            status_code=400,
+            detail="You must keep at least one persona. Create a new one before deleting this."
+        )
+
     # Soft delete: mark as deleted instead of removing
     persona.is_deleted = True
     persona.deleted_at = datetime.utcnow()
@@ -334,6 +293,9 @@ async def list_all_verifications(
                 "proof_type": v.proof_type,
                 "status": v.status,
                 "review_notes": v.review_notes,
+                "ai_review_score": v.ai_review_score,
+                "ai_review_notes": v.ai_review_notes,
+                "ai_flags": json.loads(v.ai_flags) if v.ai_flags else [],
                 "created_at": v.created_at.isoformat() if v.created_at else None,
             }
             for v in verifications
@@ -359,13 +321,22 @@ async def approve_verification(
     verification.status = 'approved'
     verification.reviewed_at = datetime.utcnow()
     verification.review_notes = review_notes
-    
+
     # Update persona is_verified flag
     if verification.persona:
         verification.persona.is_verified = True
-    
+
+        # Notify persona owner
+        from app.models.notifications import create_notification
+        stakeholder_name = verification.stakeholder.name if verification.stakeholder else "stakeholder"
+        create_notification(
+            db, verification.persona.user_id, "verification_approved",
+            f'Your verification as "{stakeholder_name}" has been approved',
+            f'/events/{verification.event_id}',
+        )
+
     db.commit()
-    
+
     return {"message": "Application approved"}
 
 
@@ -387,10 +358,46 @@ async def reject_verification(
     verification.status = 'rejected'
     verification.reviewed_at = datetime.utcnow()
     verification.review_notes = review_notes
-    
+
+    # Notify persona owner
+    if verification.persona:
+        from app.models.notifications import create_notification
+        stakeholder_name = verification.stakeholder.name if verification.stakeholder else "stakeholder"
+        create_notification(
+            db, verification.persona.user_id, "verification_rejected",
+            f'Your verification as "{stakeholder_name}" has been rejected',
+            f'/profile',
+        )
+
     db.commit()
-    
+
     return {"message": "Application rejected"}
+
+
+@router.post("/admin/verifications/ai-review-all")
+async def batch_ai_review(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Batch AI review all pending applications that haven't been reviewed (admin)"""
+    from app.services.verification_reviewer import review_pending_applications
+    count = await review_pending_applications(db)
+    return {"message": f"AI reviewed {count} applications"}
+
+
+@router.post("/admin/verifications/{verification_id}/ai-review")
+async def ai_review_single(
+    verification_id: str,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Run or re-run AI review on a specific verification application (admin)"""
+    from app.services.verification_reviewer import ai_review_application
+    try:
+        result = await ai_review_application(db, verification_id)
+        return {"message": "AI review completed", "result": result}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.post("/admin/verifications/{verification_id}/revoke")
@@ -434,50 +441,19 @@ async def revoke_verification(
         # If no other approved verifications, set is_verified to False
         if not other_approved:
             verification.persona.is_verified = False
-    
+
+        # Notify persona owner
+        from app.models.notifications import create_notification
+        stakeholder_name = verification.stakeholder.name if verification.stakeholder else "stakeholder"
+        create_notification(
+            db, verification.persona.user_id, "verification_revoked",
+            f'Your verification as "{stakeholder_name}" has been revoked',
+            f'/profile',
+        )
+
     db.commit()
     
     return {"message": "Verification revoked successfully"}
-
-
-@router.post("/admin/verifications/{verification_id}/revoke")
-async def revoke_verification(
-    verification_id: str,
-    review_notes: str = "",
-    db: Session = Depends(get_db),
-    username: str = Depends(verify_admin_credentials),
-):
-    """Revoke an approved verification (admin)"""
-    verification = db.query(EventStakeholderVerification).filter(
-        EventStakeholderVerification.id == verification_id
-    ).first()
-    
-    if not verification:
-        raise HTTPException(status_code=404, detail="Application not found")
-    
-    if verification.status != 'approved':
-        raise HTTPException(status_code=400, detail="Can only revoke approved verifications")
-    
-    # Change status back to pending
-    verification.status = 'pending'
-    verification.reviewed_at = None
-    verification.review_notes = review_notes
-    
-    # Unset persona is_verified flag
-    if verification.persona:
-        # Check if persona has any other approved verifications
-        other_approved = db.query(EventStakeholderVerification).filter(
-            EventStakeholderVerification.user_persona_id == verification.user_persona_id,
-            EventStakeholderVerification.id != verification.id,
-            EventStakeholderVerification.status == 'approved'
-        ).count()
-        
-        if other_approved == 0:
-            verification.persona.is_verified = False
-    
-    db.commit()
-    
-    return {"message": "Verification revoked"}
 
 
 @router.post("/verifications/{verification_id}/cancel")
@@ -537,7 +513,10 @@ async def get_persona_verifications(
     if not persona:
         raise HTTPException(status_code=404, detail="Persona not found")
     
-    verifications = db.query(EventStakeholderVerification).filter(
+    verifications = db.query(EventStakeholderVerification).options(
+        joinedload(EventStakeholderVerification.event),
+        joinedload(EventStakeholderVerification.stakeholder),
+    ).filter(
         EventStakeholderVerification.user_persona_id == persona_id
     ).order_by(EventStakeholderVerification.created_at.desc()).all()
     
@@ -636,11 +615,21 @@ async def apply_for_verification(
         
         db.add(application)
         db.commit()
-        
+
+        # Trigger AI review in background (non-blocking, best-effort)
+        ai_result = None
+        try:
+            from app.services.verification_reviewer import ai_review_application
+            ai_result = await ai_review_application(db, str(application.id))
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"AI review failed: {e}")
+
         return {
             "message": "Application submitted",
             "application_id": str(application.id),
-            "status": "pending"
+            "status": "pending",
+            "ai_review": ai_result,
         }
     except Exception as e:
         db.rollback()

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Comment {
   id: string;
@@ -47,68 +47,60 @@ const avatarColors: Record<string, string> = {
   gray: 'bg-gray-500',
 };
 
-export default function CommentItem({ comment, onReply, depth, currentUser }: CommentItemProps) {
+export default function CommentItem({ comment, onReply, onDelete, depth, currentUser }: CommentItemProps) {
   const [likes, setLikes] = useState(comment.like_count);
   const [dislikes, setDislikes] = useState(comment.dislike_count);
-  const [hasLiked, setHasLiked] = useState(false);
-  const [hasDisliked, setHasDisliked] = useState(false);
+  const [userVote, setUserVote] = useState<'like' | 'dislike' | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const isOwner = currentUser?.id === comment.user_id;
 
-  const handleLike = async () => {
-    if (hasLiked) return;
+  const handleVote = async (action: 'like' | 'dislike') => {
+    const token = localStorage.getItem('access_token');
+    if (!token) return;
+
+    // Save old state for rollback
+    const oldLikes = likes;
+    const oldDislikes = dislikes;
+    const oldVote = userVote;
 
     // Optimistic update
-    setLikes(prev => prev + 1);
-    setHasLiked(true);
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/comments/${comment.id}/like?action=like`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        // Rollback on failure
-        setLikes(prev => prev - 1);
-        setHasLiked(false);
-      }
-    } catch (err) {
-      console.error('Failed to like comment:', err);
-      // Rollback on error
-      setLikes(prev => prev - 1);
-      setHasLiked(false);
+    if (userVote === action) {
+      // Cancel vote
+      if (action === 'like') setLikes(prev => Math.max(0, prev - 1));
+      else setDislikes(prev => Math.max(0, prev - 1));
+      setUserVote(null);
+    } else {
+      // Switch or new vote
+      if (userVote === 'like') setLikes(prev => Math.max(0, prev - 1));
+      if (userVote === 'dislike') setDislikes(prev => Math.max(0, prev - 1));
+      if (action === 'like') setLikes(prev => prev + 1);
+      else setDislikes(prev => prev + 1);
+      setUserVote(action);
     }
-  };
-
-  const handleDislike = async () => {
-    if (hasDisliked) return;
-
-    // Optimistic update
-    setDislikes(prev => prev + 1);
-    setHasDisliked(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/comments/${comment.id}/like?action=dislike`, {
+      const response = await fetch(`${API_BASE_URL}/api/comments/${comment.id}/vote?action=${action}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        },
+        headers: { 'Authorization': `Bearer ${token}` },
       });
 
-      if (!response.ok) {
-        // Rollback on failure
-        setDislikes(prev => prev - 1);
-        setHasDisliked(false);
+      if (response.ok) {
+        const data = await response.json();
+        setLikes(data.like_count);
+        setDislikes(data.dislike_count);
+        setUserVote(data.user_vote);
+      } else {
+        // Rollback
+        setLikes(oldLikes);
+        setDislikes(oldDislikes);
+        setUserVote(oldVote);
       }
-    } catch (err) {
-      console.error('Failed to dislike comment:', err);
-      // Rollback on error
-      setDislikes(prev => prev - 1);
-      setHasDisliked(false);
+    } catch {
+      // Rollback
+      setLikes(oldLikes);
+      setDislikes(oldDislikes);
+      setUserVote(oldVote);
     }
   };
 
@@ -195,26 +187,24 @@ export default function CommentItem({ comment, onReply, depth, currentUser }: Co
           {/* 操作按钮 */}
           <div className="flex items-center space-x-4">
             <button
-              onClick={handleLike}
-              disabled={hasLiked}
+              onClick={() => handleVote('like')}
               className={`flex items-center space-x-1 text-sm transition-colors ${
-                hasLiked ? 'text-blue-600' : 'text-stone-500 hover:text-stone-700'
+                userVote === 'like' ? 'text-blue-600 font-semibold' : 'text-stone-500 hover:text-stone-700'
               }`}
             >
-              <svg className="w-4 h-4" fill={hasLiked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill={userVote === 'like' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
               </svg>
               <span>{likes}</span>
             </button>
 
             <button
-              onClick={handleDislike}
-              disabled={hasDisliked}
+              onClick={() => handleVote('dislike')}
               className={`flex items-center space-x-1 text-sm transition-colors ${
-                hasDisliked ? 'text-red-600' : 'text-stone-500 hover:text-stone-700'
+                userVote === 'dislike' ? 'text-red-600 font-semibold' : 'text-stone-500 hover:text-stone-700'
               }`}
             >
-              <svg className="w-4 h-4" fill={hasDisliked ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill={userVote === 'dislike' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
               </svg>
               <span>{dislikes}</span>

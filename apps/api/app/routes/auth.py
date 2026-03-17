@@ -3,14 +3,18 @@ JWT Authentication API
 用户认证和 Token 管理
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from typing import Optional
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 import os
+
+limiter = Limiter(key_func=get_remote_address)
 
 from app.core.database import get_db
 from app.models import User
@@ -19,7 +23,12 @@ from app.utils.security import verify_password
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 # JWT 配置
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "wrhitw-secret-key-change-in-production-2026")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "JWT_SECRET_KEY environment variable is required. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 小时
 REFRESH_TOKEN_EXPIRE_DAYS = 7  # 7 天
@@ -123,27 +132,28 @@ def get_current_user(
 
 
 @router.post("/login", response_model=Token)
-async def login(request: LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def login(request: Request, login_data: LoginRequest, db: Session = Depends(get_db)):
     """
     用户登录
-    
+
     - **email**: 用户邮箱
     - **password**: 用户密码
     """
     # 查找用户
     user = db.query(User).filter(
-        (User.email == request.email) | (User.phone == request.email)
+        (User.email == login_data.email) | (User.phone == login_data.email)
     ).first()
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # 验证密码
-    if not verify_password(request.password, user.password_hash):
+    if not verify_password(login_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",

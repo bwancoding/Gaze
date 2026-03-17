@@ -1,6 +1,5 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import BiasBadge from './BiasBadge';
 
 interface EventCardProps {
   id: string;
@@ -74,18 +73,19 @@ export default function EventCard({
         </p>
       )}
 
-      {/* Multi-perspective Indicator */}
+      {/* Stakeholder Analysis Indicator */}
       <div className="mb-4 p-3 bg-gradient-to-r from-slate-50 to-neutral-50 rounded-xl border border-neutral-100">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <span className="text-xs font-medium text-neutral-600">Multi-perspective Analysis</span>
+            <span className="text-xs font-medium text-neutral-600">Stakeholder Analysis</span>
             <span className="text-xs text-neutral-400">·</span>
             <span className="text-xs text-neutral-500">{sourceCount} Sources</span>
           </div>
-          <div className="flex space-x-1.5">
-            <BiasBadge bias="left" size="sm" />
-            <BiasBadge bias="center" size="sm" />
-            <BiasBadge bias="right" size="sm" />
+          <div className="flex items-center space-x-1.5">
+            <div className="w-5 h-5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 flex items-center justify-center">
+              <span className="text-[8px] font-bold text-white">AI</span>
+            </div>
+            <svg className="w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
           </div>
         </div>
       </div>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Verification {
   id: string;
@@ -54,14 +54,12 @@ export default function AdminVerifications() {
     }
   }, []);
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = (): HeadersInit => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (username && password) {
-      return {
-        'Authorization': 'Basic ' + btoa(`${username}:${password}`),
-        'Content-Type': 'application/json',
-      };
+      headers['Authorization'] = 'Basic ' + btoa(`${username}:${password}`);
     }
-    return {};
+    return headers;
   };
 
   const fetchVerifications = async () => {

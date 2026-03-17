@@ -4,16 +4,17 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { isAuthenticated, getAuthHeaders, fetchWithAuth } from '../lib/auth';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface CommentFormProps {
   eventId: string;
+  threadId?: string;
   onSuccess?: () => void;
   parentId?: string;
   onCancel?: () => void;
 }
 
-export default function CommentForm({ eventId, onSuccess, parentId, onCancel }: CommentFormProps) {
+export default function CommentForm({ eventId, threadId, onSuccess, parentId, onCancel }: CommentFormProps) {
   const router = useRouter();
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,17 +80,23 @@ export default function CommentForm({ eventId, onSuccess, parentId, onCancel }: 
     setError(null);
 
     try {
-      const response = await fetchWithAuth(`${API_BASE_URL}/api/comments`, {
+      const endpoint = threadId
+        ? `${API_BASE_URL}/api/comments/thread/${threadId}`
+        : `${API_BASE_URL}/api/comments`;
+      const bodyData: any = {
+        user_persona_id: selectedPersona,
+        content: content.trim(),
+        parent_id: parentId,
+      };
+      if (!threadId) {
+        bodyData.event_id = eventId;
+      }
+      const response = await fetchWithAuth(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          event_id: eventId,
-          user_persona_id: selectedPersona,
-          content: content.trim(),
-          parent_id: parentId,
-        }),
+        body: JSON.stringify(bodyData),
       });
 
       if (!response.ok) {
