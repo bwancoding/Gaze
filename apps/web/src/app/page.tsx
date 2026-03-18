@@ -101,15 +101,16 @@ export default function Home() {
               </div>
 
               <h2 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
-                Every News Story,<br/>
+                One World,<br/>
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-orange-200 to-amber-200">
-                  Is the Beginning of a Story
+                  Many Voices, One Conversation
                 </span>
               </h2>
 
               <p className="text-xl md:text-2xl text-slate-300 mb-12 leading-relaxed max-w-2xl">
-                In this age of information overload, we help you slow down,<br/>
-                See multiple perspectives, hear different voices.
+                We are all stewards of this world.<br/>
+                Understand each other, engage in peaceful dialogue,<br/>
+                and shape our shared future under the same sky.
               </p>
 
               <div className="flex flex-wrap gap-6">
@@ -327,31 +328,34 @@ export default function Home() {
               </div>
 
               <h3 className="text-3xl md:text-4xl font-bold mb-6">
-                Why Stakeholder Perspectives?
+                We Share This World
               </h3>
 
+              <p className="text-lg text-stone-300 leading-relaxed mb-4">
+                Beneath the noise of headlines, there are real people — with real concerns,
+                real hopes, and real stakes in every global event.
+              </p>
               <p className="text-lg text-stone-300 leading-relaxed mb-8">
-                Every event affects different groups in different ways.<br/>
-                Governments, civilians, businesses, activists — each has a story.<br/>
-                We use AI to identify who&apos;s involved and how they see it,<br/>
-                So you can understand the full picture, not just one angle.
+                WRHITW exists because we believe humanity thrives when we listen to each other.
+                Not to win arguments, but to understand. Not to divide, but to find common ground
+                as fellow travelers under the same vast sky.
               </p>
 
               <div className="grid md:grid-cols-3 gap-8 mt-12">
                 <div className="text-center">
-                  <div className="text-4xl mb-4">📰</div>
-                  <h4 className="font-semibold mb-2">Multi-source Aggregation</h4>
-                  <p className="text-sm text-stone-400">Hundreds of media, one event</p>
+                  <div className="text-4xl mb-4">🌍</div>
+                  <h4 className="font-semibold mb-2">See Every Perspective</h4>
+                  <p className="text-sm text-stone-400">AI identifies who&apos;s affected and how they see it</p>
                 </div>
                 <div className="text-center">
-                  <div className="text-4xl mb-4">🤖</div>
-                  <h4 className="font-semibold mb-2">AI Deep Analysis</h4>
-                  <p className="text-sm text-stone-400">Stakeholder perspectives, cause chains, impact</p>
+                  <div className="text-4xl mb-4">🤝</div>
+                  <h4 className="font-semibold mb-2">Dialogue, Not Debate</h4>
+                  <p className="text-sm text-stone-400">Engage with empathy, seek understanding</p>
                 </div>
                 <div className="text-center">
-                  <div className="text-4xl mb-4">💬</div>
-                  <h4 className="font-semibold mb-2">Community Discussion</h4>
-                  <p className="text-sm text-stone-400">Discuss from any stakeholder&apos;s viewpoint</p>
+                  <div className="text-4xl mb-4">✨</div>
+                  <h4 className="font-semibold mb-2">Shape Our Future</h4>
+                  <p className="text-sm text-stone-400">Together as stewards of one shared world</p>
                 </div>
               </div>
             </div>
@@ -380,7 +384,7 @@ export default function Home() {
             </div>
 
             <div className="mt-8 pt-8 border-t border-stone-200 text-center text-sm text-stone-500">
-              <p>&copy; 2026 WRHITW &middot; See the World Through Stories</p>
+              <p>&copy; 2026 WRHITW &middot; One World, Many Voices, One Conversation</p>
             </div>
           </div>
         </footer>
