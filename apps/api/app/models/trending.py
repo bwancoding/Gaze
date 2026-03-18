@@ -55,7 +55,7 @@ class TrendingEvent(Base):
     keywords = Column(JSONColumn, default=list)
     category = Column(String(50))
     heat_score = Column(Float, default=0.0, index=True)
-    status = Column(String(20), default='raw')  # raw, promoted, rejected
+    status = Column(String(20), default='raw')  # raw, promoted, rejected, archived
     article_count = Column(Integer, default=0)
     media_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)

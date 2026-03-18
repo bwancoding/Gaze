@@ -126,7 +126,11 @@ class HeatCalculator:
 
     def get_top_events(self, limit: int = 20, time_window_hours: Optional[int] = None,
                        category: Optional[str] = None) -> List[TrendingEvent]:
-        query = self.db.query(TrendingEvent).filter(TrendingEvent.heat_score > 0)
+        # Only show raw (pending review) and promoted events, not archived
+        query = self.db.query(TrendingEvent).filter(
+            TrendingEvent.heat_score > 0,
+            TrendingEvent.status.in_(['raw', 'promoted']),
+        )
 
         if time_window_hours:
             cutoff_time = datetime.utcnow() - timedelta(hours=time_window_hours)
