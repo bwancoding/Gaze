@@ -34,7 +34,7 @@ interface CommentItemProps {
   };
 }
 
-// 头像颜色映射
+// Avatar color mapping
 const avatarColors: Record<string, string> = {
   blue: 'bg-blue-500',
   red: 'bg-red-500',
@@ -118,7 +118,7 @@ export default function CommentItem({ comment, onReply, onDelete, depth, current
       });
 
       if (response.ok) {
-        // 通知父组件更新状态
+        // Notify parent component to update state
         onDelete(comment.id);
       } else {
         setIsDeleting(false);
@@ -153,14 +153,14 @@ export default function CommentItem({ comment, onReply, onDelete, depth, current
   return (
     <div className={`py-4 ${depth > 0 ? 'border-l-2 border-stone-100 pl-4' : ''}`}>
       <div className="flex items-start space-x-3">
-        {/* 头像 */}
+        {/* Avatar */}
         <div className={`w-10 h-10 rounded-full ${avatarColors[comment.avatar_color] || 'bg-gray-500'} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
           {comment.persona_name.charAt(0).toUpperCase()}
         </div>
 
-        {/* 评论内容 */}
+        {/* Comment content */}
         <div className="flex-1 min-w-0">
-          {/* 评论头信息 */}
+          {/* Comment header */}
           <div className="flex items-center space-x-2 mb-2">
             <span className="font-semibold text-stone-900">
               {comment.persona_name}
@@ -179,12 +179,12 @@ export default function CommentItem({ comment, onReply, onDelete, depth, current
             )}
           </div>
 
-          {/* 评论正文 */}
+          {/* Comment body */}
           <p className="text-stone-800 leading-relaxed mb-3">
             {comment.content}
           </p>
 
-          {/* 操作按钮 */}
+          {/* Action buttons */}
           <div className="flex items-center space-x-4">
             <button
               onClick={() => handleVote('like')}

@@ -55,7 +55,7 @@ export default function EventCard({
           )}
         </div>
         
-        {/* Hot Score - 增强版 */}
+        {/* Hot Score - Enhanced */}
         {hotScore > 0 && (
           <div className="flex items-center bg-gradient-to-r from-orange-50 to-amber-50 px-3 py-1.5 rounded-full">
             <svg className="w-4 h-4 mr-1.5 text-orange-500" fill="currentColor" viewBox="0 0 20 20">

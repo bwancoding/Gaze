@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-WRHITW 测试数据生成脚本
-添加一些示例事件到数据库
+WRHITW Test Data Generation Script
+Add sample events to the database
 """
 
 import requests
@@ -10,43 +10,43 @@ from datetime import datetime, timedelta
 
 API_BASE = "http://localhost:8000"
 
-# 测试事件数据
+# Test event data
 test_events = [
     {
-        "title": "全球气候峰会达成新协议，各国承诺减少碳排放",
-        "summary": "为期两周的气候峰会在迪拜落幕，近 200 个国家同意逐步减少化石燃料使用，这是历史上首次明确提及化石燃料的协议。",
-        "category": "环境",
-        "tags": ["气候", "环境", "国际"],
+        "title": "Global Climate Summit Reaches New Agreement, Countries Pledge to Reduce Carbon Emissions",
+        "summary": "The two-week climate summit concluded in Dubai, with nearly 200 countries agreeing to gradually reduce fossil fuel use, marking the first agreement to explicitly mention fossil fuels.",
+        "category": "Environment",
+        "tags": ["climate", "environment", "international"],
     },
     {
-        "title": "美联储宣布维持利率不变，通胀压力仍存",
-        "summary": "美联储联邦公开市场委员会决定将基准利率维持在 5.25%-5.50% 区间，表示将继续密切关注经济数据。",
-        "category": "财经",
-        "tags": ["美联储", "利率", "经济"],
+        "title": "Federal Reserve Announces Unchanged Interest Rates, Inflation Pressure Persists",
+        "summary": "The Federal Reserve's FOMC decided to maintain the benchmark interest rate at 5.25%-5.50%, indicating continued close monitoring of economic data.",
+        "category": "Economy",
+        "tags": ["Federal Reserve", "interest rates", "economy"],
     },
     {
-        "title": "人工智能监管法案在欧盟议会获得通过",
-        "summary": "欧盟议会以压倒性多数通过《人工智能法案》，将对高风险 AI 系统实施严格监管，科技公司面临新的合规要求。",
-        "category": "科技",
-        "tags": ["AI", "监管", "欧盟"],
+        "title": "AI Regulation Act Passed by EU Parliament",
+        "summary": "The EU Parliament overwhelmingly passed the AI Act, imposing strict regulations on high-risk AI systems, with tech companies facing new compliance requirements.",
+        "category": "Technology",
+        "tags": ["AI", "regulation", "EU"],
     },
     {
-        "title": "某国大选结果揭晓，反对党获胜",
-        "summary": "经过计票，反对党候选人以微弱优势获胜，现任总理承认败选。分析人士称这标志着该国政治格局的重大变化。",
-        "category": "政治",
-        "tags": ["大选", "政治", "国际"],
+        "title": "National Election Results Revealed, Opposition Party Wins",
+        "summary": "After vote counting, the opposition candidate won by a narrow margin, with the incumbent PM conceding defeat. Analysts say this marks a major shift in the country's political landscape.",
+        "category": "Politics",
+        "tags": ["election", "politics", "international"],
     },
     {
-        "title": "新型量子计算机突破，计算速度提升 1000 倍",
-        "summary": "研究团队宣布在量子纠错方面取得重大进展，新型量子计算机在特定任务上的计算速度比传统超级计算机快 1000 倍。",
-        "category": "科技",
-        "tags": ["量子计算", "科技", "突破"],
+        "title": "Quantum Computing Breakthrough, Speed Increased 1000x",
+        "summary": "A research team announced a major breakthrough in quantum error correction. The new quantum computer performs certain tasks 1000 times faster than traditional supercomputers.",
+        "category": "Technology",
+        "tags": ["quantum computing", "technology", "breakthrough"],
     },
     {
-        "title": "国际空间站迎来新任务，多国宇航员入驻",
-        "summary": "来自 5 个国家的 6 名宇航员成功抵达国际空间站，将开展为期 6 个月的科学实验和技术测试。",
-        "category": "科技",
-        "tags": ["航天", "国际空间站", "科学"],
+        "title": "International Space Station Welcomes New Mission, Multinational Astronauts Arrive",
+        "summary": "Six astronauts from five countries successfully arrived at the ISS, where they will conduct six months of scientific experiments and technology tests.",
+        "category": "Technology",
+        "tags": ["space", "ISS", "science"],
     },
 ]
 
