@@ -141,7 +141,7 @@ const stakeholderColors = [
   { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', dot: 'bg-orange-400' },
 ];
 
-type TabKey = 'overview' | 'stakeholders' | 'sources' | 'timeline';
+type TabKey = 'overview' | 'sources' | 'timeline';
 
 export default function EventDetailPage() {
   const params = useParams();
@@ -156,6 +156,7 @@ export default function EventDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [showAllPerspectives, setShowAllPerspectives] = useState(false);
 
   const fetchEvent = async () => {
     const response = await fetch(`${API_BASE_URL}/api/events/${eventId}`);
@@ -239,7 +240,6 @@ export default function EventDetailPage() {
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode; count?: number }[] = [
     { key: 'overview', label: 'Overview', icon: <Icons.Robot /> },
-    { key: 'stakeholders', label: 'Perspectives', icon: <Icons.Users />, count: perspectives.length || stakeholders.length },
     { key: 'sources', label: 'Sources', icon: <Icons.Newspaper />, count: sources.length },
     { key: 'timeline', label: 'Timeline', icon: <Icons.Clock />, count: timeline.length },
   ];
@@ -355,6 +355,91 @@ export default function EventDetailPage() {
                           </div>
                         )}
 
+                        {/* Stakeholder Perspectives - embedded in Overview */}
+                        {(() => {
+                          const allPerspectives = perspectives.length > 0 ? perspectives : [];
+                          const allStakeholders = stakeholders.length > 0 ? stakeholders : [];
+                          const hasContent = allPerspectives.length > 0 || allStakeholders.length > 0;
+                          if (!hasContent) return null;
+
+                          const DEFAULT_SHOW = 3;
+                          const perspectivesToShow = showAllPerspectives ? allPerspectives : allPerspectives.slice(0, DEFAULT_SHOW);
+                          const stakeholdersToShow = showAllPerspectives ? allStakeholders : allStakeholders.slice(0, DEFAULT_SHOW);
+                          const totalCount = allPerspectives.length || allStakeholders.length;
+                          const hasMore = totalCount > DEFAULT_SHOW;
+
+                          return (
+                            <div>
+                              <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center space-x-2">
+                                  <Icons.Users />
+                                  <h3 className="text-xl font-bold text-stone-900">Stakeholder Perspectives</h3>
+                                  <span className="text-sm bg-stone-200 text-stone-600 px-2 py-0.5 rounded-full">{totalCount}</span>
+                                </div>
+                              </div>
+                              <div className="space-y-4">
+                                {perspectivesToShow.length > 0 ? (
+                                  perspectivesToShow.map((sp, i) => {
+                                    const color = stakeholderColors[i % stakeholderColors.length];
+                                    return (
+                                      <div key={sp.stakeholder_id} className={`rounded-xl border ${color.border} ${color.bg} p-5`}>
+                                        <div className="flex items-center space-x-2 mb-3">
+                                          <div className={`w-2.5 h-2.5 rounded-full ${color.dot}`}></div>
+                                          <h4 className={`font-bold ${color.text}`}>{sp.stakeholder_name}</h4>
+                                        </div>
+                                        <p className="text-stone-700 text-sm leading-relaxed mb-3">{sp.perspective_text}</p>
+                                        {sp.key_arguments.length > 0 && (
+                                          <ul className="space-y-1">
+                                            {sp.key_arguments.map((arg, j) => (
+                                              <li key={j} className="text-sm text-stone-600 flex items-start space-x-2">
+                                                <span className="text-stone-400 mt-0.5">&#x2022;</span>
+                                                <span>{arg}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                                ) : (
+                                  stakeholdersToShow.map((sh, i) => {
+                                    const color = stakeholderColors[i % stakeholderColors.length];
+                                    return (
+                                      <div key={sh.id} className={`rounded-xl border ${color.border} ${color.bg} p-5`}>
+                                        <div className="flex items-center space-x-2 mb-3">
+                                          <div className={`w-2.5 h-2.5 rounded-full ${color.dot}`}></div>
+                                          <h4 className={`font-bold ${color.text}`}>{sh.stakeholder_name}</h4>
+                                          {sh.is_ai_generated && <span className="text-xs bg-white/60 text-stone-500 px-2 py-0.5 rounded">AI</span>}
+                                        </div>
+                                        {sh.perspective_summary && <p className="text-stone-700 text-sm leading-relaxed mb-3">{sh.perspective_summary}</p>}
+                                        {sh.key_concerns.length > 0 && (
+                                          <ul className="space-y-1">
+                                            {sh.key_concerns.map((c, j) => (
+                                              <li key={j} className="text-sm text-stone-600">&#x2022; {c}</li>
+                                            ))}
+                                          </ul>
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                                )}
+                                {hasMore && (
+                                  <button
+                                    onClick={() => setShowAllPerspectives(!showAllPerspectives)}
+                                    className="w-full py-3 text-sm font-medium text-stone-600 hover:text-stone-900 bg-stone-50 hover:bg-stone-100 rounded-xl border border-stone-200 transition-colors"
+                                  >
+                                    {showAllPerspectives ? 'Show fewer perspectives' : `View all ${totalCount} perspectives`}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-2 text-xs text-stone-400 mt-3">
+                                <Icons.Robot />
+                                <span>AI-generated from source articles, not editorial opinions</span>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
                         {analysis.disputed_claims.length > 0 && (
                           <div>
                             <h3 className="text-xl font-bold text-stone-900 mb-4">Disputed Claims</h3>
@@ -380,76 +465,6 @@ export default function EventDetailPage() {
                         <p className="text-sm text-stone-400">Check back soon for background, cause chain, and impact analysis</p>
                       </div>
                     )}
-                  </div>
-                )}
-
-                {/* Stakeholder Perspectives Tab */}
-                {activeTab === 'stakeholders' && (
-                  <div className="space-y-6">
-                    {perspectives.length > 0 ? (
-                      perspectives.map((sp, i) => {
-                        const color = stakeholderColors[i % stakeholderColors.length];
-                        return (
-                          <div key={sp.stakeholder_id} className={`rounded-xl border-2 ${color.border} ${color.bg} p-6`}>
-                            <div className="flex items-center space-x-3 mb-4">
-                              <div className={`w-3 h-3 rounded-full ${color.dot}`}></div>
-                              <h3 className={`text-lg font-bold ${color.text}`}>{sp.stakeholder_name}</h3>
-                            </div>
-                            <p className="text-stone-800 leading-relaxed mb-4">{sp.perspective_text}</p>
-                            {sp.key_arguments.length > 0 && (
-                              <div className="mb-3">
-                                <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider">Key Arguments</span>
-                                <ul className="mt-2 space-y-1">
-                                  {sp.key_arguments.map((arg, j) => (
-                                    <li key={j} className="text-sm text-stone-700 flex items-start space-x-2">
-                                      <span className="text-stone-400 mt-0.5">&#x2022;</span>
-                                      <span>{arg}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                            {sp.sources_cited.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {sp.sources_cited.map((s, j) => (
-                                  <span key={j} className="text-xs text-stone-500 bg-white/60 px-3 py-1 rounded-full">{s}</span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    ) : stakeholders.length > 0 ? (
-                      stakeholders.map((sh, i) => {
-                        const color = stakeholderColors[i % stakeholderColors.length];
-                        return (
-                          <div key={sh.id} className={`rounded-xl border-2 ${color.border} ${color.bg} p-6`}>
-                            <div className="flex items-center space-x-3 mb-3">
-                              <div className={`w-3 h-3 rounded-full ${color.dot}`}></div>
-                              <h3 className={`text-lg font-bold ${color.text}`}>{sh.stakeholder_name}</h3>
-                              {sh.is_ai_generated && <span className="text-xs bg-white/60 text-stone-500 px-2 py-0.5 rounded">AI</span>}
-                            </div>
-                            {sh.perspective_summary && <p className="text-stone-800 leading-relaxed mb-3">{sh.perspective_summary}</p>}
-                            {sh.key_concerns.length > 0 && (
-                              <ul className="space-y-1">
-                                {sh.key_concerns.map((c, j) => (
-                                  <li key={j} className="text-sm text-stone-700">&#x2022; {c}</li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="text-center py-12">
-                        <div className="text-4xl mb-4">&#x1F465;</div>
-                        <p className="text-stone-600">Stakeholder perspectives are being identified</p>
-                      </div>
-                    )}
-                    <div className="flex items-center space-x-2 text-sm text-stone-400 pt-4 border-t border-stone-200">
-                      <Icons.Robot />
-                      <span>Perspectives are AI-generated from source articles, not editorial opinions</span>
-                    </div>
                   </div>
                 )}
 

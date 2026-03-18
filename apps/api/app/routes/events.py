@@ -18,16 +18,18 @@ async def list_events(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     category: Optional[str] = None,
+    search: Optional[str] = Query(None, description="Search events by title or summary"),
     status: Optional[str] = Query("active", regex="^(active|archived|closed|all)$"),
     sort_by: str = Query("hot_score", regex="^(hot_score|created_at|view_count)$"),
     db: Session = Depends(get_db),
 ):
     """
     Get event list
-    
+
     - **page**: Page number
     - **page_size**: Items per page
     - **category**: Filter by category
+    - **search**: Search by title or summary (case-insensitive)
     - **status**: Filter by status (active, archived, closed, all)
     - **sort_by**: Sort field (hot_score, created_at, view_count)
     """
@@ -36,14 +38,37 @@ async def list_events(
         query = db.query(Event)
     else:
         query = db.query(Event).filter(Event.status == status)
-    
+
     # Category filter
     if category:
         query = query.filter(Event.category == category)
-    
+
+    # Search filter
+    if search and search.strip():
+        search_term = f"%{search.strip()}%"
+        query = query.filter(
+            (Event.title.ilike(search_term)) | (Event.summary.ilike(search_term))
+        )
+
+    # Get category counts (before pagination, after status filter)
+    base_query = db.query(Event)
+    if status != "all":
+        base_query = base_query.filter(Event.status == status)
+    if search and search.strip():
+        search_term = f"%{search.strip()}%"
+        base_query = base_query.filter(
+            (Event.title.ilike(search_term)) | (Event.summary.ilike(search_term))
+        )
+    from sqlalchemy import func as sa_func
+    category_counts = dict(
+        base_query.with_entities(Event.category, sa_func.count(Event.id))
+        .group_by(Event.category)
+        .all()
+    )
+
     # Total count
     total = query.count()
-    
+
     # Sorting
     if sort_by == "hot_score":
         query = query.order_by(Event.hot_score.desc())
@@ -51,16 +76,17 @@ async def list_events(
         query = query.order_by(Event.created_at.desc())
     elif sort_by == "view_count":
         query = query.order_by(Event.view_count.desc())
-    
+
     # Pagination
     offset = (page - 1) * page_size
     events = query.offset(offset).limit(page_size).all()
-    
+
     return EventListResponse(
         items=events,
         total=total,
         page=page,
-        page_size=page_size
+        page_size=page_size,
+        category_counts=category_counts,
     )
 
 

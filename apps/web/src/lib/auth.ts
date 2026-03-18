@@ -47,6 +47,65 @@ export const login = async (email: string, password: string): Promise<TokenRespo
 };
 
 /**
+ * Register a new account
+ */
+export const register = async (email: string, password: string, displayName?: string): Promise<TokenResponse> => {
+  const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ email, password, display_name: displayName }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Registration failed');
+  }
+
+  const data: TokenResponse = await response.json();
+
+  // Save tokens (auto-login)
+  localStorage.setItem('access_token', data.access_token);
+  localStorage.setItem('refresh_token', data.refresh_token);
+  localStorage.setItem('token_expires_at', (Date.now() + data.expires_in * 1000).toString());
+
+  return data;
+};
+
+/**
+ * Request password reset
+ */
+export const forgotPassword = async (email: string): Promise<{ message: string; reset_token?: string }> => {
+  const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password?email=${encodeURIComponent(email)}`, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Request failed');
+  }
+
+  return await response.json();
+};
+
+/**
+ * Reset password with token
+ */
+export const resetPassword = async (token: string, newPassword: string): Promise<{ message: string }> => {
+  const response = await fetch(`${API_BASE_URL}/api/auth/reset-password?token=${encodeURIComponent(token)}&new_password=${encodeURIComponent(newPassword)}`, {
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Reset failed');
+  }
+
+  return await response.json();
+};
+
+/**
  * Refresh access token
  */
 export const refreshToken = async (): Promise<TokenResponse> => {

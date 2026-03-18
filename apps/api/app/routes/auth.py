@@ -5,7 +5,7 @@ JWT Authentication API
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
@@ -51,8 +51,15 @@ class TokenData(BaseModel):
     email: Optional[str] = None
 
 
+class RegisterRequest(BaseModel):
+    """Registration request"""
+    email: str
+    password: str
+    display_name: Optional[str] = None
+
+
 class LoginRequest(BaseModel):
-    """登录请求"""
+    """Login request"""
     email: str
     password: str
 
@@ -129,6 +136,71 @@ def get_current_user(
         )
     
     return user
+
+
+@router.post("/register", response_model=Token)
+@limiter.limit("3/minute")
+async def register(request: Request, reg_data: RegisterRequest, db: Session = Depends(get_db)):
+    """
+    Register a new user account
+
+    - **email**: Valid email address
+    - **password**: Minimum 6 characters
+    - **display_name**: Optional display name
+    """
+    from app.utils.security import hash_password
+    import uuid
+
+    import re
+    # Validate email format
+    if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', reg_data.email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid email format",
+        )
+
+    # Validate password length
+    if len(reg_data.password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters",
+        )
+
+    # Check if email already exists
+    existing = db.query(User).filter(User.email == reg_data.email).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An account with this email already exists",
+        )
+
+    # Create user
+    user = User(
+        id=uuid.uuid4(),
+        email=reg_data.email,
+        password_hash=hash_password(reg_data.password),
+        display_name=reg_data.display_name or reg_data.email.split('@')[0],
+        is_active=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    # Generate tokens (auto-login after registration)
+    token_data = {
+        "sub": str(user.id),
+        "email": user.email,
+        "display_name": user.display_name,
+    }
+
+    access_token = create_access_token(token_data)
+    refresh_token = create_refresh_token(token_data)
+
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
 
 
 @router.post("/login", response_model=Token)
@@ -251,11 +323,74 @@ async def get_current_user_info(
     )
 
 
+@router.post("/forgot-password")
+@limiter.limit("3/minute")
+async def forgot_password(request: Request, email: str, db: Session = Depends(get_db)):
+    """
+    Request a password reset token.
+
+    In production, this would send an email. For MVP, the token is returned directly.
+    """
+    user = db.query(User).filter(User.email == email).first()
+
+    # Always return success to avoid email enumeration
+    if not user:
+        return {"message": "If an account with this email exists, a reset link has been sent."}
+
+    # Generate a short-lived reset token (15 minutes)
+    reset_token = jwt.encode(
+        {"sub": str(user.id), "email": user.email, "type": "reset", "exp": datetime.utcnow() + timedelta(minutes=15)},
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+
+    # In production: send email with reset link
+    # For MVP: return the token directly
+    import logging
+    logging.info(f"[PASSWORD RESET] Token for {email}: {reset_token}")
+
+    return {
+        "message": "If an account with this email exists, a reset link has been sent.",
+        "reset_token": reset_token,  # MVP only — remove in production
+    }
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+async def reset_password(request: Request, token: str, new_password: str, db: Session = Depends(get_db)):
+    """
+    Reset password using a reset token from forgot-password.
+    """
+    from app.utils.security import hash_password
+
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "reset":
+            raise HTTPException(status_code=400, detail="Invalid reset token")
+
+        user_id = payload.get("sub")
+        user = db.query(User).filter(User.id == user_id).first()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        user.password_hash = hash_password(new_password)
+        db.commit()
+
+        return {"message": "Password has been reset successfully. You can now log in with your new password."}
+
+    except JWTError:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+
 @router.post("/logout")
 async def logout():
     """
-    用户登出
-    
-    前端需要清除存储的 token
+    Logout user.
+
+    Frontend should clear stored tokens.
     """
     return {"message": "Logged out successfully"}

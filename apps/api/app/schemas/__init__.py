@@ -78,11 +78,12 @@ class EventResponse(EventBase):
 
 
 class EventListResponse(BaseModel):
-    """事件列表响应"""
+    """Event list response"""
     items: List[EventResponse]
     total: int
     page: int
     page_size: int
+    category_counts: Optional[dict] = None
 
 
 # ==================== Source Schemas ====================
