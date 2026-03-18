@@ -1,6 +1,6 @@
 """
 WRHITW User Persona Models
-用户身份系统数据库模型
+User persona system database models
 """
 
 from sqlalchemy import Column, String, Text as _Text, Integer, Boolean, DateTime, ForeignKey, UniqueConstraint
@@ -12,14 +12,14 @@ import uuid
 
 
 class UserPersona(Base):
-    """用户身份表"""
+    """User Personas Table"""
     __tablename__ = "user_personas"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     persona_name = Column(String(100), nullable=False)  # e.g., "Iranian Civilian"
-    avatar_color = Column(String(20), default='blue')  # 随机颜色标识
-    is_verified = Column(Boolean, default=False)  # 是否有已认证的关联
+    avatar_color = Column(String(20), default='blue')  # Random color identifier
+    is_verified = Column(Boolean, default=False)  # Whether there is a verified association
     
     # Soft delete fields
     is_deleted = Column(Boolean, default=False)
@@ -28,14 +28,14 @@ class UserPersona(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    # 关系
+    # Relationships
     user = relationship("User", backref="personas")
     verifications = relationship("EventStakeholderVerification", backref="persona")
     # comments = relationship("Comment", backref="persona")
 
 
 class EventStakeholderVerification(Base):
-    """事件 - 身份 - 相关方 认证关系表"""
+    """Event-Persona-Stakeholder Verification Association Table"""
     __tablename__ = "event_stakeholder_verifications"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -43,12 +43,12 @@ class EventStakeholderVerification(Base):
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
     stakeholder_id = Column(UUID(as_uuid=True), ForeignKey('stakeholders.id'), nullable=False)
     
-    # 申请信息
+    # Application information
     application_text = Column(_Text)
     proof_type = Column(String(50))
     proof_data = Column(_Text)
-    
-    # 审核状态
+
+    # Review status
     status = Column(String(20), default='pending')  # pending, approved, rejected
     reviewed_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     reviewed_at = Column(DateTime(timezone=True))
@@ -59,25 +59,25 @@ class EventStakeholderVerification(Base):
     ai_review_notes = Column(_Text)    # AI analysis text
     ai_flags = Column(_Text)           # JSON list of flags (e.g. ["too_short", "copy_paste"])
 
-    # 时间戳
+    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    
-    # 关系
+
+    # Relationships
     event = relationship("Event", backref="verifications")
     stakeholder = relationship("Stakeholder", backref="verifications")
 
-    # 唯一约束：一个身份在一个事件中只能有一个认证
+    # Unique constraint: a persona can only have one verification per event
     __table_args__ = (
         UniqueConstraint('user_persona_id', 'event_id', name='uq_persona_event'),
     )
 
 
-# Comment 模型在单独的文件中，这里只添加外键引用说明
+# Comment model is in a separate file, only adding foreign key reference notes here
 # class Comment(Base):
-#     """评论表（需要添加以下字段）"""
+#     """Comments Table (needs the following fields added)"""
 #     __tablename__ = "comments"
-#     
-#     # 现有字段...
+#
+#     # Existing fields...
 #     user_persona_id = Column(UUID(as_uuid=True), ForeignKey('user_personas.id', ondelete='SET NULL'))
-#     # 评论时是否显示认证徽章，通过查询 EventStakeholderVerification 判断
+#     # Whether to show verified badge on comment, determined by querying EventStakeholderVerification

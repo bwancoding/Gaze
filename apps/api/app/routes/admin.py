@@ -362,6 +362,132 @@ async def admin_promote_trending(
     }
 
 
+@router.post("/trending/{trending_id}/reject")
+async def admin_reject_trending(
+    trending_id: int,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Reject a trending event (dismiss from admin review)."""
+    trending = db.query(TrendingEvent).filter(TrendingEvent.id == trending_id).first()
+    if not trending:
+        raise HTTPException(status_code=404, detail="Trending event not found")
+
+    if trending.status != 'raw':
+        raise HTTPException(status_code=400, detail=f"Cannot reject trending with status '{trending.status}'")
+
+    trending.status = 'rejected'
+    db.commit()
+
+    return {"message": "Trending event rejected", "trending_id": trending_id}
+
+
+@router.post("/trending/batch-promote")
+async def admin_batch_promote(
+    trending_ids: List[int],
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Batch promote multiple trending events to candidates."""
+    import json
+
+    promoted = []
+    errors = []
+
+    for tid in trending_ids:
+        trending = db.query(TrendingEvent).filter(TrendingEvent.id == tid).first()
+        if not trending:
+            errors.append({"id": tid, "error": "Not found"})
+            continue
+        if trending.status != 'raw':
+            errors.append({"id": tid, "error": f"Status is '{trending.status}'"})
+            continue
+
+        event = Event(
+            title=trending.title,
+            summary=trending.summary,
+            category=trending.category,
+            status='candidate',
+            source_count=trending.article_count,
+            trending_origin_id=trending.id,
+            tags=json.dumps(trending.keywords) if trending.keywords else None,
+        )
+        db.add(event)
+        trending.status = 'promoted'
+        promoted.append({"trending_id": tid, "title": trending.title})
+
+    db.commit()
+
+    return {
+        "promoted": len(promoted),
+        "errors": len(errors),
+        "promoted_items": promoted,
+        "error_items": errors,
+    }
+
+
+@router.post("/events/batch-publish")
+async def admin_batch_publish(
+    event_ids: List[str],
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Batch publish multiple candidate events."""
+    published = []
+    errors = []
+
+    for eid in event_ids:
+        event = db.query(Event).filter(Event.id == eid).first()
+        if not event:
+            errors.append({"id": eid, "error": "Not found"})
+            continue
+        if event.status not in ('candidate', 'archived'):
+            errors.append({"id": eid, "error": f"Status is '{event.status}'"})
+            continue
+
+        event.status = 'active'
+        published.append({"event_id": eid, "title": event.title})
+        background_tasks.add_task(_generate_analysis_background, eid)
+
+    db.commit()
+
+    return {
+        "published": len(published),
+        "errors": len(errors),
+        "published_items": published,
+        "error_items": errors,
+    }
+
+
+@router.post("/pipeline/refresh")
+async def admin_trigger_pipeline(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Manually trigger the full news pipeline (fetch → dedup → cluster → heat → trim)."""
+    from app.services.news_aggregator import run_full_pipeline
+    try:
+        result = run_full_pipeline(db)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(e)}")
+
+
+@router.post("/pipeline/heat-recalculate")
+async def admin_recalculate_heat(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Recalculate heat scores and re-trim to top 20."""
+    from app.services.news_aggregator import run_heat_update
+    try:
+        result = run_heat_update(db)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Heat recalculation failed: {str(e)}")
+
+
 @router.get("/stats")
 async def admin_get_stats(
     db: Session = Depends(get_db),

@@ -1,49 +1,49 @@
 """
-密码安全工具模块
-使用 bcrypt 进行密码哈希和验证
+Password security utility module
+Uses bcrypt for password hashing and verification
 """
 
 from passlib.context import CryptContext
 
-# 配置密码上下文（支持多种算法，方便未来升级）
+# Configure password context (supports multiple algorithms for future upgrades)
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
     """
-    哈希密码（自动加盐）
-    
+    Hash a password (automatically salted)
+
     Args:
-        password: 明文密码
-        
+        password: Plain text password
+
     Returns:
-        哈希后的密码字符串
+        Hashed password string
     """
     return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """
-    验证密码
-    
+    Verify a password
+
     Args:
-        plain_password: 明文密码
-        hashed_password: 哈希后的密码
-        
+        plain_password: Plain text password
+        hashed_password: Hashed password
+
     Returns:
-        True 如果密码匹配，否则 False
+        True if the password matches, otherwise False
     """
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def needs_rehash(hashed_password: str) -> bool:
     """
-    检查哈希是否需要重新生成（算法升级时使用）
-    
+    Check if a hash needs to be regenerated (used during algorithm upgrades)
+
     Args:
-        hashed_password: 哈希后的密码
-        
+        hashed_password: Hashed password
+
     Returns:
-        True 如果需要重新哈希
+        True if rehashing is needed
     """
     return pwd_context.needs_rehash(hashed_password)

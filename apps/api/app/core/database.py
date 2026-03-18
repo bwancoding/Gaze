@@ -1,6 +1,6 @@
 """
 WRHITW Database Configuration
-数据库连接配置
+Database connection configuration
 """
 
 from sqlalchemy import create_engine
@@ -11,13 +11,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# 数据库 URL
+# Database URL
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "sqlite:///./wrhitw.db"
 )
 
-# 创建引擎
+# Create engine
 if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
         DATABASE_URL,
@@ -31,15 +31,15 @@ else:
         max_overflow=20
     )
 
-# 创建会话工厂
+# Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# 创建基类
+# Create base class
 Base = declarative_base()
 
 
 def get_db():
-    """获取数据库会话（依赖注入）"""
+    """Get database session (dependency injection)"""
     db = SessionLocal()
     try:
         yield db

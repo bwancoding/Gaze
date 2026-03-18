@@ -1,6 +1,6 @@
 """
 Stakeholder Public API
-相关方公开查询接口（只读）
+Public stakeholder query endpoints (read-only)
 """
 
 from fastapi import APIRouter, Depends
@@ -23,7 +23,7 @@ async def list_stakeholders_public(
     """
     List all active stakeholders (public endpoint)
     
-    公开端点，无需认证。用于前端申请表单显示相关方选项。
+    Public endpoint, no authentication required. Used by the frontend to display stakeholder options in application forms.
     
     - **category**: Optional filter by category (geopolitics, technology, etc.)
     """

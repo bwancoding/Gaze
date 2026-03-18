@@ -1,5 +1,5 @@
 """
-Hacker News API 抓取服务 - 使用 Firebase 公开 API（免费）
+Hacker News API fetch service - uses the Firebase public API (free)
 """
 import aiohttp
 import asyncio
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class HackerNewsFetcher:
-    """Hacker News 抓取器"""
+    """Hacker News fetcher"""
 
     BASE_URL = "https://hacker-news.firebaseio.com/v0"
     RATE_LIMIT_DELAY = 0.5

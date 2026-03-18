@@ -1,6 +1,6 @@
 """
 WRHITW Comment System Models
-评论系统数据库模型
+Comment system database models
 """
 
 from sqlalchemy import Column, String, Text as _Text, Integer, Boolean, DateTime, ForeignKey
@@ -12,43 +12,43 @@ import uuid
 
 
 class Comment(Base):
-    """评论表"""
+    """Comments Table"""
     __tablename__ = "comments"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
-    # 外键关联
+    # Foreign key associations
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
     user_persona_id = Column(UUID(as_uuid=True), ForeignKey('user_personas.id', ondelete='SET NULL'), nullable=True)
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
     thread_id = Column(UUID(as_uuid=True), ForeignKey('threads.id', ondelete='CASCADE'), nullable=True, index=True)
-    parent_id = Column(UUID(as_uuid=True), ForeignKey('comments.id', ondelete='CASCADE'), nullable=True)  # 回复评论
+    parent_id = Column(UUID(as_uuid=True), ForeignKey('comments.id', ondelete='CASCADE'), nullable=True)  # Reply to comment
     
-    # 评论内容
+    # Comment content
     content = Column(_Text, nullable=False)
     
-    # 状态
+    # Status
     is_deleted = Column(Boolean, default=False)  # Soft delete
-    is_edited = Column(Boolean, default=False)  # 是否编辑过
+    is_edited = Column(Boolean, default=False)  # Whether edited
     
-    # 互动统计
+    # Interaction statistics
     like_count = Column(Integer, default=0)
     dislike_count = Column(Integer, default=0)
     reply_count = Column(Integer, default=0)
     
-    # 时间戳
+    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
-    # 关系
+    # Relationships
     user = relationship("User", backref="comments")
     persona = relationship("UserPersona", backref="comments")
     event = relationship("Event", backref="comments")
     parent = relationship("Comment", remote_side=[id], backref="replies")
 
     def to_dict(self, include_verified_badge=False):
-        """转换为字典"""
+        """Convert to dictionary"""
         data = {
             "id": str(self.id),
             "user_id": str(self.user_id),

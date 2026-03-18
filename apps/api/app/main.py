@@ -13,8 +13,7 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 创建数据库表（包括 trending_ 前缀的表）
-# 需要导入 trending models 以确保它们被注册到 Base.metadata
+# Import models to register them with Base.metadata before table creation
 import app.models.trending  # noqa: F401
 import app.models.event_analysis  # noqa: F401
 import app.models.threads  # noqa: F401
@@ -25,7 +24,7 @@ Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理：启动调度器，关闭时清理"""
+    """Application lifespan: start scheduler on startup, cleanup on shutdown"""
     from app.services.scheduler import init_scheduler, shutdown_scheduler
     init_scheduler()
     logger.info("WRHITW API started with scheduler")
@@ -46,7 +45,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS 配置
+# CORS configuration
 ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,

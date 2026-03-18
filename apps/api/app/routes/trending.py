@@ -1,5 +1,5 @@
 """
-Trending API 路由 - 热榜相关端点
+Trending API Routes - Trending/hot events endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
@@ -24,9 +24,9 @@ def get_trending(
     published_only: bool = Query(False, description="Only return trending events that have been published"),
     db: Session = Depends(get_db)
 ):
-    """获取 Top N 热榜事件"""
+    """Get top N trending events"""
     if published_only:
-        # 直接查询有 published event 关联的 trending events
+        # Query trending events that have a linked published event
         query = (
             db.query(TrendingEvent, Event.id.label("pub_event_id"))
             .join(Event, Event.trending_origin_id == TrendingEvent.id)
@@ -49,7 +49,7 @@ def get_trending(
             ]
         }
 
-    # 默认：返回所有 trending events（admin 视图等）
+    # Default: return all trending events (admin view etc.)
     calculator = HeatCalculator(db)
     events = calculator.get_top_events(
         limit=limit,
@@ -57,7 +57,7 @@ def get_trending(
         category=category
     )
 
-    # 查找已关联的 published events
+    # Find linked published events
     trending_ids = [e.id for e in events]
     published_map = {}
     if trending_ids:
@@ -81,7 +81,7 @@ def get_trending(
 
 @router.get("/trending/{event_id}")
 def get_trending_event(event_id: int, db: Session = Depends(get_db)):
-    """获取热榜事件详情（包含关联文章）"""
+    """Get trending event details (with associated articles)"""
     event = db.query(TrendingEvent).filter(TrendingEvent.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -102,7 +102,7 @@ def get_trending_event_articles(
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db)
 ):
-    """获取热榜事件的所有相关文章"""
+    """Get all articles for a trending event"""
     event = db.query(TrendingEvent).filter(TrendingEvent.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -120,7 +120,7 @@ def get_trending_event_articles(
 
 @router.get("/trending/sources/list")
 def get_trending_sources(db: Session = Depends(get_db)):
-    """获取所有数据源列表"""
+    """Get list of all enabled data sources"""
     sources = db.query(TrendingSource).filter(TrendingSource.enabled == True).all()
     return {
         "count": len(sources),
@@ -131,8 +131,8 @@ def get_trending_sources(db: Session = Depends(get_db)):
 @router.post("/trending/refresh")
 def refresh_trending(db: Session = Depends(get_db)):
     """
-    手动触发热榜刷新（完整管线：抓取 → 去重 → 聚类 → 热度计算）
-    注意：此端点会执行网络请求，可能需要较长时间
+    Manually trigger trending refresh (full pipeline: fetch → dedup → cluster → heat).
+    Note: This endpoint performs network requests and may take some time.
     """
     from app.services.news_aggregator import run_full_pipeline
     try:
@@ -145,7 +145,7 @@ def refresh_trending(db: Session = Depends(get_db)):
 
 @router.post("/trending/heat/recalculate")
 def recalculate_heat(db: Session = Depends(get_db)):
-    """手动触发热度重新计算"""
+    """Manually trigger heat score recalculation"""
     from app.services.heat_calculator import calculate_all_heat_scores
     result = calculate_all_heat_scores(db)
     return {"status": "success", "result": result}

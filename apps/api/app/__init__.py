@@ -1,2 +1,2 @@
-# FastAPI 应用
+# FastAPI Application
 __version__ = "0.1.0"

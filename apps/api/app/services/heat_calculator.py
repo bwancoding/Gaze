@@ -1,11 +1,11 @@
 """
-热度算法服务 - 计算文章和事件的热度分数
+Heat score algorithm service - calculates heat scores for articles and events
 
-功能：
-- 时间衰减函数（越新的事件热度越高）
-- 互动权重计算（讨论量、转发量等）
-- 源优先级加权（权威媒体权重更高）
-- Top20 筛选逻辑
+Features:
+- Time decay function (newer events get higher heat scores)
+- Interaction weight calculation (comment count, share count, etc.)
+- Source priority weighting (authoritative media get higher weights)
+- Top 20 selection logic
 """
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
@@ -20,7 +20,7 @@ from app.services.trending_config import (
 
 
 class HeatCalculator:
-    """热度计算器"""
+    """Heat score calculator"""
 
     SOURCE_PRIORITY_WEIGHTS = {
         "P0": 1.5,
@@ -162,7 +162,7 @@ class HeatCalculator:
 
 
 def calculate_all_heat_scores(db: Session) -> Dict:
-    """便捷函数：计算所有文章和事件的热度分数"""
+    """Convenience function: calculate heat scores for all articles and events"""
     calculator = HeatCalculator(db)
     articles_updated = calculator.update_article_heat_scores()
     events_updated = calculator.update_event_heat_scores()
