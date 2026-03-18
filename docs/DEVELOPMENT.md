@@ -1,36 +1,36 @@
-# WRHITW 开发指南
+# WRHITW Development Guide
 
-🚀 **快速开始开发 WRHITW 项目**
+🚀 **Get started developing the WRHITW project**
 
 ---
 
-## 📦 前置要求
+## 📦 Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - pnpm 8+
 - Python 3.11+
-- PostgreSQL 15+ (本地开发可用 Docker)
+- PostgreSQL 15+ (Docker can be used for local development)
 
 ---
 
-## 🌐 前端开发
+## 🌐 Frontend Development
 
-### 安装依赖
+### Install Dependencies
 
 ```bash
 cd apps/web
 pnpm install
 ```
 
-### 启动开发服务器
+### Start Development Server
 
 ```bash
 pnpm dev
 ```
 
-访问 http://localhost:3000
+Visit http://localhost:3000
 
-### 构建生产版本
+### Build for Production
 
 ```bash
 pnpm build
@@ -39,41 +39,41 @@ pnpm start
 
 ---
 
-## 🔧 后端开发
+## 🔧 Backend Development
 
-### 创建虚拟环境
+### Create Virtual Environment
 
 ```bash
 cd apps/api
 python -m venv venv
 source venv/bin/activate  # Mac/Linux
-# 或
+# or
 venv\Scripts\activate  # Windows
 ```
 
-### 安装依赖
+### Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 启动开发服务器
+### Start Development Server
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-访问 http://localhost:8000
+Visit http://localhost:8000
 
-### API 文档
+### API Documentation
 
-访问 http://localhost:8000/docs 查看 Swagger UI
+Visit http://localhost:8000/docs to view the Swagger UI
 
 ---
 
-## 🗄️ 数据库设置
+## 🗄️ Database Setup
 
-### 使用 Docker 启动 PostgreSQL
+### Start PostgreSQL with Docker
 
 ```bash
 docker run -d \
@@ -85,86 +85,86 @@ docker run -d \
   postgres:15
 ```
 
-### 初始化数据库
+### Initialize Database
 
 ```bash
 psql -U wrhitw -d wrhitw -f docs/DATABASE_SCHEMA.sql
 ```
 
-### 使用 Prisma（推荐）
+### Using Prisma (Recommended)
 
 ```bash
 cd apps/api
 npx prisma generate
 npx prisma db push
-npx prisma studio  # 可视化数据库管理
+npx prisma studio  # Visual database management
 ```
 
 ---
 
-## 🎨 设计系统
+## 🎨 Design System
 
-设计系统文档位于：`docs/DESIGN.md`
+Design system documentation is located at: `docs/DESIGN.md`
 
-### Figma 设计文件
+### Figma Design File
 
-📎 [WRHITW Design System](https://www.figma.com/file/TODO) *(待创建)*
+📎 [WRHITW Design System](https://www.figma.com/file/TODO) *(To be created)*
 
 ---
 
-## 🤖 AI 配置
+## 🤖 AI Configuration
 
-### 配置 API Key
+### Configure API Key
 
-创建 `.env` 文件：
+Create a `.env` file:
 
 ```bash
-# 百炼 AI
+# Bailian AI
 DASHSCOPE_API_KEY=sk-xxx
 
-# 数据库
+# Database
 DATABASE_URL=postgresql://wrhitw:wrhitw@localhost:5432/wrhitw
 ```
 
 ---
 
-## 📝 开发工作流
+## 📝 Development Workflow
 
-### 1. 创建功能分支
+### 1. Create a Feature Branch
 
 ```bash
 git checkout -b feature/your-feature-name
 ```
 
-### 2. 开发并提交
+### 2. Develop and Commit
 
 ```bash
 git add .
-git commit -m "feat: 添加 xxx 功能"
+git commit -m "feat: add xxx feature"
 ```
 
-### 3. 推送到远程
+### 3. Push to Remote
 
 ```bash
 git push origin feature/your-feature-name
 ```
 
-### 4. 创建 Pull Request
+### 4. Create a Pull Request
 
-在 GitHub 上创建 PR，等待 code review
+Create a PR on GitHub and wait for code review
 
 ---
 
-## 🧪 测试
+## 🧪 Testing
 
-### 前端测试
+### Frontend Tests
 
 ```bash
 cd apps/web
 pnpm test
 ```
 
-### 后端测试
+### Backend Tests
 
 ```bash
 cd apps/api
@@ -173,19 +173,19 @@ pytest
 
 ---
 
-## 📊 项目结构
+## 📊 Project Structure
 
 ```
 wrhitw/
 ├── apps/
-│   ├── web/              # Next.js 前端
+│   ├── web/              # Next.js frontend
 │   │   ├── src/
 │   │   │   ├── app/      # App Router
 │   │   │   ├── components/
 │   │   │   └── styles/
 │   │   └── package.json
 │   │
-│   └── api/              # FastAPI 后端
+│   └── api/              # FastAPI backend
 │       ├── app/
 │       │   ├── main.py
 │       │   ├── routes/
@@ -194,60 +194,60 @@ wrhitw/
 │       └── requirements.txt
 │
 ├── packages/
-│   └── design-system/    # 共享设计系统
+│   └── design-system/    # Shared design system
 │
 ├── docs/
-│   ├── PRD.md            # 产品需求
-│   ├── DESIGN.md         # 设计系统
+│   ├── PRD.md            # Product requirements
+│   ├── DESIGN.md         # Design system
 │   ├── DATABASE_SCHEMA.sql
 │   ├── AI_PROMPTS.md
-│   └── DEVELOPMENT.md    # 这个文件
+│   └── DEVELOPMENT.md    # This file
 │
-└── scripts/              # 工具脚本
+└── scripts/              # Utility scripts
 ```
 
 ---
 
-## 🐛 常见问题
+## 🐛 Common Issues
 
-### 端口被占用
+### Port Already in Use
 
 ```bash
-# 查看占用端口的进程
+# Find the process using the port
 lsof -i :3000
-# 杀死进程
+# Kill the process
 kill -9 <PID>
 ```
 
-### 依赖安装失败
+### Dependency Installation Failure
 
 ```bash
-# 清除缓存
+# Clear cache
 pnpm store prune
-# 重新安装
+# Reinstall
 rm -rf node_modules
 pnpm install
 ```
 
-### 数据库连接失败
+### Database Connection Failure
 
 ```bash
-# 检查 PostgreSQL 是否运行
+# Check if PostgreSQL is running
 docker ps | grep wrhitw-db
-# 重启容器
+# Restart the container
 docker restart wrhitw-db
 ```
 
 ---
 
-## 📚 参考资料
+## 📚 References
 
-- [Next.js 文档](https://nextjs.org/docs)
-- [FastAPI 文档](https://fastapi.tiangolo.com/)
+- [Next.js Documentation](https://nextjs.org/docs)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
 - [Tailwind CSS](https://tailwindcss.com/)
-- [Prisma 文档](https://www.prisma.io/docs)
+- [Prisma Documentation](https://www.prisma.io/docs)
 
 ---
 
-**最后更新**: 2026-03-04  
-**状态**: 🟡 开发中
+**Last Updated**: 2026-03-04
+**Status**: 🟡 In Development

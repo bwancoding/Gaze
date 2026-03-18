@@ -22,7 +22,7 @@ export default function CommentForm({ eventId, threadId, onSuccess, parentId, on
   const [selectedPersona, setSelectedPersona] = useState<string>('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // 获取用户 Persona 列表
+  // Fetch user persona list
   const [personas, setPersonas] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -113,7 +113,7 @@ export default function CommentForm({ eventId, threadId, onSuccess, parentId, on
     }
   };
 
-  // 未登录状态
+  // Not logged in state
   if (!isLoggedIn) {
     return (
       <div className="p-6 bg-stone-50 rounded-xl border border-stone-200 text-center">
@@ -134,7 +134,7 @@ export default function CommentForm({ eventId, threadId, onSuccess, parentId, on
     );
   }
 
-  // 加载中
+  // Loading
   if (isLoading) {
     return (
       <div className="animate-pulse space-y-4">
@@ -160,7 +160,7 @@ export default function CommentForm({ eventId, threadId, onSuccess, parentId, on
         </div>
       )}
 
-      {/* Persona 选择 */}
+      {/* Persona selection */}
       {personas.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-stone-700 mb-2">
@@ -185,7 +185,7 @@ export default function CommentForm({ eventId, threadId, onSuccess, parentId, on
         </div>
       )}
 
-      {/* 评论输入框 */}
+      {/* Comment input */}
       <div>
         <textarea
           value={content}
@@ -202,14 +202,14 @@ export default function CommentForm({ eventId, threadId, onSuccess, parentId, on
         </div>
       </div>
 
-      {/* 错误提示 */}
+      {/* Error message */}
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
           {error}
         </div>
       )}
 
-      {/* 提交按钮 */}
+      {/* Submit button */}
       <div className="flex items-center space-x-3">
         <button
           type="submit"

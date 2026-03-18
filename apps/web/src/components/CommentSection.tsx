@@ -43,7 +43,7 @@ export default function CommentSection({ eventId, threadId }: CommentSectionProp
   const [hasMore, setHasMore] = useState(false);
   const [loginRequiredForMore, setLoginRequiredForMore] = useState(false);
 
-  // 检查登录状态
+  // Check authentication status
   useEffect(() => {
     const checkAuth = () => {
       setIsLoggedIn(isAuthenticated());
@@ -51,13 +51,13 @@ export default function CommentSection({ eventId, threadId }: CommentSectionProp
     
     checkAuth();
     
-    // 每 5 秒检查一次登录状态
+    // Check authentication status every 5 seconds
     const interval = setInterval(checkAuth, 5000);
     
     return () => clearInterval(interval);
   }, []);
 
-  // 获取评论列表
+  // Fetch comments list
   const fetchComments = async () => {
     try {
       const limit = isLoggedIn ? 50 : 20;
@@ -87,32 +87,32 @@ export default function CommentSection({ eventId, threadId }: CommentSectionProp
     }
   }, [eventId, isLoggedIn]);
 
-  // 处理发表评论成功
+  // Handle successful comment submission
   const handleCommentSuccess = () => {
     fetchComments();
     setReplyTo(null);
   };
 
-  // 处理回复
+  // Handle reply
   const handleReply = (commentId: string, personaName: string) => {
     setReplyTo({ id: commentId, personaName });
   };
 
-  // 取消回复
+  // Cancel reply
   const handleCancelReply = () => {
     setReplyTo(null);
   };
 
-  // 处理删除（实时更新）
+  // Handle deletion (real-time update)
   const handleDelete = (commentId: string) => {
-    // 从评论列表中移除该评论
+    // Remove the comment from the list
     setComments(prev => prev.filter(c => c.id !== commentId));
   };
 
-  // 获取顶级评论
+  // Get top-level comments
   const topLevelComments = comments.filter(c => !c.parent_id);
 
-  // 获取回复
+  // Get replies
   const getReplies = (parentId: string) => {
     return comments.filter(c => c.parent_id === parentId);
   };
@@ -128,7 +128,7 @@ export default function CommentSection({ eventId, threadId }: CommentSectionProp
         </p>
       </div>
 
-      {/* 发表评论表单 */}
+      {/* Comment form */}
       <div className="mb-8">
         <CommentForm
           eventId={eventId}
@@ -139,7 +139,7 @@ export default function CommentSection({ eventId, threadId }: CommentSectionProp
         />
       </div>
 
-      {/* 评论列表 */}
+      {/* Comments list */}
       {isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3].map(i => (
@@ -174,7 +174,7 @@ export default function CommentSection({ eventId, threadId }: CommentSectionProp
                   onDelete={handleDelete}
                   depth={0}
                 />
-                {/* 回复嵌套 */}
+                {/* Nested replies */}
                 {getReplies(comment.id).length > 0 && (
                   <div className="ml-12 mt-4 space-y-4 border-l-2 border-stone-100 pl-6">
                     {getReplies(comment.id).map(reply => (
@@ -192,7 +192,7 @@ export default function CommentSection({ eventId, threadId }: CommentSectionProp
             ))}
           </div>
 
-          {/* 未登录 + 有更多评论 → 显示登录提示 */}
+          {/* Not logged in + more comments available -> show login prompt */}
           {!isLoggedIn && loginRequiredForMore && (
             <LoginPrompt
               total={total}
@@ -200,7 +200,7 @@ export default function CommentSection({ eventId, threadId }: CommentSectionProp
             />
           )}
 
-          {/* 已登录 + 有更多 → 显示加载更多 */}
+          {/* Logged in + more available -> show load more */}
           {isLoggedIn && hasMore && (
             <div className="mt-6 text-center">
               <button

@@ -1,87 +1,87 @@
-# WRHITW 热榜 MVP 开发进度报告
+# WRHITW Trending MVP Development Progress Report
 
-**汇报时间**: 2026-03-13 18:30  
-**开发者**: 小狗 🐶  
-**汇报对象**: 猪因斯坦大人
-
----
-
-## ✅ 已完成任务
-
-### 任务 1: RSS 新闻源配置 ✅ (100%)
-
-**完成内容**:
-- ✅ 配置 15 家英文媒体 RSS 源（覆盖政治光谱：左/中/右）
-- ✅ 实现 RSS 解析服务（基于 feedparser + aiohttp 异步）
-- ✅ 支持并发抓取、错误处理、超时控制
-- ✅ 测试脚本已完成
-
-**关键文件**:
-- `app/config.py` - 15 家媒体配置（P0/P1/P2 分级）
-- `app/services/rss_fetcher.py` - RSS 抓取服务（异步并发）
-- `scripts/test_rss_fetch.py` - 抓取测试脚本
-
-**媒体源统计**:
-- P0 优先级：6 家（Reuters, AP, BBC, Guardian, FT, Bloomberg）
-- P1 优先级：6 家（CNN, Fox News, NYT, WSJ, Economist, Al Jazeera）
-- P2 优先级：3 家（Politico, The Hill, NPR）
+**Report Time**: 2026-03-13 18:30
+**Developer**: Dev Team
+**Report To**: Project Lead
 
 ---
 
-### 任务 2: 数据库表结构实现 ✅ (100%)
+## Completed Tasks
 
-**完成内容**:
-- ✅ 创建 3 个核心表：sources, events, articles
-- ✅ 创建所有必要索引（热度查询优化）
-- ✅ 初始化 15 家媒体数据源
-- ✅ SQLAlchemy 模型定义完成
-- ✅ 数据库迁移脚本完成
+### Task 1: RSS News Source Configuration ✅ (100%)
 
-**关键文件**:
-- `app/models/source.py` - 数据源模型
-- `app/models/event.py` - 事件聚类模型
-- `app/models/article.py` - 文章模型
-- `scripts/init_db.py` - 数据库初始化脚本
-- `migrations/001_initial_schema.sql` - SQL 迁移脚本
+**Completed Items**:
+- ✅ Configured 15 English media RSS sources (covering political spectrum: left/center/right)
+- ✅ Implemented RSS parsing service (based on feedparser + aiohttp async)
+- ✅ Supports concurrent fetching, error handling, timeout control
+- ✅ Test scripts completed
 
-**数据库表结构**:
+**Key Files**:
+- `app/config.py` - 15 media configurations (P0/P1/P2 tiers)
+- `app/services/rss_fetcher.py` - RSS fetching service (async concurrent)
+- `scripts/test_rss_fetch.py` - Fetch test script
+
+**Media Source Statistics**:
+- P0 Priority: 6 outlets (Reuters, AP, BBC, Guardian, FT, Bloomberg)
+- P1 Priority: 6 outlets (CNN, Fox News, NYT, WSJ, Economist, Al Jazeera)
+- P2 Priority: 3 outlets (Politico, The Hill, NPR)
+
+---
+
+### Task 2: Database Schema Implementation ✅ (100%)
+
+**Completed Items**:
+- ✅ Created 3 core tables: sources, events, articles
+- ✅ Created all necessary indexes (heat query optimization)
+- ✅ Initialized 15 media data sources
+- ✅ SQLAlchemy model definitions completed
+- ✅ Database migration scripts completed
+
+**Key Files**:
+- `app/models/source.py` - Data source model
+- `app/models/event.py` - Event clustering model
+- `app/models/article.py` - Article model
+- `scripts/init_db.py` - Database initialization script
+- `migrations/001_initial_schema.sql` - SQL migration script
+
+**Database Schema**:
 ```sql
-sources (数据源表)
+sources (Data Sources Table)
   - id, name, url, stance, region, priority, enabled
-  
-events (事件表)
+
+events (Events Table)
   - id, title, summary, keywords, heat_score, article_count, media_count
-  
-articles (文章表)
+
+articles (Articles Table)
   - id, event_id, source_id, title, summary, url, published_at, heat_score
 ```
 
 ---
 
-### 任务 3: Reddit API 集成 ✅ (100%)
+### Task 3: Reddit API Integration ✅ (100%)
 
-**完成内容**:
-- ✅ 实现 Reddit Hot 帖子抓取（r/all, r/worldnews, r/news, r/technology）
-- ✅ 数据格式转换为统一 Article 模型
-- ✅ 限流处理（60 次/分钟，遵守 Reddit API 规则）
-- ✅ 异步并发支持
-- ✅ 完整的中文注释
-- ✅ 测试脚本已完成
+**Completed Items**:
+- ✅ Implemented Reddit Hot post fetching (r/all, r/worldnews, r/news, r/technology)
+- ✅ Data format conversion to unified Article model
+- ✅ Rate limiting (60 requests/minute, compliant with Reddit API rules)
+- ✅ Async concurrent support
+- ✅ Complete code comments
+- ✅ Test scripts completed
 
-**关键文件**:
-- `app/services/reddit_fetcher.py` - Reddit 抓取服务（新增）
-- `scripts/test_external_apis.py` - 外部 API 测试脚本（新增）
+**Key Files**:
+- `app/services/reddit_fetcher.py` - Reddit fetching service (new)
+- `scripts/test_external_apis.py` - External API test script (new)
 
-**技术实现**:
-- 使用 Reddit 公开 API（无需 API Key）
-- 支持 4 个目标 Subreddits：all, worldnews, news, technology
-- 自动解析帖子数据（标题、内容、URL、热度、评论数）
-- 限流保护：1 秒/请求，确保不超过 API 限制
-- 错误处理：超时、网络错误、解析异常
+**Technical Implementation**:
+- Uses Reddit public API (no API Key required)
+- Supports 4 target subreddits: all, worldnews, news, technology
+- Auto-parses post data (title, content, URL, score, comment count)
+- Rate limit protection: 1 second/request, ensuring API limits are not exceeded
+- Error handling: timeout, network errors, parsing exceptions
 
-**数据映射**:
+**Data Mapping**:
 ```
-Reddit 帖子 → Article 模型
+Reddit Post → Article Model
 - title → title
 - selftext → summary
 - permalink → url
@@ -92,34 +92,34 @@ Reddit 帖子 → Article 模型
 
 ---
 
-### 任务 4: Hacker News API 集成 ✅ (100%)
+### Task 4: Hacker News API Integration ✅ (100%)
 
-**完成内容**:
-- ✅ Firebase API 调用（Hacker News 官方 API）
-- ✅ Top Stories 抓取
-- ✅ 数据解析 + 格式转换为 Article 模型
-- ✅ 并发控制（10 个并发请求）
-- ✅ 限流处理（0.5 秒/请求）
-- ✅ 完整的中文注释
-- ✅ 测试脚本已完成
+**Completed Items**:
+- ✅ Firebase API calls (Hacker News official API)
+- ✅ Top Stories fetching
+- ✅ Data parsing + format conversion to Article model
+- ✅ Concurrency control (10 concurrent requests)
+- ✅ Rate limiting (0.5 seconds/request)
+- ✅ Complete code comments
+- ✅ Test scripts completed
 
-**关键文件**:
-- `app/services/hackernews_fetcher.py` - Hacker News 抓取服务（新增）
-- `scripts/test_external_apis.py` - 外部 API 测试脚本（新增）
+**Key Files**:
+- `app/services/hackernews_fetcher.py` - Hacker News fetching service (new)
+- `scripts/test_external_apis.py` - External API test script (new)
 
-**技术实现**:
-- 使用 Hacker News Firebase API（官方、免费、无需 Key）
-- 获取 Top Stories 列表（默认 50 个）
-- 并发获取故事详情（Semaphore 限制并发数）
-- 自动解析故事数据（标题、URL、分数、评论数）
-- 限流保护：0.5 秒/请求
+**Technical Implementation**:
+- Uses Hacker News Firebase API (official, free, no Key required)
+- Fetches Top Stories list (default 50)
+- Concurrent story detail fetching (Semaphore-limited concurrency)
+- Auto-parses story data (title, URL, score, comment count)
+- Rate limit protection: 0.5 seconds/request
 
-**数据映射**:
+**Data Mapping**:
 ```
-Hacker News 故事 → Article 模型
+Hacker News Story → Article Model
 - title → title
 - text → summary
-- url (或 item?id=) → url
+- url (or item?id=) → url
 - time → published_at
 - score → heat_score
 - descendants → comment_count
@@ -127,148 +127,148 @@ Hacker News 故事 → Article 模型
 
 ---
 
-### 任务 5: 热度算法实现 ✅ (100%)
+### Task 5: Heat Score Algorithm Implementation ✅ (100%)
 
-**完成内容**:
-- ✅ 时间衰减函数（指数衰减，越新热度越高）
-- ✅ 互动权重计算（评论、分享的对数缩放）
-- ✅ 源优先级加权（P0/P1/P2 不同权重）
-- ✅ Top20 筛选逻辑
-- ✅ 排序算法
-- ✅ 完整的中文注释
-- ✅ 测试脚本已完成
+**Completed Items**:
+- ✅ Time decay function (exponential decay, newer = higher heat)
+- ✅ Interaction weight calculation (logarithmic scaling of comments and shares)
+- ✅ Source priority weighting (P0/P1/P2 different weights)
+- ✅ Top 20 filtering logic
+- ✅ Sorting algorithm
+- ✅ Complete code comments
+- ✅ Test scripts completed
 
-**关键文件**:
-- `app/services/heat_calculator.py` - 热度计算服务（新增，330+ 行）
-- `scripts/test_heat_algorithm.py` - 热度算法测试脚本（新增，260+ 行）
-- `scripts/demo_heat_and_clustering.py` - 综合使用示例（新增）
+**Key Files**:
+- `app/services/heat_calculator.py` - Heat calculation service (new, 330+ lines)
+- `scripts/test_heat_algorithm.py` - Heat algorithm test script (new, 260+ lines)
+- `scripts/demo_heat_and_clustering.py` - Combined usage demo (new)
 
-**算法公式**:
+**Algorithm Formula**:
 ```
-文章热度 = 时间衰减 × (基础分 + 互动分) × 源权重
+Article Heat = Time Decay x (Base Score + Interaction Score) x Source Weight
 
-时间衰减：decay = e^(-λ × hours)
-互动分：log10(评论 +1) × 5 + log10(分享 +1) × 3
-源权重：P0=1.5, P1=1.2, P2=1.0
+Time Decay: decay = e^(-lambda x hours)
+Interaction Score: log10(comments + 1) x 5 + log10(shares + 1) x 3
+Source Weight: P0=1.5, P1=1.2, P2=1.0
 
-事件热度 = 文章热度总和 × 媒体多样性系数 × 立场多样性系数
+Event Heat = Sum of Article Heat x Media Diversity Factor x Stance Diversity Factor
 ```
 
-**核心功能**:
-- `calculate_time_decay()` - 时间衰减计算
-- `calculate_interaction_score()` - 互动分数计算
-- `calculate_article_heat()` - 文章热度计算
-- `calculate_event_heat()` - 事件热度计算
-- `get_top_events()` - Top20 筛选
-- `get_trending_events()` - 增长率计算（trending）
-- `calculate_heat_distribution()` - 热度分布统计
+**Core Functions**:
+- `calculate_time_decay()` - Time decay calculation
+- `calculate_interaction_score()` - Interaction score calculation
+- `calculate_article_heat()` - Article heat calculation
+- `calculate_event_heat()` - Event heat calculation
+- `get_top_events()` - Top 20 filtering
+- `get_trending_events()` - Growth rate calculation (trending)
+- `calculate_heat_distribution()` - Heat distribution statistics
 
-**测试覆盖**:
-- ✅ 时间衰减函数测试（7 个时间点）
-- ✅ 互动权重计算测试（6 种场景）
-- ✅ 源优先级加权测试（4 个媒体）
-- ✅ 文章热度计算测试
-- ✅ 事件热度计算测试
-- ✅ Top20 筛选逻辑测试
-- ✅ Trending 事件测试
-- ✅ 热度分布统计测试
+**Test Coverage**:
+- ✅ Time decay function tests (7 time points)
+- ✅ Interaction weight calculation tests (6 scenarios)
+- ✅ Source priority weighting tests (4 media outlets)
+- ✅ Article heat calculation tests
+- ✅ Event heat calculation tests
+- ✅ Top 20 filtering logic tests
+- ✅ Trending events tests
+- ✅ Heat distribution statistics tests
 
 ---
 
-### 任务 6: 事件去重聚类 ✅ (100%)
+### Task 6: Event Deduplication & Clustering ✅ (100%)
 
-**完成内容**:
-- ✅ TF-IDF + 余弦相似度算法
-- ✅ 事件中心向量计算
-- ✅ 增量更新机制
-- ✅ 重复事件检测
-- ✅ 文章聚类到事件
-- ✅ 新事件自动创建
-- ✅ 完整的中文注释
-- ✅ 测试脚本已完成
+**Completed Items**:
+- ✅ TF-IDF + cosine similarity algorithm
+- ✅ Event centroid vector calculation
+- ✅ Incremental update mechanism
+- ✅ Duplicate event detection
+- ✅ Article clustering into events
+- ✅ Automatic new event creation
+- ✅ Complete code comments
+- ✅ Test scripts completed
 
-**关键文件**:
-- `app/services/event_clusterer.py` - 事件聚类服务（新增，550+ 行）
-- `scripts/test_event_clustering.py` - 聚类算法测试脚本（新增，400+ 行）
-- `scripts/demo_heat_and_clustering.py` - 综合使用示例（新增）
+**Key Files**:
+- `app/services/event_clusterer.py` - Event clustering service (new, 550+ lines)
+- `scripts/test_event_clustering.py` - Clustering algorithm test script (new, 400+ lines)
+- `scripts/demo_heat_and_clustering.py` - Combined usage demo (new)
 
-**算法实现**:
+**Algorithm Implementation**:
 ```
-1. 文本预处理：
-   - 清洗（转小写、去特殊字符）
-   - 分词（移除停用词）
-   - 关键词提取（基于词频）
+1. Text Preprocessing:
+   - Cleaning (lowercase, remove special characters)
+   - Tokenization (remove stop words)
+   - Keyword extraction (frequency-based)
 
-2. TF-IDF 向量化：
-   - 拟合文档集计算 IDF
-   - 转换文档为 TF-IDF 向量
+2. TF-IDF Vectorization:
+   - Fit document set to calculate IDF
+   - Transform documents to TF-IDF vectors
 
-3. 余弦相似度：
-   - similarity = (A·B) / (||A|| × ||B||)
-   - 阈值：0.6（可配置）
+3. Cosine Similarity:
+   - similarity = (A·B) / (||A|| x ||B||)
+   - Threshold: 0.6 (configurable)
 
-4. 聚类流程：
-   - 检测新文章是否属于现有事件
-   - 新事件自动创建
-   - 重复事件合并
+4. Clustering Process:
+   - Check if new article belongs to an existing event
+   - Automatic new event creation
+   - Duplicate event merging
 ```
 
-**核心功能**:
-- `TextPreprocessor` - 文本预处理类
-- `TFIDFVectorizer` - TF-IDF 向量化工具
-- `EventClusterer` - 事件聚类器主类
-  - `cosine_similarity()` - 余弦相似度计算
-  - `calculate_event_centroid()` - 事件中心向量
-  - `find_similar_events()` - 相似事件搜索
-  - `cluster_articles_to_events()` - 文章聚类
-  - `detect_new_event()` - 新事件检测
-  - `create_event_from_articles()` - 创建新事件
-  - `merge_events()` - 合并重复事件
-  - `find_duplicate_events()` - 重复检测
-  - `incremental_update()` - 增量更新
+**Core Functions**:
+- `TextPreprocessor` - Text preprocessing class
+- `TFIDFVectorizer` - TF-IDF vectorization tool
+- `EventClusterer` - Event clustering main class
+  - `cosine_similarity()` - Cosine similarity calculation
+  - `calculate_event_centroid()` - Event centroid vector
+  - `find_similar_events()` - Similar event search
+  - `cluster_articles_to_events()` - Article clustering
+  - `detect_new_event()` - New event detection
+  - `create_event_from_articles()` - Create new event
+  - `merge_events()` - Merge duplicate events
+  - `find_duplicate_events()` - Duplicate detection
+  - `incremental_update()` - Incremental update
 
-**测试覆盖**:
-- ✅ 文本预处理测试（清洗、分词、关键词）
-- ✅ TF-IDF 向量化测试
-- ✅ 余弦相似度测试（4 种场景）
-- ✅ 事件中心向量测试
-- ✅ 相似事件搜索测试
-- ✅ 文章聚类测试
-- ✅ 新事件检测测试
-- ✅ 重复事件检测测试
-- ✅ 增量更新测试
+**Test Coverage**:
+- ✅ Text preprocessing tests (cleaning, tokenization, keywords)
+- ✅ TF-IDF vectorization tests
+- ✅ Cosine similarity tests (4 scenarios)
+- ✅ Event centroid vector tests
+- ✅ Similar event search tests
+- ✅ Article clustering tests
+- ✅ New event detection tests
+- ✅ Duplicate event detection tests
+- ✅ Incremental update tests
 
 ---
 
-## 📁 项目结构（更新后）
+## Project Structure (Updated)
 
 ```
 trending/
 ├── app/
-│   ├── main.py              ✅ FastAPI 应用入口
-│   ├── config.py            ✅ 配置管理（15 家媒体）
-│   ├── database.py          ✅ 数据库连接
-│   ├── models/              ✅ 数据模型
+│   ├── main.py              ✅ FastAPI application entry point
+│   ├── config.py            ✅ Configuration management (15 media outlets)
+│   ├── database.py          ✅ Database connection
+│   ├── models/              ✅ Data models
 │   │   ├── source.py        ✅
 │   │   ├── event.py         ✅
 │   │   └── article.py       ✅
-│   ├── services/            ✅ 业务逻辑
-│   │   ├── rss_fetcher.py   ✅ RSS 抓取
-│   │   ├── reddit_fetcher.py   ✅ Reddit 抓取
-│   │   ├── hackernews_fetcher.py ✅ HN 抓取
-│   │   ├── heat_calculator.py   ✅ 热度计算（新增）
-│   │   └── event_clusterer.py   ✅ 事件聚类（新增）
-│   ├── api/                 ✅ API 路由
-│   │   └── health.py        ✅ 健康检查
-│   ├── scheduler/           ⏳ 定时任务（下一步）
-│   └── utils/               ⏳ 工具函数
+│   ├── services/            ✅ Business logic
+│   │   ├── rss_fetcher.py   ✅ RSS fetching
+│   │   ├── reddit_fetcher.py   ✅ Reddit fetching
+│   │   ├── hackernews_fetcher.py ✅ HN fetching
+│   │   ├── heat_calculator.py   ✅ Heat calculation (new)
+│   │   └── event_clusterer.py   ✅ Event clustering (new)
+│   ├── api/                 ✅ API routes
+│   │   └── health.py        ✅ Health check
+│   ├── scheduler/           ⏳ Scheduled tasks (next step)
+│   └── utils/               ⏳ Utility functions
 ├── scripts/
-│   ├── init_db.py           ✅ 数据库初始化
-│   ├── test_rss_fetch.py    ✅ RSS 抓取测试
-│   ├── test_external_apis.py ✅ 外部 API 测试
-│   ├── test_heat_algorithm.py    ✅ 热度算法测试（新增）
-│   ├── test_event_clustering.py  ✅ 事件聚类测试（新增）
-│   └── demo_heat_and_clustering.py ✅ 综合演示（新增）
+│   ├── init_db.py           ✅ Database initialization
+│   ├── test_rss_fetch.py    ✅ RSS fetch test
+│   ├── test_external_apis.py ✅ External API test
+│   ├── test_heat_algorithm.py    ✅ Heat algorithm test (new)
+│   ├── test_event_clustering.py  ✅ Event clustering test (new)
+│   └── demo_heat_and_clustering.py ✅ Combined demo (new)
 ├── migrations/
 │   └── 001_initial_schema.sql ✅
 ├── requirements.txt         ✅
@@ -276,181 +276,182 @@ trending/
 └── .env.example             ✅
 ```
 
-**总计**: 28 个文件，代码量约 5500+ 行
+**Total**: 28 files, approximately 5500+ lines of code
 
 ---
 
-## 🧪 如何测试
+## How to Test
 
-### 1. 安装依赖
+### 1. Install Dependencies
 ```bash
 cd /Users/bwan/.openclaw/workspace/main/wrhitw/apps/trending
 pip install -r requirements.txt
 ```
 
-### 2. 配置环境
+### 2. Configure Environment
 ```bash
 cp .env.example .env
-# 编辑 .env 配置数据库连接
+# Edit .env to configure database connection
 ```
 
-### 3. 初始化数据库
+### 3. Initialize Database
 ```bash
 python scripts/init_db.py
 ```
 
-### 4. 测试 RSS 抓取
+### 4. Test RSS Fetching
 ```bash
 python scripts/test_rss_fetch.py
 ```
 
-### 5. 测试 Reddit & Hacker News
+### 5. Test Reddit & Hacker News
 ```bash
 python scripts/test_external_apis.py
 ```
 
-### 6. 测试热度算法
+### 6. Test Heat Algorithm
 ```bash
 python scripts/test_heat_algorithm.py
 ```
 
-### 7. 测试事件聚类
+### 7. Test Event Clustering
 ```bash
 python scripts/test_event_clustering.py
 ```
 
-### 8. 综合演示
+### 8. Combined Demo
 ```bash
 python scripts/demo_heat_and_clustering.py
 ```
 
-### 9. 启动 API 服务
+### 9. Start API Service
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-访问 http://localhost:8000/docs 查看 API 文档
+Visit http://localhost:8000/docs to view API documentation
 
 ---
 
-## 📊 完成度统计
+## Completion Statistics
 
-| 任务 | 进度 | 工时估算 | 实际工时 |
-|------|------|----------|----------|
-| 1. RSS 新闻源配置 | ✅ 100% | 0.5 天 | ~2 小时 |
-| 2. 数据库表结构 | ✅ 100% | 0.5 天 | ~2 小时 |
-| 3. Reddit API 集成 | ✅ 100% | 0.5 天 | ~1.5 小时 |
-| 4. Hacker News API | ✅ 100% | 0.25 天 | ~1 小时 |
-| 5. 热度算法 | ✅ 100% | 1 天 | ~3 小时 |
-| 6. 事件去重聚类 | ✅ 100% | 2 天 | ~4 小时 |
-| 7. API 开发 | ⏳ 0% | 1 天 | - |
-| 8. 定时任务 | ⏳ 0% | 1 天 | - |
-| 9. 前端页面 | ⏳ 0% | 2 天 | - |
-| 10. 测试 + 部署 | ⏳ 0% | 1 天 | - |
+| Task | Progress | Estimated Time | Actual Time |
+|------|----------|----------------|-------------|
+| 1. RSS News Source Configuration | ✅ 100% | 0.5 days | ~2 hours |
+| 2. Database Schema | ✅ 100% | 0.5 days | ~2 hours |
+| 3. Reddit API Integration | ✅ 100% | 0.5 days | ~1.5 hours |
+| 4. Hacker News API | ✅ 100% | 0.25 days | ~1 hour |
+| 5. Heat Algorithm | ✅ 100% | 1 day | ~3 hours |
+| 6. Event Deduplication & Clustering | ✅ 100% | 2 days | ~4 hours |
+| 7. API Development | ⏳ 0% | 1 day | - |
+| 8. Scheduled Tasks | ⏳ 0% | 1 day | - |
+| 9. Frontend Page | ⏳ 0% | 2 days | - |
+| 10. Testing + Deployment | ⏳ 0% | 1 day | - |
 
-**总体进度**: 6/10 任务完成 (60%)
-
----
-
-## 🚀 下一步计划
-
-### 已完成：阶段 3 开发任务 ✅
-
-**任务 5 - 热度算法实现** ✅:
-- ✅ 时间衰减函数（指数衰减）
-- ✅ 互动权重计算（评论、分享）
-- ✅ 源优先级加权（P0/P1/P2）
-- ✅ Top20 筛选逻辑
-- ✅ 排序算法
-- ✅ 测试验证
-
-**任务 6 - 事件去重聚类** ✅:
-- ✅ TF-IDF + 余弦相似度
-- ✅ 事件中心向量
-- ✅ 增量更新
-- ✅ 测试验证
-
-### 即将开始：阶段 4 开发任务
-
-**任务 7 - API 开发**（预计 1 天）:
-- 热榜 API 接口（/api/trending）
-- 事件详情 API（/api/events/:id）
-- 文章列表 API（/api/articles）
-- 搜索 API（/api/search）
-- 分页、过滤、排序支持
-
-**任务 8 - 定时任务**（预计 1 天）:
-- RSS 定时抓取调度
-- 热度定时更新
-- 事件增量聚类
-- APScheduler 集成
-
-**预计完成时间**: 接下来 3-4 小时
+**Overall Progress**: 6/10 tasks completed (60%)
 
 ---
 
-## 💡 技术亮点
+## Next Steps
 
-1. **异步并发架构**: 使用 aiohttp + asyncio，支持同时抓取多个数据源
-2. **政治光谱覆盖**: 15 家媒体 + 4 个 Reddit 板块 + Hacker News，确保信息多元
-3. **分级抓取策略**: P0/P1/P2 优先级，优化资源使用
-4. **限流保护**: 所有外部 API 均实现限流，遵守服务规则
-5. **统一数据模型**: 所有来源统一转换为 Article 模型，便于后续处理
-6. **完整的数据库设计**: 包含索引优化、外键约束、JSONB 支持
-7. **生产就绪**: 包含健康检查、CORS、慢查询日志、连接池
-8. **智能热度算法**: 时间衰减 + 互动权重 + 源优先级，多维度计算
-9. **TF-IDF 聚类**: 基于文本相似度的事件去重，自动合并重复事件
-10. **增量更新机制**: 支持实时聚类和热度更新，无需全量重算
+### Completed: Phase 3 Development Tasks ✅
 
----
+**Task 5 - Heat Score Algorithm** ✅:
+- ✅ Time decay function (exponential decay)
+- ✅ Interaction weight calculation (comments, shares)
+- ✅ Source priority weighting (P0/P1/P2)
+- ✅ Top 20 filtering logic
+- ✅ Sorting algorithm
+- ✅ Test verification
 
-## 📝 备注
+**Task 6 - Event Deduplication & Clustering** ✅:
+- ✅ TF-IDF + cosine similarity
+- ✅ Event centroid vector
+- ✅ Incremental update
+- ✅ Test verification
 
-- 所有代码注释均为中文，符合开发要求
-- 严格按照技术文档实施
-- 代码结构清晰，易于扩展和维护
-- **阶段 3 开发任务（任务 5-6）已全部完成** ✅
-- 下一步将继续推进任务 7（API 开发）
+### Coming Up: Phase 4 Development Tasks
 
----
+**Task 7 - API Development** (estimated 1 day):
+- Trending API endpoint (/api/trending)
+- Event details API (/api/events/:id)
+- Article list API (/api/articles)
+- Search API (/api/search)
+- Pagination, filtering, sorting support
 
-## 🔧 新增文件清单（阶段 3）
+**Task 8 - Scheduled Tasks** (estimated 1 day):
+- RSS scheduled fetch scheduling
+- Heat score periodic updates
+- Incremental event clustering
+- APScheduler integration
 
-1. `app/services/heat_calculator.py` - 热度计算服务（330+ 行）
-2. `app/services/event_clusterer.py` - 事件聚类服务（550+ 行）
-3. `scripts/test_heat_algorithm.py` - 热度算法测试脚本（260+ 行）
-4. `scripts/test_event_clustering.py` - 事件聚类测试脚本（400+ 行）
-5. `scripts/demo_heat_and_clustering.py` - 综合使用示例（180+ 行）
-6. `app/services/__init__.py` - 更新导出（新增 HeatCalculator, EventClusterer）
-
----
-
-**阶段 3 开发完成** 🐶
-
-猪因斯坦大人，任务 5-6 已全部完成！总体进度达到 60%！请指示下一步工作！
-7. **生产就绪**: 包含健康检查、CORS、慢查询日志、连接池
+**Estimated Completion Time**: Next 3-4 hours
 
 ---
 
-## 📝 备注
+## Technical Highlights
 
-- 所有代码注释均为中文，符合开发要求
-- 严格按照技术文档实施
-- 代码结构清晰，易于扩展和维护
-- 阶段 2 开发任务（任务 3-4）已全部完成
-- 下一步将继续推进任务 5（热度算法）
-
----
-
-## 🔧 新增文件清单
-
-1. `app/services/reddit_fetcher.py` - Reddit API 抓取服务
-2. `app/services/hackernews_fetcher.py` - Hacker News API 抓取服务
-3. `scripts/test_external_apis.py` - 外部 API 集成测试脚本
-4. `app/services/__init__.py` - 更新导出（新增 RedditFetcher, HackerNewsFetcher）
+1. **Async Concurrent Architecture**: Using aiohttp + asyncio, supports fetching from multiple data sources simultaneously
+2. **Political Spectrum Coverage**: 15 media outlets + 4 Reddit subreddits + Hacker News, ensuring information diversity
+3. **Tiered Fetching Strategy**: P0/P1/P2 priority, optimizing resource usage
+4. **Rate Limit Protection**: All external APIs implement rate limiting, compliant with service rules
+5. **Unified Data Model**: All sources unified to Article model for easier downstream processing
+6. **Complete Database Design**: Includes index optimization, foreign key constraints, JSONB support
+7. **Production Ready**: Includes health checks, CORS, slow query logging, connection pooling
+8. **Intelligent Heat Algorithm**: Time decay + interaction weight + source priority, multi-dimensional calculation
+9. **TF-IDF Clustering**: Text similarity-based event deduplication, automatic duplicate event merging
+10. **Incremental Update Mechanism**: Supports real-time clustering and heat updates without full recalculation
 
 ---
 
-**阶段 2 开发完成** 🐶
+## Notes
 
-猪因斯坦大人，任务 3-4 已全部完成！请指示下一步工作！
+- Code follows project development requirements
+- Strictly implemented according to technical documentation
+- Clean code structure, easy to extend and maintain
+- **Phase 3 development tasks (Tasks 5-6) fully completed** ✅
+- Next step: proceed with Task 7 (API Development)
+
+---
+
+## New File List (Phase 3)
+
+1. `app/services/heat_calculator.py` - Heat calculation service (330+ lines)
+2. `app/services/event_clusterer.py` - Event clustering service (550+ lines)
+3. `scripts/test_heat_algorithm.py` - Heat algorithm test script (260+ lines)
+4. `scripts/test_event_clustering.py` - Event clustering test script (400+ lines)
+5. `scripts/demo_heat_and_clustering.py` - Combined usage demo (180+ lines)
+6. `app/services/__init__.py` - Updated exports (added HeatCalculator, EventClusterer)
+
+---
+
+**Phase 3 Development Complete**
+
+Tasks 5-6 are fully completed. Overall progress is at 60%. Ready for next steps.
+
+7. **Production Ready**: Includes health checks, CORS, slow query logging, connection pooling
+
+---
+
+## Notes
+
+- Code follows project development requirements
+- Strictly implemented according to technical documentation
+- Clean code structure, easy to extend and maintain
+- Phase 2 development tasks (Tasks 3-4) fully completed
+- Next step: proceed with Task 5 (Heat Algorithm)
+
+---
+
+## New File List
+
+1. `app/services/reddit_fetcher.py` - Reddit API fetching service
+2. `app/services/hackernews_fetcher.py` - Hacker News API fetching service
+3. `scripts/test_external_apis.py` - External API integration test script
+4. `app/services/__init__.py` - Updated exports (added RedditFetcher, HackerNewsFetcher)
+
+---
+
+**Phase 2 Development Complete**
+
+Tasks 3-4 are fully completed. Ready for next steps.

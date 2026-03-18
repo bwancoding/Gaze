@@ -1,46 +1,46 @@
-# WRHITW Cron Jobs 配置
+# WRHITW Cron Jobs Configuration
 
-## 概述
+## Overview
 
-WRHITW 项目使用 OpenClaw 的 cron 功能来管理定时任务。
-
----
-
-## 已配置的任务
-
-### 1. Heartbeat (心跳检查)
-
-**目的**: 每 30 分钟检查项目状态，保持 agent 活跃
-
-**配置**:
-- **Cron 表达式**: `*/30 * * * *`
-- **超时**: 300 秒 (5 分钟)
-- **交付**: 无（内部检查）
-
-**检查内容**:
-- 后端 API 服务 (端口 8080)
-- 前端页面服务 (端口 3002)
-- Gateway 服务状态
-- Git 仓库状态（未提交变更）
-
-**触发条件**:
-- 服务停止 → 提醒用户重启
-- 有未提交代码 → 询问是否 commit
-- 空闲超过 1 小时 → 主动询问下一步任务
+The WRHITW project uses OpenClaw's cron feature to manage scheduled tasks.
 
 ---
 
-### 2. News Fetcher (新闻抓取)
+## Configured Tasks
 
-**目的**: 每 4 小时从 RSS 源抓取国际新闻
+### 1. Heartbeat (Health Check)
 
-**配置**:
-- **Cron 表达式**: `0 */4 * * *` (每天的 0:00, 4:00, 8:00, 12:00, 16:00, 20:00)
-- **超时**: 600 秒 (10 分钟)
-- **交付**: 无（后台运行）
-- **脚本**: `apps/api/fetch_news_scheduled.py`
+**Purpose**: Check project status every 30 minutes to keep the agent active
 
-**新闻源**:
+**Configuration**:
+- **Cron Expression**: `*/30 * * * *`
+- **Timeout**: 300 seconds (5 minutes)
+- **Delivery**: None (internal check)
+
+**Check Items**:
+- Backend API service (port 8080)
+- Frontend page service (port 3002)
+- Gateway service status
+- Git repository status (uncommitted changes)
+
+**Trigger Conditions**:
+- Service stopped → Remind user to restart
+- Uncommitted code → Ask whether to commit
+- Idle for over 1 hour → Proactively ask about next task
+
+---
+
+### 2. News Fetcher
+
+**Purpose**: Fetch international news from RSS sources every 4 hours
+
+**Configuration**:
+- **Cron Expression**: `0 */4 * * *` (runs at 0:00, 4:00, 8:00, 12:00, 16:00, 20:00 daily)
+- **Timeout**: 600 seconds (10 minutes)
+- **Delivery**: None (background process)
+- **Script**: `apps/api/fetch_news_scheduled.py`
+
+**News Sources**:
 - Reuters World (Politics)
 - AP News (Politics)
 - BBC World (Politics)
@@ -48,28 +48,28 @@ WRHITW 项目使用 OpenClaw 的 cron 功能来管理定时任务。
 - The Guardian (Politics)
 - Al Jazeera (Politics)
 
-**功能**:
-- 从 RSS 源抓取最新新闻
-- 自动去重（基于标题哈希）
-- 创建 Event 记录到数据库
-- 记录日志到 `/tmp/wrhitw_fetcher.log`
+**Features**:
+- Fetch latest news from RSS sources
+- Automatic deduplication (based on title hash)
+- Create Event records in the database
+- Log output to `/tmp/wrhitw_fetcher.log`
 
 ---
 
-## 管理命令
+## Management Commands
 
-### 查看所有任务
+### List All Tasks
 ```bash
 openclaw cron list
 ```
 
-### 查看运行历史
+### View Run History
 ```bash
 openclaw cron runs
 openclaw cron runs --job-id <job-id>
 ```
 
-### 手动运行任务
+### Manually Run a Task
 ```bash
 # Heartbeat
 openclaw cron run 4048bb57-39ae-4ab0-b46d-7ca6f0bf6495
@@ -78,102 +78,102 @@ openclaw cron run 4048bb57-39ae-4ab0-b46d-7ca6f0bf6495
 openclaw cron run c04d0a62-0f9e-4637-8546-b0559f716f17
 ```
 
-### 禁用/启用任务
+### Disable/Enable Tasks
 ```bash
-# 禁用
+# Disable
 openclaw cron disable <job-id>
 
-# 启用
+# Enable
 openclaw cron enable <job-id>
 ```
 
-### 删除任务
+### Delete a Task
 ```bash
 openclaw cron rm <job-id>
 ```
 
-### 添加新任务
+### Add a New Task
 ```bash
 openclaw cron add \
-  --name "任务名称" \
+  --name "Task Name" \
   --cron "0 * * * *" \
-  --message "执行的任务描述" \
+  --message "Description of the task to execute" \
   --timeout 300000 \
   --no-deliver
 ```
 
 ---
 
-## 日志查看
+## Viewing Logs
 
-### Heartbeat 日志
+### Heartbeat Logs
 ```bash
-# 查看最近的运行记录
+# View recent run records
 openclaw cron runs --job-id 4048bb57-39ae-4ab0-b46d-7ca6f0bf6495
 
-# 查看完整日志
+# View full logs
 cat ~/.openclaw/cron/runs/4048bb57-39ae-4ab0-b46d-7ca6f0bf6495.jsonl
 ```
 
-### News Fetcher 日志
+### News Fetcher Logs
 ```bash
-# 查看抓取日志
+# View fetch logs
 tail -f /tmp/wrhitw_fetcher.log
 
-# 查看 cron 运行记录
+# View cron run records
 openclaw cron runs --job-id c04d0a62-0f9e-4637-8546-b0559f716f17
 ```
 
-### Gateway 日志
+### Gateway Logs
 ```bash
 openclaw logs --follow
 ```
 
 ---
 
-## 故障排查
+## Troubleshooting
 
-### Cron job 不执行
-1. 检查 Gateway 是否运行：`openclaw gateway status`
-2. 检查 job 是否启用：`openclaw cron list`
-3. 查看运行历史：`openclaw cron runs`
-4. 手动运行测试：`openclaw cron run <job-id>`
+### Cron Job Not Executing
+1. Check if Gateway is running: `openclaw gateway status`
+2. Check if the job is enabled: `openclaw cron list`
+3. View run history: `openclaw cron runs`
+4. Run manually to test: `openclaw cron run <job-id>`
 
-### News Fetcher 抓取失败
-1. 检查网络连接
-2. 检查 RSS 源是否可访问
-3. 查看日志：`tail /tmp/wrhitw_fetcher.log`
-4. 手动运行脚本：
+### News Fetcher Failing
+1. Check network connection
+2. Check if RSS sources are accessible
+3. View logs: `tail /tmp/wrhitw_fetcher.log`
+4. Run the script manually:
    ```bash
    cd ~/.openclaw/workspace/wrhitw/apps/api
    ./venv/bin/python fetch_news_scheduled.py
    ```
 
-### Heartbeat 不触发
-1. 检查 cron 表达式是否正确
-2. 检查 Gateway 时区设置
-3. 查看下一次运行时间：`openclaw cron list`
+### Heartbeat Not Triggering
+1. Verify the cron expression is correct
+2. Check Gateway timezone settings
+3. View next scheduled run time: `openclaw cron list`
 
 ---
 
-## 下一步优化
+## Future Improvements
 
-### 短期
-- [ ] 添加新闻抓取失败通知
-- [ ] 添加服务异常自动重启
-- [ ] 添加每日摘要报告
+### Short-term
+- [ ] Add notification for news fetch failures
+- [ ] Add automatic service restart on failure
+- [ ] Add daily summary report
 
-### 中期
-- [ ] 添加更多新闻源
-- [ ] 优化去重算法
-- [ ] 添加 AI 摘要生成任务
+### Mid-term
+- [ ] Add more news sources
+- [ ] Optimize deduplication algorithm
+- [ ] Add AI summary generation task
 
-### 长期
-- [ ] 分布式任务调度
-- [ ] 任务优先级队列
-- [ ] 自动扩缩容
+### Long-term
+- [ ] Distributed task scheduling
+- [ ] Task priority queue
+- [ ] Auto-scaling
 
 ---
 
-**文档更新**: 2026-03-07  
-**维护者**: WRHITW Team
+**Document Updated**: 2026-03-07
+**Maintainer**: WRHITW Team

@@ -18,10 +18,10 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // 使用 JWT 登录
+      // Log in using JWT
       await login(email, password);
       
-      // 跳转到首页
+      // Redirect to home page
       router.push('/');
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
@@ -36,7 +36,7 @@ export default function LoginPage() {
       
       <main className="container mx-auto px-6 py-12">
         <div className="max-w-md mx-auto">
-          {/* 登录卡片 */}
+          {/* Login card */}
           <div className="bg-white rounded-2xl border border-stone-200 p-8 shadow-lg">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-stone-900 mb-2">
@@ -48,7 +48,7 @@ export default function LoginPage() {
             </div>
 
             <form onSubmit={handleLogin} className="space-y-6">
-              {/* 邮箱输入 */}
+              {/* Email input */}
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-stone-700 mb-2">
                   Email
@@ -64,7 +64,7 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* 密码输入 */}
+              {/* Password input */}
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-stone-700 mb-2">
                   Password
@@ -80,14 +80,14 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* 错误提示 */}
+              {/* Error message */}
               {error && (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
                   {error}
                 </div>
               )}
 
-              {/* 提交按钮 */}
+              {/* Submit button */}
               <button
                 type="submit"
                 disabled={isLoading}
@@ -97,7 +97,7 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* 测试账号提示 */}
+            {/* Test account info */}
             <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
               <p className="text-sm font-medium text-blue-900 mb-2">
                 Test Accounts:
