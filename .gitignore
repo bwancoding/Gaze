@@ -48,6 +48,10 @@ Thumbs.db
 coverage/
 .nyc_output/
 
+# Database
+*.db
+*.sqlite3
+
 # Misc
 .cache/
 tmp/
