@@ -488,6 +488,19 @@ async def admin_recalculate_heat(
         raise HTTPException(status_code=500, detail=f"Heat recalculation failed: {str(e)}")
 
 
+@router.post("/backfill-categories")
+async def admin_backfill_categories(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Backfill categories for uncategorized trending events, then recalculate heat scores."""
+    from app.services.event_clusterer import backfill_categories
+    from app.services.news_aggregator import run_heat_update
+    cat_result = backfill_categories(db)
+    heat_result = run_heat_update(db)
+    return {"categories": cat_result, "heat_recalc": heat_result}
+
+
 @router.get("/stats")
 async def admin_get_stats(
     db: Session = Depends(get_db),

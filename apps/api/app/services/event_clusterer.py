@@ -15,7 +15,7 @@ import re
 from collections import Counter
 
 from app.models.trending import TrendingArticle, TrendingEvent, TrendingSource
-from app.services.trending_config import CLUSTER_SIMILARITY_THRESHOLD, CLUSTER_TOP_KEYWORDS
+from app.services.trending_config import CLUSTER_SIMILARITY_THRESHOLD, CLUSTER_TOP_KEYWORDS, CATEGORY_KEYWORDS
 
 
 class TextPreprocessor:
@@ -185,6 +185,17 @@ class EventClusterer:
             return True, None, best_similarity
         return False, best_event, best_similarity
 
+    def classify_category(self, text: str) -> Optional[str]:
+        text_lower = text.lower()
+        scores: Dict[str, int] = {}
+        for category, keywords in CATEGORY_KEYWORDS.items():
+            score = sum(1 for kw in keywords if kw in text_lower)
+            if score > 0:
+                scores[category] = score
+        if not scores:
+            return None
+        return max(scores, key=scores.get)
+
     def create_event_from_articles(self, articles: List[TrendingArticle],
                                    source_id: Optional[int] = None) -> TrendingEvent:
         if not articles:
@@ -195,10 +206,13 @@ class EventClusterer:
         keywords = TextPreprocessor.extract_keywords(combined_text, self.top_keywords)
 
         first_article = articles[0]
+        category = self.classify_category(combined_text)
+
         event = TrendingEvent(
             title=first_article.title,
             summary=first_article.summary,
             keywords=keywords,
+            category=category,
             source_id=source_id or first_article.source_id,
             article_count=len(articles),
             media_count=len(set(a.source_id for a in articles)),
@@ -307,6 +321,21 @@ class EventClusterer:
 
         self.db.commit()
         return result
+
+
+def backfill_categories(db: Session) -> Dict:
+    """Assign categories to existing uncategorized trending events."""
+    clusterer = EventClusterer(db)
+    events = db.query(TrendingEvent).filter(TrendingEvent.category.is_(None)).all()
+    updated = 0
+    for event in events:
+        text = clusterer.extract_event_vector(event)
+        category = clusterer.classify_category(text)
+        if category:
+            event.category = category
+            updated += 1
+    db.commit()
+    return {"total_uncategorized": len(events), "categorized": updated}
 
 
 def cluster_new_articles(db: Session, articles: Optional[List[TrendingArticle]] = None) -> Dict:

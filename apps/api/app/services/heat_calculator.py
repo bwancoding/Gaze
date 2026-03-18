@@ -15,7 +15,10 @@ import math
 
 from app.models.trending import TrendingArticle, TrendingEvent, TrendingSource
 from app.services.trending_config import (
-    HEAT_TIME_DECAY_LAMBDA, HEAT_COMMENT_WEIGHT, HEAT_SHARE_WEIGHT
+    HEAT_TIME_DECAY_LAMBDA, HEAT_COMMENT_WEIGHT, HEAT_SHARE_WEIGHT,
+    CATEGORY_WEIGHTS, CATEGORY_DEFAULT_WEIGHT,
+    REGION_DIVERSITY_BONUS, REGION_DIVERSITY_MAX,
+    ARTICLE_COUNT_BONUS_CAP,
 )
 
 
@@ -70,6 +73,21 @@ class HeatCalculator:
         heat_score = time_decay * (base_score + interaction_score) * source_weight
         return round(heat_score, 2)
 
+    def get_category_weight(self, category: Optional[str]) -> float:
+        if not category:
+            return CATEGORY_DEFAULT_WEIGHT
+        return CATEGORY_WEIGHTS.get(category, CATEGORY_DEFAULT_WEIGHT)
+
+    def get_region_diversity_bonus(self, event: TrendingEvent) -> float:
+        regions = set()
+        for article in event.articles:
+            if article.source and hasattr(article.source, 'region'):
+                regions.add(article.source.region)
+        n = len(regions)
+        if n >= 4:
+            return REGION_DIVERSITY_MAX
+        return REGION_DIVERSITY_BONUS.get(n, 1.0)
+
     def calculate_event_heat(self, event: TrendingEvent, reference_time: Optional[datetime] = None) -> float:
         if not event.articles:
             return 0.0
@@ -88,9 +106,26 @@ class HeatCalculator:
                 stances.add(article.source.stance)
         stance_bonus = self.STANCE_DIVERSITY_BONUS.get(len(stances), 1.3)
 
-        article_count_bonus = math.log10(event.article_count + 1) * 0.5
+        # Cap article count influence to prevent niche topics from dominating
+        article_count_bonus = min(
+            math.log10(event.article_count + 1) * 0.5,
+            ARTICLE_COUNT_BONUS_CAP
+        )
 
-        event_heat = total_article_heat * media_diversity_bonus * stance_bonus * (1 + article_count_bonus)
+        # Category weight: boost globally important topics
+        category_weight = self.get_category_weight(event.category)
+
+        # Region diversity: events covered across multiple regions rank higher
+        region_bonus = self.get_region_diversity_bonus(event)
+
+        event_heat = (
+            total_article_heat
+            * media_diversity_bonus
+            * stance_bonus
+            * (1 + article_count_bonus)
+            * category_weight
+            * region_bonus
+        )
         return round(event_heat, 2)
 
     def update_article_heat_scores(self, batch_size: int = 100) -> int:

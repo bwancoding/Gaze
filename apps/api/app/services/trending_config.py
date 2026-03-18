@@ -9,6 +9,47 @@ HEAT_TIME_DECAY_LAMBDA: float = float(os.getenv("HEAT_TIME_DECAY_LAMBDA", "0.1")
 HEAT_COMMENT_WEIGHT: float = float(os.getenv("HEAT_COMMENT_WEIGHT", "5.0"))
 HEAT_SHARE_WEIGHT: float = float(os.getenv("HEAT_SHARE_WEIGHT", "3.0"))
 
+# Category weights: boost global-impact topics, reduce niche/entertainment
+CATEGORY_WEIGHTS: Dict[str, float] = {
+    "Geopolitics": 1.4,
+    "Politics": 1.3,
+    "Environment": 1.3,
+    "Economy": 1.2,
+    "Health": 1.2,
+    "Science": 1.1,
+    "Technology": 1.0,
+    "Society": 1.0,
+    "Culture": 0.8,
+    "Entertainment": 0.7,
+    "Sports": 0.7,
+}
+CATEGORY_DEFAULT_WEIGHT: float = 0.9  # uncategorized events get a slight penalty
+
+# Region diversity: events covered by sources from multiple regions get a bonus
+REGION_DIVERSITY_BONUS: Dict[int, float] = {
+    1: 1.0,    # single region
+    2: 1.15,   # 2 regions
+    3: 1.3,    # 3 regions (truly global)
+}
+REGION_DIVERSITY_MAX: float = 1.4  # 4+ regions
+
+# Cap article count influence to prevent niche topics with bot-amplified article counts
+ARTICLE_COUNT_BONUS_CAP: float = 1.5  # max multiplier from article count
+
+# Auto-categorization keyword rules
+CATEGORY_KEYWORDS: Dict[str, List[str]] = {
+    "Geopolitics": ["war", "sanctions", "treaty", "nato", "military", "invasion", "diplomacy", "nuclear", "missile", "ceasefire", "troops", "geopolitical"],
+    "Politics": ["election", "vote", "president", "congress", "parliament", "legislation", "senator", "democrat", "republican", "policy", "campaign", "impeach"],
+    "Environment": ["climate", "carbon", "emissions", "wildfire", "drought", "flood", "hurricane", "earthquake", "tsunami", "pollution", "deforestation", "renewable", "rainforest"],
+    "Economy": ["gdp", "inflation", "recession", "trade", "tariff", "stock", "market", "unemployment", "fed", "interest rate", "cryptocurrency", "bitcoin", "semiconductor", "supply chain"],
+    "Technology": ["ai", "artificial intelligence", "quantum", "spacex", "starship", "robot", "chip", "software", "cyber", "hack", "data breach", "startup"],
+    "Health": ["vaccine", "pandemic", "virus", "malaria", "cancer", "drug", "fda", "who", "disease", "outbreak", "hospital", "medical"],
+    "Science": ["nasa", "research", "discovery", "species", "genome", "physics", "cern", "space", "telescope", "mars", "moon"],
+    "Society": ["protest", "rights", "inequality", "migration", "refugee", "poverty", "education", "housing"],
+    "Entertainment": ["movie", "film", "oscar", "grammy", "celebrity", "album", "concert", "netflix", "streaming", "box office"],
+    "Sports": ["olympic", "world cup", "championship", "tournament", "league", "soccer", "football", "basketball", "tennis"],
+}
+
 # Clustering configuration
 CLUSTER_SIMILARITY_THRESHOLD: float = float(os.getenv("CLUSTER_SIMILARITY_THRESHOLD", "0.75"))
 CLUSTER_TOP_KEYWORDS: int = int(os.getenv("CLUSTER_TOP_KEYWORDS", "20"))
