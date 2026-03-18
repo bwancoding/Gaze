@@ -2,12 +2,13 @@
 Thread API Routes - Discussion threads within events
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from sqlalchemy.orm import Session
 from typing import Optional
 from pydantic import BaseModel
 
 from app.core.database import get_db
+from app.core.limiter import limiter
 from app.core.auth import get_current_user, get_current_user_optional
 from app.models import Event, User
 from app.models.threads import Thread
@@ -105,7 +106,9 @@ async def get_thread(
 
 
 @router.post("/events/{event_id}/threads")
+@limiter.limit("5/minute")
 async def create_thread(
+    request: Request,
     event_id: str,
     thread_data: ThreadCreate,
     db: Session = Depends(get_db),
@@ -191,7 +194,9 @@ async def delete_thread(
 
 
 @router.post("/threads/{thread_id}/vote")
+@limiter.limit("30/minute")
 async def vote_thread(
+    request: Request,
     thread_id: str,
     action: str = Query(..., regex="^(like|dislike)$", description="like or dislike"),
     db: Session = Depends(get_db),

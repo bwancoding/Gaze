@@ -8,10 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional
 from datetime import datetime
-from slowapi import Limiter
-from slowapi.util import get_remote_address
-
-limiter = Limiter(key_func=get_remote_address)
+from app.core.limiter import limiter
 
 from app.core.database import get_db
 from app.core.auth import get_current_user, get_current_user_optional

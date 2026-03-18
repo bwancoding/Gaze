@@ -1,12 +1,13 @@
 """
 Trending API Routes - Trending/hot events endpoints
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from typing import Optional, List
 import logging
 
 from app.core.database import get_db
+from app.core.limiter import limiter
 from app.models.trending import TrendingEvent, TrendingArticle, TrendingSource
 from app.models import Event
 from app.services.heat_calculator import HeatCalculator
@@ -17,7 +18,9 @@ router = APIRouter()
 
 
 @router.get("/trending")
+@limiter.limit("60/minute")
 def get_trending(
+    request: Request,
     limit: int = Query(20, ge=1, le=50),
     category: Optional[str] = Query(None),
     time_window: Optional[int] = Query(None, description="Time window in hours"),

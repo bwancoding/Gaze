@@ -3,7 +3,7 @@ User Persona Management API
 User identity management endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Header
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
@@ -14,6 +14,7 @@ import json
 from pydantic import BaseModel
 
 from app.core.database import get_db
+from app.core.limiter import limiter
 from app.core.auth import get_current_user_from_header as get_current_user_from_token
 from app.models.personas import UserPersona, EventStakeholderVerification
 from app.models.stakeholders import Stakeholder
@@ -114,8 +115,10 @@ async def get_my_personas(
 
 
 @router.post("")
+@limiter.limit("10/minute")
 async def create_persona(
-    request: PersonaCreate,
+    request: Request,
+    persona_data: PersonaCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token),
 ):
@@ -139,24 +142,24 @@ async def create_persona(
     # Check if name already exists for this user
     existing = db.query(UserPersona).filter(
         UserPersona.user_id == current_user.id,
-        UserPersona.persona_name == request.persona_name
+        UserPersona.persona_name == persona_data.persona_name
     ).first()
-    
+
     if existing:
         raise HTTPException(
             status_code=400,
             detail="Persona name already exists"
         )
-    
+
     # Create persona
     import random
     colors = ['blue', 'green', 'purple', 'orange', 'red', 'teal', 'indigo', 'pink']
-    
+
     persona = UserPersona(
         id=uuid.uuid4(),
         user_id=current_user.id,
-        persona_name=request.persona_name,
-        avatar_color=request.avatar_color or random.choice(colors),
+        persona_name=persona_data.persona_name,
+        avatar_color=persona_data.avatar_color or random.choice(colors),
         is_verified=False,
     )
     
@@ -540,26 +543,27 @@ async def get_persona_verifications(
 
 
 @router.post("/{persona_id}/verify")
+@limiter.limit("5/minute")
 async def apply_for_verification(
+    request: Request,
     persona_id: str,
-    request: VerificationApply,
+    verify_data: VerificationApply,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_from_token),
 ):
     """
     Apply for stakeholder verification in a specific event
-    
+
     - **persona_id**: ID of persona to use
-    - **request.event_id**: Event to apply for
-    - **request.stakeholder_id**: Stakeholder type to apply as
-    - **request.application_text**: Why you qualify
+    - **verify_data.event_id**: Event to apply for
+    - **verify_data.stakeholder_id**: Stakeholder type to apply as
+    - **verify_data.application_text**: Why you qualify
     """
-    # Extract from request body
-    event_id = request.event_id
-    stakeholder_id = request.stakeholder_id
-    application_text = request.application_text
-    proof_type = request.proof_type or 'self_declaration'
-    proof_data = request.proof_data or ''
+    event_id = verify_data.event_id
+    stakeholder_id = verify_data.stakeholder_id
+    application_text = verify_data.application_text
+    proof_type = verify_data.proof_type or 'self_declaration'
+    proof_data = verify_data.proof_data or ''
     # Check persona ownership
     persona = db.query(UserPersona).filter(
         UserPersona.id == persona_id,
