@@ -1,12 +1,13 @@
 """
-新闻聚合器 - 统一调度 RSS/Reddit/HN 抓取、去重入库、聚类、热度计算
+News Aggregator - Orchestrates RSS/Reddit/HN fetching, dedup, clustering, heat scoring, and top-N trimming
 """
 import asyncio
 import logging
 from typing import Dict, List
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
-from app.models.trending import TrendingArticle, TrendingSource
+from app.models.trending import TrendingArticle, TrendingEvent, TrendingSource
 from app.services.trending_config import RSS_SOURCES, REDDIT_SOURCES, HN_SOURCE, ALL_SOURCES
 from app.services.fetchers.rss_fetcher import RSSFetcher
 from app.services.fetchers.reddit_fetcher import RedditFetcher
@@ -96,48 +97,103 @@ async def fetch_all_sources() -> List[TrendingArticle]:
     return all_articles
 
 
-def run_full_pipeline(db: Session) -> Dict:
+def trim_to_top_n(db: Session, top_n: int = 20) -> Dict:
     """
-    运行完整的新闻聚合管线：
-    1. 确保数据源存在
-    2. 抓取所有来源
-    3. 去重入库
-    4. 聚类
-    5. 计算热度
-    """
-    result = {"fetch": 0, "new": 0, "cluster": {}, "heat": {}}
+    Keep only the top N trending events as 'raw' (available for admin review).
+    Events ranked below top N that are still 'raw' get archived automatically.
+    Events already 'promoted' or 'rejected' are left untouched.
 
-    # 1. 确保数据源
+    Args:
+        db: Database session
+        top_n: Number of top events to keep (default 20)
+
+    Returns:
+        Stats about the trim operation
+    """
+    # Get top N event IDs by heat_score (only from raw status)
+    top_events = (
+        db.query(TrendingEvent.id)
+        .filter(TrendingEvent.status == 'raw')
+        .order_by(desc(TrendingEvent.heat_score))
+        .limit(top_n)
+        .all()
+    )
+    top_ids = {e.id for e in top_events}
+
+    # Archive all raw events NOT in top N
+    archived_count = (
+        db.query(TrendingEvent)
+        .filter(
+            TrendingEvent.status == 'raw',
+            ~TrendingEvent.id.in_(top_ids) if top_ids else True
+        )
+        .update({"status": "archived"}, synchronize_session="fetch")
+    )
+
+    db.commit()
+
+    logger.info(f"Trim: kept top {len(top_ids)} raw events, archived {archived_count}")
+    return {
+        "kept": len(top_ids),
+        "archived": archived_count,
+    }
+
+
+def run_full_pipeline(db: Session, top_n: int = 20) -> Dict:
+    """
+    Run the complete news aggregation pipeline:
+    1. Ensure data sources exist
+    2. Fetch from all sources
+    3. Deduplicate and store
+    4. Cluster articles into events
+    5. Calculate heat scores
+    6. Trim to top N events (archive the rest)
+
+    Args:
+        db: Database session
+        top_n: Number of top trending events to keep for admin review (default 20)
+    """
+    result = {"fetch": 0, "new": 0, "cluster": {}, "heat": {}, "trim": {}}
+
+    # 1. Ensure sources
     ensure_sources_exist(db)
 
-    # 2. 抓取
+    # 2. Fetch
     articles = asyncio.run(fetch_all_sources())
     result["fetch"] = len(articles)
 
-    # 3. 去重入库
+    # 3. Deduplicate and store
     new_articles = deduplicate_articles(db, articles)
     for article in new_articles:
         db.add(article)
     db.commit()
     result["new"] = len(new_articles)
 
-    # 4. 聚类
+    # 4. Cluster
     cluster_result = cluster_new_articles(db)
     result["cluster"] = cluster_result
 
-    # 5. 计算热度
+    # 5. Calculate heat
     heat_result = calculate_all_heat_scores(db)
     result["heat"] = heat_result
+
+    # 6. Trim to top N (archive low-ranking events)
+    trim_result = trim_to_top_n(db, top_n=top_n)
+    result["trim"] = trim_result
 
     logger.info(f"Pipeline complete: {result}")
     return result
 
 
-def run_heat_update(db: Session) -> Dict:
-    """仅重新计算热度分数（定时任务用）"""
-    return calculate_all_heat_scores(db)
+def run_heat_update(db: Session, top_n: int = 20) -> Dict:
+    """Recalculate heat scores and re-trim to top N (for scheduled tasks)"""
+    heat = calculate_all_heat_scores(db)
+    trim = trim_to_top_n(db, top_n=top_n)
+    return {"heat": heat, "trim": trim}
 
 
-def run_clustering(db: Session) -> Dict:
-    """仅运行聚类（定时任务用）"""
-    return cluster_new_articles(db)
+def run_clustering(db: Session, top_n: int = 20) -> Dict:
+    """Run clustering and trim (for scheduled tasks)"""
+    cluster = cluster_new_articles(db)
+    trim = trim_to_top_n(db, top_n=top_n)
+    return {"cluster": cluster, "trim": trim}

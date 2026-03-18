@@ -1,5 +1,5 @@
 """
-定时任务调度器 - 使用 APScheduler 管理新闻抓取、热度计算、聚类任务
+Scheduler - APScheduler-based task scheduling for news fetching, heat calculation, and clustering
 """
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -13,7 +13,7 @@ scheduler = BackgroundScheduler()
 
 
 def _get_db():
-    """创建独立的数据库会话用于后台任务"""
+    """Create an independent database session for background tasks"""
     db = SessionLocal()
     try:
         return db
@@ -23,7 +23,7 @@ def _get_db():
 
 
 def job_fetch_and_pipeline():
-    """定时任务：完整抓取管线（每 4 小时）"""
+    """Scheduled task: Full fetch pipeline (every 4 hours)"""
     from app.services.news_aggregator import run_full_pipeline
     db = _get_db()
     try:
@@ -37,7 +37,7 @@ def job_fetch_and_pipeline():
 
 
 def job_update_heat():
-    """定时任务：更新热度分数（每 1 小时）"""
+    """Scheduled task: Update heat scores (every 1 hour)"""
     from app.services.news_aggregator import run_heat_update
     db = _get_db()
     try:
@@ -51,7 +51,7 @@ def job_update_heat():
 
 
 def job_clustering():
-    """定时任务：增量聚类（每 6 小时）"""
+    """Scheduled task: Incremental clustering + trim (every 6 hours)"""
     from app.services.news_aggregator import run_clustering
     db = _get_db()
     try:
@@ -65,11 +65,11 @@ def job_clustering():
 
 
 def init_scheduler():
-    """初始化并启动调度器"""
+    """Initialize and start the scheduler"""
     if scheduler.running:
         return
 
-    # 每 4 小时：完整抓取管线
+    # Every 4 hours: full fetch pipeline (fetch → dedup → cluster → heat → trim)
     scheduler.add_job(
         job_fetch_and_pipeline,
         trigger=IntervalTrigger(hours=4),
@@ -78,7 +78,7 @@ def init_scheduler():
         replace_existing=True,
     )
 
-    # 每 1 小时：更新热度分数
+    # Every 1 hour: update heat scores + trim
     scheduler.add_job(
         job_update_heat,
         trigger=IntervalTrigger(hours=1),
@@ -87,7 +87,7 @@ def init_scheduler():
         replace_existing=True,
     )
 
-    # 每 6 小时：增量聚类
+    # Every 6 hours: incremental clustering + trim
     scheduler.add_job(
         job_clustering,
         trigger=IntervalTrigger(hours=6),
@@ -101,7 +101,7 @@ def init_scheduler():
 
 
 def shutdown_scheduler():
-    """关闭调度器"""
+    """Shut down the scheduler"""
     if scheduler.running:
         scheduler.shutdown(wait=False)
         logger.info("Scheduler shut down")
