@@ -2,11 +2,12 @@
 WRHITW Event API Routes
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 from app.core.database import get_db
+from app.core.limiter import limiter
 from app.models import Event, EventSource, Source, AiSummary
 from app.schemas import EventResponse, EventListResponse, EventCreate, EventUpdate
 
@@ -14,7 +15,9 @@ router = APIRouter()
 
 
 @router.get("", response_model=EventListResponse)
+@limiter.limit("60/minute")
 async def list_events(
+    request: Request,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     category: Optional[str] = None,
@@ -91,7 +94,9 @@ async def list_events(
 
 
 @router.get("/{event_id}", response_model=EventResponse)
+@limiter.limit("60/minute")
 async def get_event(
+    request: Request,
     event_id: str,
     db: Session = Depends(get_db),
 ):
@@ -113,7 +118,9 @@ async def get_event(
 
 
 @router.post("", response_model=EventResponse)
+@limiter.limit("10/minute")
 async def create_event(
+    request: Request,
     event_data: EventCreate,
     db: Session = Depends(get_db),
 ):
@@ -271,7 +278,9 @@ async def get_event_sources(
 
 
 @router.get("/{event_id}/summary")
+@limiter.limit("5/minute")
 async def get_event_summary(
+    request: Request,
     event_id: str,
     force: bool = Query(False, description="Force regeneration of cached summary"),
     db: Session = Depends(get_db),
@@ -306,7 +315,9 @@ async def get_event_summary(
 
 
 @router.get("/{event_id}/analysis")
+@limiter.limit("5/minute")
 async def get_event_analysis(
+    request: Request,
     event_id: str,
     force: bool = Query(False, description="Force regeneration"),
     db: Session = Depends(get_db),
@@ -368,7 +379,9 @@ async def get_event_stakeholders(
 
 
 @router.post("/{event_id}/summary/feedback")
+@limiter.limit("10/minute")
 async def submit_summary_feedback(
+    request: Request,
     event_id: str,
     helpful: bool = Body(..., embed=True, description="Was the summary helpful?"),
     perspective: Optional[str] = Body(None, embed=True, description="Which perspective (left/center/right)?"),

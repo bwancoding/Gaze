@@ -10,11 +10,9 @@ from datetime import datetime, timedelta
 from jose import jwt, JWTError
 from sqlalchemy.orm import Session
 from typing import Optional
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 import os
 
-limiter = Limiter(key_func=get_remote_address)
+from app.core.limiter import limiter
 
 from app.core.database import get_db
 from app.models import User
