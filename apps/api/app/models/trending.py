@@ -1,8 +1,8 @@
 """
-Trending Models - 热榜相关数据模型
+Trending Models - Trending-related data models
 
-使用 trending_ 前缀避免与主 events/sources 表冲突。
-trending 管线独立运作：抓取 → 存储文章 → 聚类 → 计算热度 → 提供 API。
+Uses trending_ prefix to avoid conflicts with main events/sources tables.
+Trending pipeline operates independently: fetch -> store articles -> cluster -> calculate heat score -> serve API.
 """
 from sqlalchemy import (
     Column, Integer, String, Float, DateTime, ForeignKey,
@@ -15,7 +15,7 @@ from datetime import datetime
 
 
 class TrendingSource(Base):
-    """新闻数据源"""
+    """News Data Sources"""
     __tablename__ = "trending_sources"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -45,7 +45,7 @@ class TrendingSource(Base):
 
 
 class TrendingEvent(Base):
-    """事件聚类 - 将相关文章聚合为事件"""
+    """Event Clustering - Aggregates related articles into events"""
     __tablename__ = "trending_events"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -94,7 +94,7 @@ class TrendingEvent(Base):
 
 
 class TrendingArticle(Base):
-    """新闻文章"""
+    """News Articles"""
     __tablename__ = "trending_articles"
 
     id = Column(Integer, primary_key=True, index=True)

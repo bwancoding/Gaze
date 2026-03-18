@@ -24,7 +24,7 @@ def translate_category(category: str) -> str:
 
 
 class Source(Base):
-    """信息源表"""
+    """Sources Table"""
     __tablename__ = "sources"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -83,7 +83,7 @@ class Event(Base):
 
 
 class EventSource(Base):
-    """事件 - 来源关联表"""
+    """Event-Source Association Table"""
     __tablename__ = "event_sources"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -104,7 +104,7 @@ class EventSource(Base):
 
 
 class AiSummary(Base):
-    """AI 摘要表"""
+    """AI Summaries Table"""
     __tablename__ = "ai_summaries"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -124,7 +124,7 @@ class AiSummary(Base):
 
 
 class User(Base):
-    """用户表"""
+    """Users Table"""
     __tablename__ = "users"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -145,20 +145,20 @@ class User(Base):
 
     def check_password(self, password: str) -> bool:
         """
-        验证密码
-        
+        Verify password
+
         Args:
-            password: 明文密码
-            
+            password: Plain text password
+
         Returns:
-            True 如果密码匹配，否则 False
+            True if the password matches, otherwise False
         """
         from app.utils.security import verify_password
         return verify_password(password, self.password_hash)
 
 
 class ReadingHistory(Base):
-    """阅读历史表"""
+    """Reading History Table"""
     __tablename__ = "reading_history"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -174,7 +174,7 @@ class ReadingHistory(Base):
 
 
 class Bookmark(Base):
-    """收藏表"""
+    """Bookmarks Table"""
     __tablename__ = "bookmarks"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

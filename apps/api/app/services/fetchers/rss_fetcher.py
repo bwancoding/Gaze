@@ -1,5 +1,5 @@
 """
-RSS 抓取服务 - 异步并发抓取多个 RSS 源
+RSS fetch service - asynchronously fetches multiple RSS sources concurrently
 """
 import asyncio
 import aiohttp
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class RSSFetcher:
-    """RSS 抓取器"""
+    """RSS fetcher"""
 
     def __init__(self, timeout: int = None):
         self.timeout = aiohttp.ClientTimeout(total=timeout or RSS_FETCH_TIMEOUT)

@@ -1,6 +1,6 @@
 """
 JWT Authentication API
-用户认证和 Token 管理
+User authentication and token management
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -22,7 +22,7 @@ from app.utils.security import verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
-# JWT 配置
+# JWT configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError(
@@ -30,15 +30,15 @@ if not SECRET_KEY:
         "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
     )
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 小时
-REFRESH_TOKEN_EXPIRE_DAYS = 7  # 7 天
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+REFRESH_TOKEN_EXPIRE_DAYS = 7  # 7 days
 
-# Bearer Token 认证
+# Bearer token authentication
 security = HTTPBearer()
 
 
 class Token(BaseModel):
-    """Token 响应"""
+    """Token response"""
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
@@ -46,7 +46,7 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    """Token 中的数据"""
+    """Data contained in the token"""
     user_id: Optional[str] = None
     email: Optional[str] = None
 
@@ -65,7 +65,7 @@ class LoginRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
-    """用户信息响应"""
+    """User info response"""
     id: str
     email: str
     display_name: Optional[str] = None
@@ -73,7 +73,7 @@ class UserResponse(BaseModel):
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """创建 Access Token"""
+    """Create an access token"""
     to_encode = data.copy()
     
     if expires_delta:
@@ -87,7 +87,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def create_refresh_token(data: dict) -> str:
-    """创建 Refresh Token"""
+    """Create a refresh token"""
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
@@ -96,7 +96,7 @@ def create_refresh_token(data: dict) -> str:
 
 
 def decode_token(token: str) -> TokenData:
-    """解码 Token"""
+    """Decode a token"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
@@ -122,7 +122,7 @@ def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db: Session = Depends(get_db)
 ) -> User:
-    """获取当前登录用户"""
+    """Get the currently logged-in user"""
     token = credentials.credentials
     token_data = decode_token(token)
     
@@ -207,12 +207,12 @@ async def register(request: Request, reg_data: RegisterRequest, db: Session = De
 @limiter.limit("5/minute")
 async def login(request: Request, login_data: LoginRequest, db: Session = Depends(get_db)):
     """
-    用户登录
+    User login
 
-    - **email**: 用户邮箱
-    - **password**: 用户密码
+    - **email**: User email
+    - **password**: User password
     """
-    # 查找用户
+    # Find user
     user = db.query(User).filter(
         (User.email == login_data.email) | (User.phone == login_data.email)
     ).first()
@@ -224,7 +224,7 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # 验证密码
+    # Verify password
     if not verify_password(login_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -232,24 +232,24 @@ async def login(request: Request, login_data: LoginRequest, db: Session = Depend
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # 检查用户状态
+    # Check user status
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is deactivated",
         )
     
-    # 生成 Token
+    # Generate token
     token_data = {
         "sub": str(user.id),
         "email": user.email,
         "display_name": user.display_name,
     }
-    
+
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
-    
-    # 更新最后登录时间
+
+    # Update last login time
     user.last_login_at = datetime.utcnow()
     db.commit()
     
@@ -265,11 +265,11 @@ async def refresh_token(
     refresh_token: str,
     db: Session = Depends(get_db)
 ):
-    """刷新 Token"""
+    """Refresh token"""
     try:
         payload = jwt.decode(refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
         
-        # 验证是 refresh token
+        # Verify this is a refresh token
         if payload.get("type") != "refresh":
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -287,7 +287,7 @@ async def refresh_token(
                 detail="User not found or inactive",
             )
         
-        # 生成新 Token
+        # Generate new token
         token_data = {
             "sub": str(user.id),
             "email": user.email,
@@ -314,7 +314,7 @@ async def refresh_token(
 async def get_current_user_info(
     current_user: User = Depends(get_current_user)
 ):
-    """获取当前用户信息"""
+    """Get current user info"""
     return UserResponse(
         id=str(current_user.id),
         email=current_user.email,

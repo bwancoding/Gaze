@@ -1,6 +1,6 @@
 """
 WRHITW Stakeholder Models
-相关方认证系统数据库模型
+Stakeholder verification system database models
 """
 
 from sqlalchemy import Column, String, Text as _Text, Integer, Boolean, DateTime, DECIMAL, ForeignKey, UniqueConstraint
@@ -11,7 +11,7 @@ import uuid
 
 
 class StakeholderType(Base):
-    """相关方类型表（预定义）"""
+    """Stakeholder Types Table (predefined)"""
     __tablename__ = "stakeholder_types"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -25,7 +25,7 @@ class StakeholderType(Base):
 
 
 class Stakeholder(Base):
-    """相关方定义表"""
+    """Stakeholders Table"""
     __tablename__ = "stakeholders"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -44,13 +44,13 @@ class Stakeholder(Base):
 
 
 class EventStakeholder(Base):
-    """事件 - 相关方关联表"""
+    """Event-Stakeholder Association Table"""
     __tablename__ = "event_stakeholders"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
     stakeholder_id = Column(UUID(as_uuid=True), ForeignKey('stakeholders.id'), nullable=False)
-    relevance_score = Column(DECIMAL(3, 2), default=0.5)  # AI 判断的相关性分数 0-1
+    relevance_score = Column(DECIMAL(3, 2), default=0.5)  # AI-determined relevance score 0-1
     perspective_summary = Column(_Text)  # AI-generated stakeholder perspective for this event
     key_concerns = Column(JSONColumn)  # ["concern1", "concern2"]
     is_ai_generated = Column(Boolean, default=False)  # Whether this was auto-created by AI
@@ -66,7 +66,7 @@ class EventStakeholder(Base):
 
 
 class StakeholderVerification(Base):
-    """相关方身份认证申请表"""
+    """Stakeholder Identity Verification Applications Table"""
     __tablename__ = "stakeholder_verifications"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -74,24 +74,24 @@ class StakeholderVerification(Base):
     stakeholder_id = Column(UUID(as_uuid=True), ForeignKey('stakeholders.id'), nullable=False)
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'))
     
-    # 申请信息
-    application_text = Column(_Text)  # 用户说明为什么自己是相关方
+    # Application information
+    application_text = Column(_Text)  # User explanation of why they are a stakeholder
     proof_type = Column(String(50))  # ip_address, email, document, other
-    proof_data = Column(_Text)  # 存储证明数据（加密）
-    
-    # 审核状态
+    proof_data = Column(_Text)  # Stored proof data (encrypted)
+
+    # Review status
     status = Column(String(20), default='pending')  # pending, approved, rejected
     reviewed_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     reviewed_at = Column(DateTime(timezone=True))
-    review_notes = Column(_Text)  # 审核备注
+    review_notes = Column(_Text)  # Review notes
     
-    # 时间戳
+    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
 class UserStakeholderRole(Base):
-    """用户 - 相关方角色关联表（已认证的角色）"""
+    """User-Stakeholder Role Association Table (verified roles)"""
     __tablename__ = "user_stakeholder_roles"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -100,9 +100,9 @@ class UserStakeholderRole(Base):
     is_verified = Column(Boolean, default=False)
     verified_at = Column(DateTime(timezone=True))
     
-    # 元数据
-    display_name = Column(String(255))  # 显示名称（可与 stakeholder.name 不同）
-    badge_color = Column(String(20), default='blue')  # 徽章颜色
+    # Metadata
+    display_name = Column(String(255))  # Display name (can differ from stakeholder.name)
+    badge_color = Column(String(20), default='blue')  # Badge color
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     

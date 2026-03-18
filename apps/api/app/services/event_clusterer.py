@@ -1,10 +1,10 @@
 """
-事件去重聚类服务
+Event deduplication and clustering service
 
-功能：
-- TF-IDF + 余弦相似度计算
-- 事件中心向量
-- 增量更新
+Features:
+- TF-IDF + cosine similarity computation
+- Event centroid vectors
+- Incremental updates
 """
 from typing import List, Dict, Optional, Tuple, Set
 from datetime import datetime, timedelta
@@ -19,7 +19,7 @@ from app.services.trending_config import CLUSTER_SIMILARITY_THRESHOLD, CLUSTER_T
 
 
 class TextPreprocessor:
-    """文本预处理器"""
+    """Text preprocessor"""
 
     STOP_WORDS = {
         'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
@@ -62,7 +62,7 @@ class TextPreprocessor:
 
 
 class TFIDFVectorizer:
-    """TF-IDF 向量化工具"""
+    """TF-IDF vectorizer"""
 
     def __init__(self):
         self.idf: Dict[str, float] = {}
@@ -98,7 +98,7 @@ class TFIDFVectorizer:
 
 
 class EventClusterer:
-    """事件聚类器"""
+    """Event clusterer"""
 
     def __init__(self, db: Session):
         self.db = db
@@ -123,7 +123,7 @@ class EventClusterer:
     def extract_event_vector(self, event: TrendingEvent) -> str:
         texts = []
         if event.title:
-            texts.extend([event.title, event.title])  # 标题权重 x2
+            texts.extend([event.title, event.title])  # Title weight x2
         if event.summary:
             texts.append(event.summary)
         if event.keywords:
@@ -188,7 +188,7 @@ class EventClusterer:
     def create_event_from_articles(self, articles: List[TrendingArticle],
                                    source_id: Optional[int] = None) -> TrendingEvent:
         if not articles:
-            raise ValueError("文章列表不能为空")
+            raise ValueError("Article list cannot be empty")
 
         all_texts = [self.extract_article_vector(a) for a in articles]
         combined_text = ' '.join(all_texts)
@@ -310,7 +310,7 @@ class EventClusterer:
 
 
 def cluster_new_articles(db: Session, articles: Optional[List[TrendingArticle]] = None) -> Dict:
-    """便捷函数：聚类新文章"""
+    """Convenience function: cluster new articles"""
     clusterer = EventClusterer(db)
 
     if articles is None:

@@ -1,5 +1,5 @@
 """
-Reddit API 抓取服务 - 使用公开 JSON API（免费，无需认证）
+Reddit API fetch service - uses the public JSON API (free, no authentication required)
 """
 import aiohttp
 import asyncio
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class RedditFetcher:
-    """Reddit 抓取器"""
+    """Reddit fetcher"""
 
     TARGET_SUBREDDITS = ["all", "worldnews", "news", "technology"]
     BASE_URL = "https://www.reddit.com"

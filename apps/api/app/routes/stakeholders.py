@@ -1,6 +1,6 @@
 """
 Stakeholder Management API
-相关方认证系统 API 接口
+Stakeholder verification system API endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 def ensure_sources_exist(db: Session):
-    """确保所有数据源在数据库中存在"""
+    """Ensure all data sources exist in the database"""
     for src in ALL_SOURCES:
         existing = db.query(TrendingSource).filter(TrendingSource.id == src["id"]).first()
         if not existing:
@@ -36,13 +36,13 @@ def ensure_sources_exist(db: Session):
 
 
 def deduplicate_articles(db: Session, articles: List[TrendingArticle]) -> List[TrendingArticle]:
-    """根据 URL 去重，只保留数据库中不存在的文章"""
+    """Deduplicate by URL, only keep articles not already in the database"""
     if not articles:
         return []
 
     existing_urls = set()
     urls = [a.url for a in articles]
-    # 分批查询避免 SQL 过长
+    # Query in batches to avoid overly long SQL statements
     batch_size = 100
     for i in range(0, len(urls), batch_size):
         batch = urls[i:i + batch_size]
@@ -61,7 +61,7 @@ def deduplicate_articles(db: Session, articles: List[TrendingArticle]) -> List[T
 
 
 async def fetch_all_sources() -> List[TrendingArticle]:
-    """从所有数据源抓取文章"""
+    """Fetch articles from all data sources"""
     all_articles = []
 
     # RSS

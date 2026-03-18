@@ -1,6 +1,6 @@
 """
 User Persona Management API
-用户身份管理接口
+User identity management endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Header

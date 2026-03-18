@@ -1,6 +1,6 @@
 """
 WRHITW Comment System API
-评论系统 API 接口
+Comment system API endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request, status
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/comments", tags=["Comments"])
 
 
 def check_persona_ownership(db: Session, persona_id: str, user_id: str):
-    """检查用户是否拥有该 Persona"""
+    """Check if the user owns this persona"""
     persona = db.query(UserPersona).filter(
         UserPersona.id == persona_id,
         UserPersona.user_id == user_id,
@@ -37,7 +37,7 @@ def check_persona_ownership(db: Session, persona_id: str, user_id: str):
 
 
 def check_verified_status(db: Session, persona_id: str, event_id: str) -> bool:
-    """检查 Persona 在该事件中是否有已认证的验证"""
+    """Check if the persona has an approved verification for this event"""
     verification = db.query(EventStakeholderVerification).filter(
         EventStakeholderVerification.user_persona_id == persona_id,
         EventStakeholderVerification.event_id == event_id,
@@ -57,12 +57,12 @@ def get_event_comments(
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
-    获取事件的所有评论（支持回复）
-    
-    - 未登录：最多 20 条
-    - 已登录：全部评论，支持分页
+    Get all comments for an event (supports replies)
+
+    - Not logged in: up to 20 comments
+    - Logged in: all comments with pagination
     """
-    # 未登录用户限制 20 条
+    # Limit unauthenticated users to 20 comments
     if current_user is None and limit > 20:
         limit = 20
     
@@ -75,10 +75,10 @@ def get_event_comments(
     )
     
     if parent_id:
-        # 获取回复
+        # Get replies
         query = query.filter(Comment.parent_id == parent_id)
     else:
-        # 获取顶级评论
+        # Get top-level comments
         query = query.filter(Comment.parent_id == None)
     
     total = query.count()
@@ -107,20 +107,20 @@ def create_comment(
     content: str = Body(..., embed=True),
     parent_id: Optional[str] = Body(None, embed=True),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # 必须登录
+    current_user: User = Depends(get_current_user),  # Login required
 ):
-    """创建新评论或回复"""
-    # 验证内容
+    """Create a new comment or reply"""
+    # Validate content
     if not content or len(content.strip()) == 0:
         raise HTTPException(status_code=400, detail="Comment content cannot be empty")
     
     if len(content) > 5000:
         raise HTTPException(status_code=400, detail="Comment content too long (max 5000 characters)")
     
-    # 检查 Persona 所有权
+    # Check persona ownership
     persona = check_persona_ownership(db, user_persona_id, str(current_user.id))
     
-    # 如果是回复，检查父评论是否存在
+    # If this is a reply, check that the parent comment exists
     if parent_id:
         parent_comment = db.query(Comment).filter(
             Comment.id == parent_id,
@@ -131,10 +131,10 @@ def create_comment(
         if not parent_comment:
             raise HTTPException(status_code=404, detail="Parent comment not found")
         
-        # 增加父评论的回复计数
+        # Increment the parent comment's reply count
         parent_comment.reply_count += 1
     
-    # 创建评论
+    # Create comment
     comment = Comment(
         user_id=current_user.id,
         user_persona_id=user_persona_id,
@@ -172,9 +172,9 @@ def update_comment(
     comment_id: str,
     content: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # 必须登录
+    current_user: User = Depends(get_current_user),  # Login required
 ):
-    """编辑自己的评论"""
+    """Edit own comment"""
     comment = db.query(Comment).filter(
         Comment.id == comment_id,
         Comment.user_id == current_user.id,
@@ -184,10 +184,10 @@ def update_comment(
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
     
-    # 验证内容
+    # Validate content
     if not content or len(content.strip()) == 0:
         raise HTTPException(status_code=400, detail="Comment content cannot be empty")
-    
+
     if len(content) > 5000:
         raise HTTPException(status_code=400, detail="Comment content too long (max 5000 characters)")
     
@@ -208,9 +208,9 @@ def update_comment(
 def delete_comment(
     comment_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # 必须登录
+    current_user: User = Depends(get_current_user),  # Login required
 ):
-    """删除自己的评论（软删除）"""
+    """Delete own comment (soft delete)"""
     comment = db.query(Comment).filter(
         Comment.id == comment_id,
         Comment.user_id == current_user.id,
@@ -220,12 +220,12 @@ def delete_comment(
     if not comment:
         raise HTTPException(status_code=404, detail="Comment not found")
     
-    # 软删除
+    # Soft delete
     comment.is_deleted = True
     comment.deleted_at = datetime.utcnow()
     comment.content = "[Deleted]"
     
-    # 如果是回复，减少父评论的回复计数
+    # If this is a reply, decrement the parent comment's reply count
     if comment.parent_id:
         parent_comment = db.query(Comment).filter(
             Comment.id == comment.parent_id
