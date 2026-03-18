@@ -66,9 +66,14 @@ export default function LoginPage() {
 
               {/* Password input */}
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-stone-700 mb-2">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label htmlFor="password" className="block text-sm font-medium text-stone-700">
+                    Password
+                  </label>
+                  <a href="/auth/forgot-password" className="text-xs text-blue-600 hover:text-blue-700">
+                    Forgot password?
+                  </a>
+                </div>
                 <input
                   id="password"
                   type="password"
@@ -97,23 +102,13 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* Test account info */}
-            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-              <p className="text-sm font-medium text-blue-900 mb-2">
-                Test Accounts:
+            <div className="mt-6 text-center">
+              <p className="text-sm text-stone-600">
+                Don&apos;t have an account?{' '}
+                <a href="/auth/register" className="text-blue-600 hover:text-blue-700 font-medium">
+                  Create Account
+                </a>
               </p>
-              <div className="text-sm text-blue-800 space-y-1">
-                <div>
-                  <strong>Test User:</strong><br />
-                  Email: test@example.com<br />
-                  Password: test123
-                </div>
-                <div className="mt-2">
-                  <strong>Admin:</strong><br />
-                  Email: admin<br />
-                  Password: wrhitw_admin_2026
-                </div>
-              </div>
             </div>
           </div>
         </div>
