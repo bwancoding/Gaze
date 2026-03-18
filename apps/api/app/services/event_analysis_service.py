@@ -29,7 +29,7 @@ def _get_ai_client():
 
     from openai import AsyncOpenAI
     return AsyncOpenAI(
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        base_url=os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
         api_key=api_key,
     )
 
@@ -45,7 +45,11 @@ def get_cached_analysis(db: Session, event_id: str) -> Optional[Dict[str, Any]]:
 
 
 def _gather_articles_for_event(db: Session, event_id: str) -> List[Dict]:
-    """Collect articles with source info for an event."""
+    """Collect articles with source info for an event.
+
+    First checks event_sources table, then falls back to trending_articles
+    via the event's trending_origin_id link.
+    """
     results = (
         db.query(EventSource, Source)
         .join(Source, EventSource.source_id == Source.id)
@@ -61,6 +65,29 @@ def _gather_articles_for_event(db: Session, event_id: str) -> List[Dict]:
             "content": es.article_content or es.article_summary or "",
             "published_at": es.published_at.isoformat() if es.published_at else "",
         })
+
+    # Fallback: get articles from trending_articles via trending_origin_id
+    if not articles:
+        event = db.query(Event).filter(Event.id == event_id).first()
+        if event and event.trending_origin_id:
+            from app.models.trending import TrendingArticle, TrendingSource
+            trending_results = (
+                db.query(TrendingArticle, TrendingSource)
+                .outerjoin(TrendingSource, TrendingArticle.source_id == TrendingSource.id)
+                .filter(TrendingArticle.event_id == event.trending_origin_id)
+                .limit(30)  # Cap to avoid overly long prompts
+                .all()
+            )
+            for ta, ts in trending_results:
+                articles.append({
+                    "source_name": ts.name if ts else "Unknown",
+                    "title": ta.title or "",
+                    "content": ta.content or ta.summary or "",
+                    "published_at": ta.published_at.isoformat() if ta.published_at else "",
+                })
+            if articles:
+                logger.info(f"Using {len(articles)} trending articles for event {event_id} (origin={event.trending_origin_id})")
+
     return articles
 
 

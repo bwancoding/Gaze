@@ -67,7 +67,7 @@ def _get_ai_client():
 
     from openai import AsyncOpenAI
     return AsyncOpenAI(
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        base_url=os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
         api_key=api_key,
     )
 

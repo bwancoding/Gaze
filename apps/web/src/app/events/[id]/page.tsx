@@ -22,12 +22,7 @@ interface Event {
 
 interface Source {
   id: string;
-  source: {
-    id: string;
-    name: string;
-    bias_label: string;
-    bias_score?: number;
-  };
+  source: { id: string; name: string; bias_label: string; bias_score?: number };
   article_title: string;
   article_url: string;
   published_at: string;
@@ -122,6 +117,11 @@ const Icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
     </svg>
   ),
+  Analysis: () => (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    </svg>
+  ),
 };
 
 const categoryStyles: Record<string, { gradient: string; bg: string; text: string; border: string }> = {
@@ -141,7 +141,7 @@ const stakeholderColors = [
   { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', dot: 'bg-orange-400' },
 ];
 
-type TabKey = 'overview' | 'sources' | 'timeline';
+type TabKey = 'overview' | 'perspectives' | 'analysis' | 'sources' | 'timeline';
 
 export default function EventDetailPage() {
   const params = useParams();
@@ -156,7 +156,6 @@ export default function EventDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
-  const [showAllPerspectives, setShowAllPerspectives] = useState(false);
 
   const fetchEvent = async () => {
     const response = await fetch(`${API_BASE_URL}/api/events/${eventId}`);
@@ -237,9 +236,12 @@ export default function EventDetailPage() {
   const categoryStyle = categoryStyles[event.category || ''] || categoryStyles['Environment'];
   const perspectives = analysis?.stakeholder_perspectives || [];
   const timeline = analysis?.timeline || [];
+  const perspectiveCount = perspectives.length || stakeholders.length;
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode; count?: number }[] = [
     { key: 'overview', label: 'Overview', icon: <Icons.Robot /> },
+    { key: 'perspectives', label: 'Perspectives', icon: <Icons.Users />, count: perspectiveCount },
+    { key: 'analysis', label: 'Deep Analysis', icon: <Icons.Analysis /> },
     { key: 'sources', label: 'Sources', icon: <Icons.Newspaper />, count: sources.length },
     { key: 'timeline', label: 'Timeline', icon: <Icons.Clock />, count: timeline.length },
   ];
@@ -279,25 +281,25 @@ export default function EventDetailPage() {
         <div className="sticky top-0 z-30 bg-white border-b border-stone-200 shadow-sm">
           <div className="container mx-auto px-6">
             <div className="max-w-5xl mx-auto flex overflow-x-auto">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTab(tab.key)}
-                    className={`flex-shrink-0 px-5 py-4 font-medium transition-colors ${
-                      activeTab === tab.key
-                        ? 'bg-stone-50 text-stone-900 border-b-2 border-stone-900'
-                        : 'text-stone-500 hover:text-stone-900'
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      {tab.icon}
-                      <span>{tab.label}</span>
-                      {tab.count !== undefined && tab.count > 0 && (
-                        <span className="text-xs bg-stone-200 text-stone-600 px-2 py-0.5 rounded-full">{tab.count}</span>
-                      )}
-                    </div>
-                  </button>
-                ))}
+              {tabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex-shrink-0 px-4 py-4 font-medium transition-colors text-sm ${
+                    activeTab === tab.key
+                      ? 'bg-stone-50 text-stone-900 border-b-2 border-stone-900'
+                      : 'text-stone-500 hover:text-stone-900'
+                  }`}
+                >
+                  <div className="flex items-center space-x-1.5">
+                    {tab.icon}
+                    <span>{tab.label}</span>
+                    {tab.count !== undefined && tab.count > 0 && (
+                      <span className="text-xs bg-stone-200 text-stone-600 px-1.5 py-0.5 rounded-full">{tab.count}</span>
+                    )}
+                  </div>
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -307,17 +309,154 @@ export default function EventDetailPage() {
           <div className="max-w-5xl mx-auto">
             <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
               <div className="p-6 md:p-8">
-                {/* Overview Tab */}
+
+                {/* ===== Overview Tab: concise, one-screen ===== */}
                 {activeTab === 'overview' && (
-                  <div className="space-y-8">
+                  <div className="space-y-6">
                     {analysis?.background ? (
                       <>
                         <div>
                           <h3 className="text-xl font-bold text-stone-900 mb-3">Background</h3>
-                          <p className="text-stone-700 leading-relaxed">{analysis.background}</p>
+                          <p className="text-stone-700 leading-relaxed">
+                            {analysis.background.length > 600
+                              ? analysis.background.slice(0, 600) + '...'
+                              : analysis.background}
+                          </p>
+                          {analysis.background.length > 600 && (
+                            <button
+                              onClick={() => setActiveTab('analysis')}
+                              className="text-sm text-blue-600 hover:underline mt-2"
+                            >
+                              Read full analysis →
+                            </button>
+                          )}
                         </div>
 
-                        {analysis.cause_chain.length > 0 && (
+                        {/* Quick Stats Row */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <button
+                            onClick={() => setActiveTab('perspectives')}
+                            className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-left hover:shadow-md transition-all"
+                          >
+                            <div className="text-2xl font-bold text-blue-700">{perspectiveCount}</div>
+                            <div className="text-xs text-blue-600 mt-1">Stakeholder Perspectives</div>
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('analysis')}
+                            className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left hover:shadow-md transition-all"
+                          >
+                            <div className="text-2xl font-bold text-amber-700">{analysis.cause_chain?.length || 0}</div>
+                            <div className="text-xs text-amber-600 mt-1">Root Causes</div>
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('sources')}
+                            className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-left hover:shadow-md transition-all"
+                          >
+                            <div className="text-2xl font-bold text-emerald-700">{sources.length}</div>
+                            <div className="text-xs text-emerald-600 mt-1">News Sources</div>
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('timeline')}
+                            className="bg-violet-50 border border-violet-200 rounded-xl p-4 text-left hover:shadow-md transition-all"
+                          >
+                            <div className="text-2xl font-bold text-violet-700">{timeline.length}</div>
+                            <div className="text-xs text-violet-600 mt-1">Timeline Events</div>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center space-x-2 text-xs text-stone-400 pt-2">
+                          <Icons.Robot />
+                          <span>AI-generated analysis, for reference only</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-12">
+                        <div className="text-4xl mb-4">&#x1F916;</div>
+                        <p className="text-stone-600 mb-2">Deep analysis is being generated</p>
+                        <p className="text-sm text-stone-400">Check back soon for background, perspectives, and impact analysis</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ===== Perspectives Tab ===== */}
+                {activeTab === 'perspectives' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Icons.Users />
+                      <h3 className="text-xl font-bold text-stone-900">Stakeholder Perspectives</h3>
+                      <span className="text-sm bg-stone-200 text-stone-600 px-2 py-0.5 rounded-full">{perspectiveCount}</span>
+                    </div>
+                    {perspectives.length > 0 ? (
+                      perspectives.map((sp, i) => {
+                        const color = stakeholderColors[i % stakeholderColors.length];
+                        return (
+                          <div key={sp.stakeholder_id || i} className={`rounded-xl border ${color.border} ${color.bg} p-5`}>
+                            <div className="flex items-center space-x-2 mb-3">
+                              <div className={`w-2.5 h-2.5 rounded-full ${color.dot}`}></div>
+                              <h4 className={`font-bold ${color.text}`}>{sp.stakeholder_name}</h4>
+                            </div>
+                            <p className="text-stone-700 text-sm leading-relaxed mb-3">{sp.perspective_text}</p>
+                            {sp.key_arguments?.length > 0 && (
+                              <ul className="space-y-1">
+                                {sp.key_arguments.map((arg, j) => (
+                                  <li key={j} className="text-sm text-stone-600 flex items-start space-x-2">
+                                    <span className="text-stone-400 mt-0.5">&#x2022;</span>
+                                    <span>{arg}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : stakeholders.length > 0 ? (
+                      stakeholders.map((sh, i) => {
+                        const color = stakeholderColors[i % stakeholderColors.length];
+                        return (
+                          <div key={sh.id} className={`rounded-xl border ${color.border} ${color.bg} p-5`}>
+                            <div className="flex items-center space-x-2 mb-3">
+                              <div className={`w-2.5 h-2.5 rounded-full ${color.dot}`}></div>
+                              <h4 className={`font-bold ${color.text}`}>{sh.stakeholder_name}</h4>
+                              {sh.is_ai_generated && <span className="text-xs bg-white/60 text-stone-500 px-2 py-0.5 rounded">AI</span>}
+                            </div>
+                            {sh.perspective_summary && <p className="text-stone-700 text-sm leading-relaxed mb-3">{sh.perspective_summary}</p>}
+                            {sh.key_concerns?.length > 0 && (
+                              <ul className="space-y-1">
+                                {sh.key_concerns.map((c, j) => (
+                                  <li key={j} className="text-sm text-stone-600">&#x2022; {c}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-12">
+                        <div className="text-4xl mb-4">&#x1F465;</div>
+                        <p className="text-stone-600">No perspectives generated yet</p>
+                      </div>
+                    )}
+                    <div className="flex items-center space-x-2 text-xs text-stone-400 mt-3">
+                      <Icons.Robot />
+                      <span>AI-generated from source articles, not editorial opinions</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* ===== Deep Analysis Tab ===== */}
+                {activeTab === 'analysis' && (
+                  <div className="space-y-8">
+                    {analysis ? (
+                      <>
+                        {analysis.background && (
+                          <div>
+                            <h3 className="text-xl font-bold text-stone-900 mb-3">Background</h3>
+                            <p className="text-stone-700 leading-relaxed">{analysis.background}</p>
+                          </div>
+                        )}
+
+                        {analysis.cause_chain?.length > 0 && (
                           <div>
                             <h3 className="text-xl font-bold text-stone-900 mb-4">Cause Chain</h3>
                             <div className="space-y-3">
@@ -334,7 +473,7 @@ export default function EventDetailPage() {
                           </div>
                         )}
 
-                        {analysis.impact_analysis.length > 0 && (
+                        {analysis.impact_analysis?.length > 0 && (
                           <div>
                             <h3 className="text-xl font-bold text-stone-900 mb-4">Impact Analysis</h3>
                             <div className="grid md:grid-cols-2 gap-4">
@@ -342,7 +481,7 @@ export default function EventDetailPage() {
                                 <div key={i} className="border border-stone-200 rounded-xl p-4">
                                   <h4 className="font-semibold text-stone-900 mb-2">{item.dimension}</h4>
                                   <p className="text-stone-600 text-sm mb-2">{item.impact}</p>
-                                  {item.affected_groups.length > 0 && (
+                                  {item.affected_groups?.length > 0 && (
                                     <div className="flex flex-wrap gap-1">
                                       {item.affected_groups.map((g, j) => (
                                         <span key={j} className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded">{g}</span>
@@ -355,92 +494,7 @@ export default function EventDetailPage() {
                           </div>
                         )}
 
-                        {/* Stakeholder Perspectives - embedded in Overview */}
-                        {(() => {
-                          const allPerspectives = perspectives.length > 0 ? perspectives : [];
-                          const allStakeholders = stakeholders.length > 0 ? stakeholders : [];
-                          const hasContent = allPerspectives.length > 0 || allStakeholders.length > 0;
-                          if (!hasContent) return null;
-
-                          const DEFAULT_SHOW = 3;
-                          const perspectivesToShow = showAllPerspectives ? allPerspectives : allPerspectives.slice(0, DEFAULT_SHOW);
-                          const stakeholdersToShow = showAllPerspectives ? allStakeholders : allStakeholders.slice(0, DEFAULT_SHOW);
-                          const totalCount = allPerspectives.length || allStakeholders.length;
-                          const hasMore = totalCount > DEFAULT_SHOW;
-
-                          return (
-                            <div>
-                              <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center space-x-2">
-                                  <Icons.Users />
-                                  <h3 className="text-xl font-bold text-stone-900">Stakeholder Perspectives</h3>
-                                  <span className="text-sm bg-stone-200 text-stone-600 px-2 py-0.5 rounded-full">{totalCount}</span>
-                                </div>
-                              </div>
-                              <div className="space-y-4">
-                                {perspectivesToShow.length > 0 ? (
-                                  perspectivesToShow.map((sp, i) => {
-                                    const color = stakeholderColors[i % stakeholderColors.length];
-                                    return (
-                                      <div key={sp.stakeholder_id} className={`rounded-xl border ${color.border} ${color.bg} p-5`}>
-                                        <div className="flex items-center space-x-2 mb-3">
-                                          <div className={`w-2.5 h-2.5 rounded-full ${color.dot}`}></div>
-                                          <h4 className={`font-bold ${color.text}`}>{sp.stakeholder_name}</h4>
-                                        </div>
-                                        <p className="text-stone-700 text-sm leading-relaxed mb-3">{sp.perspective_text}</p>
-                                        {sp.key_arguments.length > 0 && (
-                                          <ul className="space-y-1">
-                                            {sp.key_arguments.map((arg, j) => (
-                                              <li key={j} className="text-sm text-stone-600 flex items-start space-x-2">
-                                                <span className="text-stone-400 mt-0.5">&#x2022;</span>
-                                                <span>{arg}</span>
-                                              </li>
-                                            ))}
-                                          </ul>
-                                        )}
-                                      </div>
-                                    );
-                                  })
-                                ) : (
-                                  stakeholdersToShow.map((sh, i) => {
-                                    const color = stakeholderColors[i % stakeholderColors.length];
-                                    return (
-                                      <div key={sh.id} className={`rounded-xl border ${color.border} ${color.bg} p-5`}>
-                                        <div className="flex items-center space-x-2 mb-3">
-                                          <div className={`w-2.5 h-2.5 rounded-full ${color.dot}`}></div>
-                                          <h4 className={`font-bold ${color.text}`}>{sh.stakeholder_name}</h4>
-                                          {sh.is_ai_generated && <span className="text-xs bg-white/60 text-stone-500 px-2 py-0.5 rounded">AI</span>}
-                                        </div>
-                                        {sh.perspective_summary && <p className="text-stone-700 text-sm leading-relaxed mb-3">{sh.perspective_summary}</p>}
-                                        {sh.key_concerns.length > 0 && (
-                                          <ul className="space-y-1">
-                                            {sh.key_concerns.map((c, j) => (
-                                              <li key={j} className="text-sm text-stone-600">&#x2022; {c}</li>
-                                            ))}
-                                          </ul>
-                                        )}
-                                      </div>
-                                    );
-                                  })
-                                )}
-                                {hasMore && (
-                                  <button
-                                    onClick={() => setShowAllPerspectives(!showAllPerspectives)}
-                                    className="w-full py-3 text-sm font-medium text-stone-600 hover:text-stone-900 bg-stone-50 hover:bg-stone-100 rounded-xl border border-stone-200 transition-colors"
-                                  >
-                                    {showAllPerspectives ? 'Show fewer perspectives' : `View all ${totalCount} perspectives`}
-                                  </button>
-                                )}
-                              </div>
-                              <div className="flex items-center space-x-2 text-xs text-stone-400 mt-3">
-                                <Icons.Robot />
-                                <span>AI-generated from source articles, not editorial opinions</span>
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {analysis.disputed_claims.length > 0 && (
+                        {analysis.disputed_claims?.length > 0 && (
                           <div>
                             <h3 className="text-xl font-bold text-stone-900 mb-4">Disputed Claims</h3>
                             {analysis.disputed_claims.map((item, i) => (
@@ -461,14 +515,13 @@ export default function EventDetailPage() {
                     ) : (
                       <div className="text-center py-12">
                         <div className="text-4xl mb-4">&#x1F916;</div>
-                        <p className="text-stone-600 mb-2">Deep analysis is being generated</p>
-                        <p className="text-sm text-stone-400">Check back soon for background, cause chain, and impact analysis</p>
+                        <p className="text-stone-600">Deep analysis is being generated</p>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Sources Tab */}
+                {/* ===== Sources Tab ===== */}
                 {activeTab === 'sources' && (
                   <div className="space-y-4">
                     {sources.length > 0 ? (
@@ -498,7 +551,7 @@ export default function EventDetailPage() {
                   </div>
                 )}
 
-                {/* Timeline Tab */}
+                {/* ===== Timeline Tab ===== */}
                 {activeTab === 'timeline' && (
                   <div className="space-y-6">
                     {timeline.length > 0 ? (
@@ -523,14 +576,23 @@ export default function EventDetailPage() {
                     )}
                   </div>
                 )}
+
               </div>
             </div>
           </div>
         </section>
 
-        {/* Discussion - Always Visible */}
+        {/* Discussion - Always Visible Below Tabs */}
         <section id="discussion" className="container mx-auto px-6 pb-12">
           <div className="max-w-5xl mx-auto">
+            {/* Gentle philosophy reminder */}
+            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/60 rounded-xl px-5 py-3 mb-4 flex items-center space-x-3">
+              <span className="text-lg flex-shrink-0">{'\u{1F30D}'}</span>
+              <p className="text-sm text-stone-600">
+                We are all stewards of this world. Share your perspective with empathy, listen with an open mind, and help build understanding across every voice.
+              </p>
+            </div>
+
             <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
               <div className="border-b border-stone-200 px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
@@ -583,7 +645,6 @@ export default function EventDetailPage() {
                     <p className="text-sm text-stone-400">Be the first to start a discussion about this event</p>
                   </div>
                 )}
-
               </div>
             </div>
           </div>
