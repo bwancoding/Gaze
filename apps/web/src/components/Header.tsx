@@ -78,6 +78,9 @@ export default function Header({ title = 'WRHITW', subtitle = "What's Really Hap
             <a href="/about" className="text-neutral-600 hover:text-primary-600 transition-colors text-sm">
               About
             </a>
+            <a href="/feedback" className="text-neutral-600 hover:text-primary-600 transition-colors text-sm">
+              Feedback
+            </a>
 
             {/* Search Icon */}
             <button

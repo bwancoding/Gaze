@@ -76,44 +76,35 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-stone-900">
       <Header />
 
       <main>
         {/* Hero */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
-          <div className="absolute inset-0 opacity-10">
-            <div className="absolute inset-0" style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-            }}></div>
-          </div>
+        <section className="relative overflow-hidden text-white" style={{ minHeight: '100vh' }}>
+          {/* Background image */}
+          <div
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: `url('/hero-bg.png')` }}
+          ></div>
+          {/* Dark overlay for text readability */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/30 to-stone-900"></div>
 
-          <div className="relative z-10 container mx-auto px-6 py-20 md:py-32">
-            <div className="max-w-4xl">
-              <div className="flex items-center space-x-4 mb-8">
-                <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center shadow-lg">
-                  <Icons.BookOpen />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold tracking-tight">WRHITW</h1>
-                  <p className="text-sm text-slate-400">What&apos;s Really Happening In The World</p>
-                </div>
-              </div>
-
-              <h2 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
-                One World,<br/>
+          <div className="relative z-10 container mx-auto px-6 flex flex-col items-center justify-center" style={{ minHeight: '100vh' }}>
+            <div className="text-center max-w-4xl">
+              <h2 className="text-5xl md:text-7xl lg:text-8xl font-bold mb-8 leading-tight" style={{ fontFamily: 'var(--font-dancing)' }}>
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-orange-200 to-amber-200">
-                  Many Voices, One Conversation
+                  We Gaze Upon the Same Moon.
                 </span>
               </h2>
 
-              <p className="text-xl md:text-2xl text-slate-300 mb-12 leading-relaxed max-w-2xl">
-                We are all stewards of this world.<br/>
-                Understand each other, engage in peaceful dialogue,<br/>
-                and shape our shared future under the same sky.
+              <p className="text-lg md:text-xl text-slate-300 mb-12 leading-relaxed max-w-2xl mx-auto">
+                We see all of humanity as stewards of this world,
+                sailing together through the same vast cosmos.
+                Now, let us resolve what we face together — through peaceful dialogue.
               </p>
 
-              <div className="flex flex-wrap gap-6">
+              <div className="flex flex-wrap justify-center gap-4">
                 <div className="flex items-center space-x-3 bg-white/10 px-5 py-3 rounded-full backdrop-blur-sm border border-white/20">
                   <div className="w-2.5 h-2.5 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full"></div>
                   <span className="text-sm font-medium">AI Deep Analysis</span>
@@ -129,18 +120,17 @@ export default function Home() {
               </div>
             </div>
           </div>
-
-          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-stone-50 to-transparent"></div>
         </section>
 
         {/* Trending Now */}
-        <section className="container mx-auto px-6 py-12">
+        <section className="relative bg-stone-900 pt-16 pb-12">
+          <div className="container mx-auto px-6">
           <div className="mb-8 flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <span className="text-2xl">🔥</span>
               <div>
-                <h2 className="text-2xl font-bold text-stone-900">Trending Now</h2>
-                <p className="text-sm text-stone-500">Top stories people are following worldwide</p>
+                <h2 className="text-2xl font-bold text-stone-100">Trending Now</h2>
+                <p className="text-sm text-stone-400">Top stories people are following worldwide</p>
               </div>
             </div>
             {!isTrendingLoading && trendingEvents.length > 0 && (
@@ -151,14 +141,14 @@ export default function Home() {
           {isTrendingLoading ? (
             <div className="animate-pulse space-y-6">
               <div className="grid md:grid-cols-3 gap-6">
-                {[1, 2, 3].map(i => <div key={i} className="bg-stone-200 rounded-2xl h-48"></div>)}
+                {[1, 2, 3].map(i => <div key={i} className="bg-stone-800 rounded-2xl h-48"></div>)}
               </div>
             </div>
           ) : trendingEvents.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-2xl border border-stone-200">
+            <div className="text-center py-16 bg-stone-800/50 rounded-2xl border border-stone-700">
               <div className="text-4xl mb-4">📡</div>
-              <p className="text-stone-500">No trending stories right now</p>
-              <p className="text-sm text-stone-400 mt-1">Check back later for breaking stories</p>
+              <p className="text-stone-400">No trending stories right now</p>
+              <p className="text-sm text-stone-500 mt-1">Check back later for breaking stories</p>
             </div>
           ) : (
             <>
@@ -268,20 +258,20 @@ export default function Home() {
 
               {/* Remaining as list */}
               {trendingEvents.length > 3 && (
-                <div className="bg-white rounded-2xl border border-stone-200 divide-y divide-stone-100 overflow-hidden">
+                <div className="bg-stone-800/50 rounded-2xl border border-stone-700 divide-y divide-stone-700/50 overflow-hidden">
                   {trendingEvents.slice(3).map((t) => {
                     const style = getStyle(t.category);
                     return (
                       <div
                         key={t.id}
                         onClick={() => (t.published_event_id || t.event_id) && router.push(`/events/${t.published_event_id || t.event_id}`)}
-                        className={`flex items-center px-6 py-4 hover:bg-stone-50 transition-colors ${(t.published_event_id || t.event_id) ? 'cursor-pointer' : ''}`}
+                        className={`flex items-center px-6 py-4 hover:bg-stone-700/30 transition-colors ${(t.published_event_id || t.event_id) ? 'cursor-pointer' : ''}`}
                       >
-                        <span className="text-lg font-bold text-stone-300 w-10 flex-shrink-0">
+                        <span className="text-lg font-bold text-stone-500 w-10 flex-shrink-0">
                           {t.rank}
                         </span>
                         <div className="flex-1 min-w-0 mr-4">
-                          <h4 className="font-semibold text-stone-900 truncate">
+                          <h4 className="font-semibold text-stone-100 truncate">
                             {t.title}
                           </h4>
                           <div className="flex items-center space-x-2 mt-1">
@@ -311,16 +301,17 @@ export default function Home() {
           <div className="mt-10 text-center">
             <button
               onClick={() => router.push('/stories')}
-              className="inline-flex items-center space-x-2 bg-stone-900 text-white px-8 py-3.5 rounded-full font-semibold hover:bg-stone-800 transition-colors shadow-lg hover:shadow-xl"
+              className="inline-flex items-center space-x-2 bg-amber-500 text-stone-900 px-8 py-3.5 rounded-full font-semibold hover:bg-amber-400 transition-colors shadow-lg hover:shadow-xl"
             >
               <span>Browse All Published Stories</span>
               <Icons.ArrowRight />
             </button>
           </div>
+          </div>
         </section>
 
         {/* Why Stakeholder Perspectives */}
-        <section className="bg-stone-900 text-stone-100 py-20 mt-8">
+        <section className="bg-stone-800 text-stone-100 py-20">
           <div className="container mx-auto px-6">
             <div className="max-w-3xl mx-auto text-center">
               <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg">
@@ -363,7 +354,7 @@ export default function Home() {
         </section>
 
         {/* Footer */}
-        <footer className="bg-stone-100 border-t border-stone-200 py-12">
+        <footer className="bg-stone-900 border-t border-stone-700 py-12">
           <div className="container mx-auto px-6">
             <div className="flex flex-col md:flex-row justify-between items-center">
               <div className="flex items-center space-x-3 mb-4 md:mb-0">
@@ -371,20 +362,20 @@ export default function Home() {
                   <Icons.BookOpen />
                 </div>
                 <div>
-                  <p className="font-semibold text-stone-900">WRHITW</p>
-                  <p className="text-xs text-stone-500">See the Full Story</p>
+                  <p className="font-semibold text-stone-100">WRHITW</p>
+                  <p className="text-xs text-stone-400">See the Full Story</p>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-6 text-sm text-stone-600">
-                <a href="/stories" className="hover:text-stone-900 transition-colors">Stories</a>
-                <a href="/about" className="hover:text-stone-900 transition-colors">About</a>
-                <a href="/trending" className="hover:text-stone-900 transition-colors">Trending</a>
+              <div className="flex items-center space-x-6 text-sm text-stone-400">
+                <a href="/stories" className="hover:text-stone-200 transition-colors">Stories</a>
+                <a href="/about" className="hover:text-stone-200 transition-colors">About</a>
+                <a href="/feedback" className="hover:text-stone-200 transition-colors">Feedback</a>
               </div>
             </div>
 
-            <div className="mt-8 pt-8 border-t border-stone-200 text-center text-sm text-stone-500">
-              <p>&copy; 2026 WRHITW &middot; One World, Many Voices, One Conversation</p>
+            <div className="mt-8 pt-8 border-t border-stone-700 text-center text-sm text-stone-500">
+              <p>&copy; 2026 WRHITW &middot; We Gaze Upon the Same Moon</p>
             </div>
           </div>
         </footer>

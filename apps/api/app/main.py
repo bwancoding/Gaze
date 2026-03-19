@@ -6,7 +6,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.core.limiter import limiter
 from app.core.database import engine, Base
-from app.routes import events, admin, stakeholders, stakeholder_verify, personas, comments, auth, trending, threads, users, notifications
+from app.routes import events, admin, stakeholders, stakeholder_verify, personas, comments, auth, trending, threads, users, notifications, feedback
 import logging
 import os
 
@@ -19,6 +19,7 @@ import app.models.event_analysis  # noqa: F401
 import app.models.threads  # noqa: F401
 import app.models.user_likes  # noqa: F401
 import app.models.notifications  # noqa: F401
+import app.models.feedback  # noqa: F401
 Base.metadata.create_all(bind=engine)
 
 
@@ -64,6 +65,7 @@ app.include_router(trending.router, prefix="/api", tags=["Trending"])
 app.include_router(threads.router, prefix="/api", tags=["Threads"])
 app.include_router(users.router, prefix="/api", tags=["Users"])
 app.include_router(notifications.router, prefix="/api", tags=["Notifications"])
+app.include_router(feedback.router, prefix="/api", tags=["Feedback"])
 
 @app.get("/")
 async def root():
