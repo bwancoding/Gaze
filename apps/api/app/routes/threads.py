@@ -3,7 +3,7 @@ Thread API Routes - Discussion threads within events
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import Optional
 from pydantic import BaseModel
 
@@ -46,7 +46,9 @@ async def list_threads(
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    query = db.query(Thread).filter(
+    query = db.query(Thread).options(
+        joinedload(Thread.user_persona),
+    ).filter(
         Thread.event_id == event_id,
         Thread.is_deleted == False,
     )
@@ -70,9 +72,8 @@ async def list_threads(
     items = []
     for t in threads:
         data = t.to_dict()
-        persona = db.query(UserPersona).filter(UserPersona.id == t.user_persona_id).first() if t.user_persona_id else None
-        data["persona_name"] = persona.persona_name if persona else "Anonymous"
-        data["avatar_color"] = persona.avatar_color if persona else "gray"
+        data["persona_name"] = t.user_persona.persona_name if t.user_persona else "Anonymous"
+        data["avatar_color"] = t.user_persona.avatar_color if t.user_persona else "gray"
         items.append(data)
 
     return {
@@ -139,6 +140,11 @@ async def create_thread(
         stakeholder_filter_tag=thread_data.stakeholder_filter_tag,
     )
     db.add(thread)
+
+    # Update event activity timestamp
+    from app.services.event_lifecycle import touch_event_activity
+    touch_event_activity(db, event_id)
+
     db.commit()
     db.refresh(thread)
 
@@ -254,6 +260,10 @@ async def vote_thread(
             thread.dislike_count += 1
         vote = UserLike(user_id=current_user.id, thread_id=thread_id, vote_type=action)
         db.add(vote)
+
+        # Update event activity timestamp
+        from app.services.event_lifecycle import touch_event_activity
+        touch_event_activity(db, str(thread.event_id))
 
         # Notify thread owner
         from app.models.notifications import create_notification

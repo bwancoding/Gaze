@@ -54,6 +54,9 @@ class EventStakeholderVerification(Base):
     reviewed_at = Column(DateTime(timezone=True))
     review_notes = Column(_Text)
 
+    # Uploaded proof files (JSON list of file paths)
+    proof_files = Column(_Text)  # JSON array of uploaded file paths
+
     # AI review fields
     ai_review_score = Column(Integer)  # 0-100, AI confidence that application is legitimate
     ai_review_notes = Column(_Text)    # AI analysis text

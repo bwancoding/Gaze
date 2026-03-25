@@ -1,21 +1,82 @@
 """
-News Aggregator - Orchestrates RSS/Reddit/HN fetching, dedup, clustering, heat scoring, and top-N trimming
+News Aggregator v2 - Topics First approach
+
+Pipeline:
+1. Fetch trending topics from Reddit/HN (these become event seeds)
+2. Fetch articles from RSS feeds
+3. Match articles to topic-events by title similarity
+4. Unmatched articles with high engagement become standalone events
+5. Calculate heat scores
+6. Trim to top N
 """
 import asyncio
 import logging
-from typing import Dict, List
+import re
+import math
+from typing import Dict, List, Set, Optional
+from collections import Counter
+from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, and_
 
 from app.models.trending import TrendingArticle, TrendingEvent, TrendingSource
-from app.services.trending_config import RSS_SOURCES, REDDIT_SOURCES, HN_SOURCE, ALL_SOURCES
+from app.services.trending_config import (
+    RSS_SOURCES, REDDIT_SOURCES, HN_SOURCE, ALL_SOURCES,
+    CATEGORY_KEYWORDS, CLUSTER_TOP_KEYWORDS,
+)
 from app.services.fetchers.rss_fetcher import RSSFetcher
-from app.services.fetchers.reddit_fetcher import RedditFetcher
-from app.services.fetchers.hackernews_fetcher import HackerNewsFetcher
-from app.services.event_clusterer import cluster_new_articles
+from app.services.fetchers.trending_topics_fetcher import TrendingTopicsFetcher
+from app.services.fetchers.google_news_fetcher import GoogleNewsFetcher
 from app.services.heat_calculator import calculate_all_heat_scores
 
 logger = logging.getLogger(__name__)
+
+STOP_WORDS = {
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been',
+    'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
+    'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'need',
+    'this', 'that', 'these', 'those', 'it', 'its', 'as', 'if', 'when',
+    'than', 'because', 'while', 'although', 'though', 'after', 'before',
+    'about', 'into', 'through', 'during', 'without', 'against', 'between',
+    'not', 'only', 'own', 'same', 'so', 'just', 'also', 'now', 'very',
+    'how', 'what', 'who', 'which', 'new', 'says', 'said', 'his', 'her',
+}
+
+
+def clean_words(text: str) -> List[str]:
+    words = re.sub(r'[^a-z0-9\s]', ' ', text.lower()).split()
+    return [w for w in words if w not in STOP_WORDS and len(w) > 2]
+
+
+def extract_keywords(text: str, top_n: int = 20) -> List[str]:
+    words = clean_words(text)
+    if not words:
+        return []
+    return [w for w, _ in Counter(words).most_common(top_n)]
+
+
+def title_similarity(t1: str, t2: str) -> float:
+    """Word overlap similarity between two titles"""
+    words1 = set(clean_words(t1))
+    words2 = set(clean_words(t2))
+    if not words1 or not words2:
+        return 0.0
+    overlap = words1 & words2
+    # Use Jaccard-like but weighted toward shorter text
+    return len(overlap) / min(len(words1), len(words2))
+
+
+def classify_category(text: str) -> Optional[str]:
+    text_lower = text.lower()
+    scores: Dict[str, int] = {}
+    for category, keywords in CATEGORY_KEYWORDS.items():
+        score = sum(1 for kw in keywords if kw in text_lower)
+        if score > 0:
+            scores[category] = score
+    if not scores:
+        return None
+    return max(scores, key=scores.get)
 
 
 def ensure_sources_exist(db: Session):
@@ -36,81 +97,268 @@ def ensure_sources_exist(db: Session):
 
 
 def deduplicate_articles(db: Session, articles: List[TrendingArticle]) -> List[TrendingArticle]:
-    """Deduplicate by URL, only keep articles not already in the database"""
+    """Deduplicate by URL"""
     if not articles:
         return []
 
     existing_urls = set()
     urls = [a.url for a in articles]
-    # Query in batches to avoid overly long SQL statements
     batch_size = 100
     for i in range(0, len(urls), batch_size):
         batch = urls[i:i + batch_size]
         rows = db.query(TrendingArticle.url).filter(TrendingArticle.url.in_(batch)).all()
         existing_urls.update(row[0] for row in rows)
 
-    # Filter out DB duplicates AND within-batch duplicates (keep first occurrence)
     seen_urls = set(existing_urls)
     new_articles = []
     for a in articles:
         if a.url not in seen_urls:
             seen_urls.add(a.url)
             new_articles.append(a)
-    logger.info(f"Deduplication: {len(articles)} total, {len(existing_urls)} in DB, {len(new_articles)} new")
+
+    logger.info(f"Dedup: {len(articles)} total → {len(new_articles)} new")
     return new_articles
 
 
-async def fetch_all_sources() -> List[TrendingArticle]:
-    """Fetch articles from all data sources"""
-    all_articles = []
-
-    # RSS
+async def fetch_rss_articles() -> List[TrendingArticle]:
+    """Fetch articles from RSS feeds"""
     rss_fetcher = RSSFetcher()
     try:
-        rss_articles = await rss_fetcher.fetch_all(
+        articles = await rss_fetcher.fetch_all(
             [s for s in RSS_SOURCES if s["enabled"]]
         )
-        all_articles.extend(rss_articles)
-        logger.info(f"RSS: fetched {len(rss_articles)} articles")
+        logger.info(f"RSS: {len(articles)} articles")
+        return articles
     finally:
         await rss_fetcher.close()
 
-    # Reddit
-    reddit_fetcher = RedditFetcher()
-    try:
-        reddit_articles = await reddit_fetcher.fetch_all(limit=25)
-        all_articles.extend(reddit_articles)
-        logger.info(f"Reddit: fetched {len(reddit_articles)} articles")
-    finally:
-        await reddit_fetcher.close()
 
-    # Hacker News
-    hn_fetcher = HackerNewsFetcher()
+async def fetch_trending_topics() -> List[Dict]:
+    """Fetch trending topics from Reddit + HN"""
+    fetcher = TrendingTopicsFetcher()
     try:
-        hn_articles = await hn_fetcher.fetch_top_stories(limit=30)
-        all_articles.extend(hn_articles)
-        logger.info(f"HN: fetched {len(hn_articles)} articles")
+        topics = await fetcher.fetch_all_trending()
+        logger.info(f"Topics: {len(topics)} trending topics")
+        return topics
     finally:
-        await hn_fetcher.close()
+        await fetcher.close()
 
-    logger.info(f"Total fetched: {len(all_articles)} articles from all sources")
-    return all_articles
+
+def topic_article_relevance(topic: Dict, article: TrendingArticle) -> float:
+    """
+    Calculate relevance between a topic and an article using multiple signals:
+    1. Title word overlap (against all merged topic titles)
+    2. Keyword overlap (topic keywords vs article title+summary)
+    """
+    article_title = article.title or ''
+    article_text = f"{article_title} {article.summary or ''}"
+
+    # Check against all titles in the merged topic group
+    all_titles = topic.get('all_titles', [topic['title']])
+    best_title_sim = 0.0
+    for t_title in all_titles:
+        sim = title_similarity(t_title, article_title)
+        best_title_sim = max(best_title_sim, sim)
+
+    # Keyword overlap: all topic words appearing in article text
+    topic_text = ' '.join(all_titles)
+    topic_words = set(clean_words(topic_text))
+    article_words = set(clean_words(article_text))
+
+    if not topic_words or not article_words:
+        return best_title_sim
+
+    keyword_overlap = len(topic_words & article_words) / len(topic_words)
+
+    # Combined score: weighted average
+    return best_title_sim * 0.4 + keyword_overlap * 0.6
+
+
+def match_articles_to_topics(
+    topics: List[Dict],
+    articles: List[TrendingArticle],
+    threshold: float = 0.25,
+) -> Dict[int, List[TrendingArticle]]:
+    """
+    Match articles to topic-events by relevance scoring.
+    Returns: {topic_index: [matched_articles]}
+    """
+    matches: Dict[int, List[TrendingArticle]] = {i: [] for i in range(len(topics))}
+    unmatched: List[TrendingArticle] = []
+
+    for article in articles:
+        best_idx = -1
+        best_score = 0.0
+
+        for i, topic in enumerate(topics):
+            score = topic_article_relevance(topic, article)
+            if score > best_score:
+                best_score = score
+                best_idx = i
+
+        if best_score >= threshold and best_idx >= 0:
+            matches[best_idx].append(article)
+        else:
+            unmatched.append(article)
+
+    matched_count = sum(len(arts) for arts in matches.values())
+    logger.info(f"Article matching: {matched_count} matched, {len(unmatched)} unmatched")
+
+    return matches
+
+
+def create_events_from_topics(
+    db: Session,
+    topics: List[Dict],
+    topic_articles: Dict[int, List[TrendingArticle]],
+    max_events: int = 20,
+) -> List[TrendingEvent]:
+    """Create TrendingEvent records from topics + matched articles"""
+    events = []
+
+    for i, topic in enumerate(topics):
+        if len(events) >= max_events:
+            break
+
+        matched = topic_articles.get(i, [])
+        all_sources = list(set(
+            [topic.get('source', '')] +
+            topic.get('sources', []) +
+            [get_source_name(a.source_id) for a in matched]
+        ))
+        all_sources = [s for s in all_sources if s]
+
+        # Build combined text for keywords and category
+        texts = [topic['title'], topic.get('selftext', '')]
+        texts.extend([a.title or '' for a in matched])
+        texts.extend([a.summary or '' for a in matched[:5]])
+        combined_text = ' '.join(texts)
+
+        keywords = extract_keywords(combined_text, CLUSTER_TOP_KEYWORDS)
+        category = classify_category(combined_text)
+
+        # Calculate initial heat from topic engagement
+        topic_heat = (
+            topic.get('total_score', topic.get('score', 0)) * 0.1 +
+            topic.get('total_comments', topic.get('comments', 0)) * 0.5 +
+            len(matched) * 10 +
+            len(all_sources) * 5
+        )
+
+        event = TrendingEvent(
+            title=topic['title'],
+            summary=topic.get('selftext', '')[:2000] or (matched[0].summary if matched else ''),
+            keywords=keywords,
+            category=category,
+            source_id=topic.get('source_id', 102),
+            article_count=len(matched) + 1,  # +1 for the topic itself
+            media_count=len(all_sources),
+            heat_score=topic_heat,
+            status='raw',
+        )
+        db.add(event)
+        db.flush()
+
+        # Link matched articles to this event
+        for article in matched:
+            article.event_id = event.id
+            article.is_processed = True
+
+        events.append(event)
+        logger.info(f"Event #{event.id}: '{topic['title'][:60]}' "
+                     f"({len(matched)} articles, {len(all_sources)} sources, "
+                     f"heat={topic_heat:.0f}, cat={category})")
+
+    db.commit()
+    return events
+
+
+# Source ID → name lookup
+_SOURCE_NAMES = {s['id']: s['name'] for s in ALL_SOURCES}
+
+
+def get_source_name(source_id: int) -> str:
+    return _SOURCE_NAMES.get(source_id, f"Source #{source_id}")
+
+
+def event_article_relevance(event: TrendingEvent, article: TrendingArticle) -> float:
+    """
+    Calculate relevance between an existing event and an unlinked article.
+    Uses event keywords + title + linked article titles for broad matching.
+    """
+    article_title = article.title or ''
+    article_text = f"{article_title} {article.summary or ''}"
+    article_words = set(clean_words(article_text))
+
+    if not article_words:
+        return 0.0
+
+    # Build event word set from: title + keywords + linked article titles
+    event_texts = [event.title or '']
+    if event.keywords:
+        event_texts.append(' '.join(event.keywords))
+    if event.articles:
+        event_texts.extend([a.title or '' for a in event.articles[:10]])
+    event_words = set(clean_words(' '.join(event_texts)))
+
+    if not event_words:
+        return 0.0
+
+    # How much of the event's vocabulary appears in the article
+    overlap = event_words & article_words
+    coverage = len(overlap) / len(event_words)
+
+    # Also check title-to-title similarity
+    t_sim = title_similarity(event.title or '', article_title)
+
+    return t_sim * 0.3 + coverage * 0.7
+
+
+def second_pass_matching(db: Session, events: List[TrendingEvent], threshold: float = 0.20) -> int:
+    """
+    Second pass: sweep all unlinked articles and try to match them to existing events
+    using broader keyword matching (event keywords + linked article context).
+    """
+    unlinked = db.query(TrendingArticle).filter(
+        and_(
+            TrendingArticle.event_id.is_(None),
+        )
+    ).all()
+
+    if not unlinked or not events:
+        return 0
+
+    matched_count = 0
+    for article in unlinked:
+        best_event = None
+        best_score = 0.0
+
+        for event in events:
+            score = event_article_relevance(event, article)
+            if score > best_score:
+                best_score = score
+                best_event = event
+
+        if best_score >= threshold and best_event is not None:
+            article.event_id = best_event.id
+            article.is_processed = True
+            best_event.article_count += 1
+            matched_count += 1
+
+    # Update media counts
+    for event in events:
+        db.refresh(event)
+        if event.articles:
+            event.media_count = len(set(a.source_id for a in event.articles))
+            event.article_count = len(event.articles)
+
+    db.commit()
+    logger.info(f"Second pass: {matched_count} additional articles matched from {len(unlinked)} unlinked")
+    return matched_count
 
 
 def trim_to_top_n(db: Session, top_n: int = 20) -> Dict:
-    """
-    Keep only the top N trending events as 'raw' (available for admin review).
-    Events ranked below top N that are still 'raw' get archived automatically.
-    Events already 'promoted' or 'rejected' are left untouched.
-
-    Args:
-        db: Database session
-        top_n: Number of top events to keep (default 20)
-
-    Returns:
-        Stats about the trim operation
-    """
-    # Get top N event IDs by heat_score (only from raw status)
+    """Keep top N raw events, archive the rest"""
     top_events = (
         db.query(TrendingEvent.id)
         .filter(TrendingEvent.status == 'raw')
@@ -120,7 +368,6 @@ def trim_to_top_n(db: Session, top_n: int = 20) -> Dict:
     )
     top_ids = {e.id for e in top_events}
 
-    # Archive all raw events NOT in top N
     archived_count = (
         db.query(TrendingEvent)
         .filter(
@@ -129,55 +376,173 @@ def trim_to_top_n(db: Session, top_n: int = 20) -> Dict:
         )
         .update({"status": "archived"}, synchronize_session="fetch")
     )
-
     db.commit()
 
-    logger.info(f"Trim: kept top {len(top_ids)} raw events, archived {archived_count}")
-    return {
-        "kept": len(top_ids),
-        "archived": archived_count,
-    }
+    logger.info(f"Trim: kept {len(top_ids)}, archived {archived_count}")
+    return {"kept": len(top_ids), "archived": archived_count}
 
 
 def run_full_pipeline(db: Session, top_n: int = 20) -> Dict:
     """
-    Run the complete news aggregation pipeline:
-    1. Ensure data sources exist
-    2. Fetch from all sources
-    3. Deduplicate and store
-    4. Cluster articles into events
-    5. Calculate heat scores
-    6. Trim to top N events (archive the rest)
-
-    Args:
-        db: Database session
-        top_n: Number of top trending events to keep for admin review (default 20)
+    Topics-First Pipeline v3:
+    1. Fetch trending topics from Reddit/HN
+    2. For each topic, search Google News for related articles (targeted)
+    3. Also fetch RSS as supplement
+    4. Deduplicate, create events, link articles
+    5. Second-pass match remaining RSS articles
+    6. Calculate heat, trim
     """
-    result = {"fetch": 0, "new": 0, "cluster": {}, "heat": {}, "trim": {}}
+    result = {
+        "topics": 0, "google_news_articles": 0, "rss_articles": 0,
+        "new_articles": 0, "events_created": 0, "heat": {}, "trim": {},
+    }
 
     # 1. Ensure sources
     ensure_sources_exist(db)
+    from app.models.trending import TrendingSource
+    if not db.query(TrendingSource).filter(TrendingSource.id == 200).first():
+        db.add(TrendingSource(
+            id=200, name="Google News", url="https://news.google.com",
+            stance="center", region="international", priority="P1", enabled=True,
+        ))
+        db.commit()
 
-    # 2. Fetch
-    articles = asyncio.run(fetch_all_sources())
-    result["fetch"] = len(articles)
+    # 2. Fetch trending topics
+    # Use new_event_loop() so this works even when called from a thread
+    # spawned by an existing event loop (e.g. FastAPI's run_in_executor)
+    _loop = asyncio.new_event_loop()
+    try:
+        topics = _loop.run_until_complete(fetch_trending_topics())
+    finally:
+        _loop.close()
+    result["topics"] = len(topics)
+    top_topics = topics[:top_n]
 
-    # 3. Deduplicate and store
-    new_articles = deduplicate_articles(db, articles)
+    # 3. For each topic, search Google News + fetch RSS
+    async def fetch_articles():
+        gn_fetcher = GoogleNewsFetcher()
+        rss_fetcher = RSSFetcher()
+        try:
+            topic_gn_articles = await gn_fetcher.search_topics(top_topics, max_per_topic=30)
+            rss_articles = await rss_fetcher.fetch_all(
+                [s for s in RSS_SOURCES if s["enabled"]]
+            )
+            return topic_gn_articles, rss_articles
+        finally:
+            await gn_fetcher.close()
+            await rss_fetcher.close()
+
+    _loop2 = asyncio.new_event_loop()
+    try:
+        topic_gn_articles, rss_articles = _loop2.run_until_complete(fetch_articles())
+    finally:
+        _loop2.close()
+
+    total_gn = sum(len(arts) for arts in topic_gn_articles.values())
+    result["google_news_articles"] = total_gn
+    result["rss_articles"] = len(rss_articles)
+
+    # 4. Deduplicate and store all articles
+    all_new_articles = []
+    for arts in topic_gn_articles.values():
+        all_new_articles.extend(arts)
+    all_new_articles.extend(rss_articles)
+
+    new_articles = deduplicate_articles(db, all_new_articles)
     for article in new_articles:
         db.add(article)
     db.commit()
-    result["new"] = len(new_articles)
+    result["new_articles"] = len(new_articles)
 
-    # 4. Cluster
-    cluster_result = cluster_new_articles(db)
-    result["cluster"] = cluster_result
+    # 5. Create events: link Google News articles directly to their topics
+    events = []
+    for i, topic in enumerate(top_topics):
+        gn_arts = topic_gn_articles.get(i, [])
+        gn_urls = {a.url for a in gn_arts}
 
-    # 5. Calculate heat
+        # Find stored versions by URL
+        stored_articles = []
+        if gn_urls:
+            stored_articles = db.query(TrendingArticle).filter(
+                TrendingArticle.url.in_(gn_urls)
+            ).all()
+
+        all_sources_names = list(set(
+            [topic.get('source', '')] +
+            topic.get('sources', []) +
+            [get_source_name(a.source_id) for a in stored_articles]
+        ))
+        all_sources_names = [s for s in all_sources_names if s]
+
+        texts = [topic['title'], topic.get('selftext', '')]
+        for t in topic.get('all_titles', []):
+            texts.append(t)
+        texts.extend([a.title or '' for a in stored_articles])
+        combined_text = ' '.join(texts)
+
+        keywords = extract_keywords(combined_text, CLUSTER_TOP_KEYWORDS)
+        category = classify_category(combined_text)
+
+        topic_heat = (
+            topic.get('total_score', topic.get('score', 0)) * 0.1 +
+            topic.get('total_comments', topic.get('comments', 0)) * 0.5 +
+            len(stored_articles) * 10 +
+            len(all_sources_names) * 5
+        )
+
+        event = TrendingEvent(
+            title=topic['title'],
+            summary=topic.get('selftext', '')[:2000] or (
+                stored_articles[0].summary if stored_articles else ''
+            ),
+            keywords=keywords,
+            category=category,
+            source_id=topic.get('source_id', 102),
+            article_count=len(stored_articles) + 1,
+            media_count=len(all_sources_names),
+            heat_score=topic_heat,
+            status='raw',
+        )
+        db.add(event)
+        db.flush()
+
+        for article in stored_articles:
+            article.event_id = event.id
+            article.is_processed = True
+
+        events.append(event)
+
+    db.commit()
+    result["events_created"] = len(events)
+
+    # 6. Second pass: match remaining RSS articles to events
+    second_pass_count = second_pass_matching(db, events)
+    result["second_pass_matched"] = second_pass_count
+
+    # Mark remaining
+    still_unprocessed = db.query(TrendingArticle).filter(
+        and_(
+            TrendingArticle.is_processed == False,
+            TrendingArticle.event_id.is_(None),
+        )
+    ).all()
+    for a in still_unprocessed:
+        a.is_processed = True
+    db.commit()
+
+    # 7. Update final counts
+    for event in events:
+        db.refresh(event)
+        if event.articles:
+            event.article_count = len(event.articles)
+            event.media_count = len(set(a.source_id for a in event.articles))
+    db.commit()
+
+    # 8. Calculate heat
     heat_result = calculate_all_heat_scores(db)
     result["heat"] = heat_result
 
-    # 6. Trim to top N (archive low-ranking events)
+    # 9. Trim
     trim_result = trim_to_top_n(db, top_n=top_n)
     result["trim"] = trim_result
 
@@ -186,14 +551,7 @@ def run_full_pipeline(db: Session, top_n: int = 20) -> Dict:
 
 
 def run_heat_update(db: Session, top_n: int = 20) -> Dict:
-    """Recalculate heat scores and re-trim to top N (for scheduled tasks)"""
+    """Recalculate heat scores and re-trim"""
     heat = calculate_all_heat_scores(db)
     trim = trim_to_top_n(db, top_n=top_n)
     return {"heat": heat, "trim": trim}
-
-
-def run_clustering(db: Session, top_n: int = 20) -> Dict:
-    """Run clustering and trim (for scheduled tasks)"""
-    cluster = cluster_new_articles(db)
-    trim = trim_to_top_n(db, top_n=top_n)
-    return {"cluster": cluster, "trim": trim}

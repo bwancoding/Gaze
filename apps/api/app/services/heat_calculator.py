@@ -89,37 +89,55 @@ class HeatCalculator:
         return REGION_DIVERSITY_BONUS.get(n, 1.0)
 
     def calculate_event_heat(self, event: TrendingEvent, reference_time: Optional[datetime] = None) -> float:
-        if not event.articles:
-            return 0.0
+        # Base heat from linked articles
+        total_article_heat = 0.0
+        if event.articles:
+            total_article_heat = sum(
+                self.calculate_article_heat(article, reference_time)
+                for article in event.articles
+            )
 
-        total_article_heat = sum(
-            self.calculate_article_heat(article, reference_time)
-            for article in event.articles
+        # Time decay for the event itself
+        event_time_decay = self.calculate_time_decay(event.created_at, reference_time)
+
+        # Base score from article/media counts (even if no articles are linked)
+        # This ensures topic-seeded events with engagement data still get scores
+        article_count = max(event.article_count or 0, len(event.articles) if event.articles else 0)
+        media_count = max(
+            event.media_count or 0,
+            event.unique_media_count if event.articles else 0
         )
 
-        media_count = event.unique_media_count
+        # Base engagement score: articles + media diversity
+        base_score = (
+            article_count * 5.0 +   # each article adds 5 points
+            media_count * 10.0       # each unique source adds 10 points
+        ) * event_time_decay
+
+        # Article heat contribution (when articles are linked)
         media_diversity_bonus = min(1.0 + (media_count - 1) * 0.1, 2.0)
 
         stances = set()
-        for article in event.articles:
-            if article.source:
-                stances.add(article.source.stance)
-        stance_bonus = self.STANCE_DIVERSITY_BONUS.get(len(stances), 1.3)
+        if event.articles:
+            for article in event.articles:
+                if article.source:
+                    stances.add(article.source.stance)
+        stance_bonus = self.STANCE_DIVERSITY_BONUS.get(len(stances), 1.0)
 
-        # Cap article count influence to prevent niche topics from dominating
+        # Cap article count influence
         article_count_bonus = min(
-            math.log10(event.article_count + 1) * 0.5,
+            math.log10(article_count + 1) * 0.5,
             ARTICLE_COUNT_BONUS_CAP
         )
 
-        # Category weight: boost globally important topics
+        # Category weight
         category_weight = self.get_category_weight(event.category)
 
-        # Region diversity: events covered across multiple regions rank higher
+        # Region diversity
         region_bonus = self.get_region_diversity_bonus(event)
 
         event_heat = (
-            total_article_heat
+            (base_score + total_article_heat)
             * media_diversity_bonus
             * stance_bonus
             * (1 + article_count_bonus)

@@ -19,4 +19,5 @@ feedparser==6.0.10
 apscheduler==3.10.4
 pydantic-settings==2.1.0
 slowapi==0.1.9
+python-multipart==0.0.9
 alembic==1.13.1
