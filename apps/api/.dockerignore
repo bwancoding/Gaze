@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.db
+*.sqlite3
+.env
+.env.local
+venv/
+.venv/
+.git/
+uploads/verification/*
+alembic/versions/__pycache__/
