@@ -56,7 +56,7 @@ CLUSTER_TOP_KEYWORDS: int = int(os.getenv("CLUSTER_TOP_KEYWORDS", "20"))
 
 # RSS fetch configuration
 RSS_FETCH_TIMEOUT: int = int(os.getenv("RSS_FETCH_TIMEOUT", "30"))
-RSS_MAX_ARTICLES_PER_FEED: int = int(os.getenv("RSS_MAX_ARTICLES_PER_FEED", "50"))
+RSS_MAX_ARTICLES_PER_FEED: int = int(os.getenv("RSS_MAX_ARTICLES_PER_FEED", "100"))
 
 # RSS source configuration list
 RSS_SOURCES: List[Dict] = [
@@ -93,6 +93,33 @@ RSS_SOURCES: List[Dict] = [
      "url": "https://thehill.com/feed/", "priority": "P2", "enabled": True},
     {"id": 15, "name": "NPR", "stance": "left", "region": "us",
      "url": "https://feeds.npr.org/1001/rss.xml", "priority": "P2", "enabled": True},
+    # Additional sources for broader coverage
+    {"id": 16, "name": "BBC World", "stance": "center-left", "region": "uk",
+     "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "priority": "P0", "enabled": True},
+    {"id": 17, "name": "Reuters World", "stance": "center", "region": "international",
+     "url": "https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best", "priority": "P0", "enabled": True},
+    {"id": 18, "name": "Guardian World", "stance": "left", "region": "uk",
+     "url": "https://www.theguardian.com/world/rss", "priority": "P1", "enabled": True},
+    {"id": 19, "name": "CNN World", "stance": "left", "region": "us",
+     "url": "http://rss.cnn.com/rss/edition_world.rss", "priority": "P1", "enabled": True},
+    {"id": 20, "name": "ABC News", "stance": "center-left", "region": "us",
+     "url": "https://abcnews.go.com/abcnews/topstories", "priority": "P1", "enabled": True},
+    {"id": 21, "name": "CBS News", "stance": "center-left", "region": "us",
+     "url": "https://www.cbsnews.com/latest/rss/main", "priority": "P1", "enabled": True},
+    {"id": 22, "name": "Sky News", "stance": "center", "region": "uk",
+     "url": "https://feeds.skynews.com/feeds/rss/world.xml", "priority": "P2", "enabled": True},
+    {"id": 23, "name": "France24", "stance": "center", "region": "europe",
+     "url": "https://www.france24.com/en/rss", "priority": "P2", "enabled": True},
+    {"id": 24, "name": "DW News", "stance": "center", "region": "europe",
+     "url": "https://rss.dw.com/rdf/rss-en-all", "priority": "P2", "enabled": True},
+    {"id": 25, "name": "The Independent", "stance": "center-left", "region": "uk",
+     "url": "https://www.independent.co.uk/news/world/rss", "priority": "P2", "enabled": True},
+    {"id": 26, "name": "South China Morning Post", "stance": "center", "region": "asia",
+     "url": "https://www.scmp.com/rss/91/feed", "priority": "P2", "enabled": True},
+    {"id": 27, "name": "Times of India", "stance": "center", "region": "asia",
+     "url": "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", "priority": "P2", "enabled": True},
+    {"id": 28, "name": "NHK World", "stance": "center", "region": "asia",
+     "url": "https://www3.nhk.or.jp/rss/news/cat0.xml", "priority": "P2", "enabled": True},
 ]
 
 # Reddit sources (source_id 101-104)

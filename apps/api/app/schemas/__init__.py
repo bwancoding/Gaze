@@ -54,10 +54,12 @@ class EventResponse(EventBase):
     status: str
     created_at: datetime
     occurred_at: Optional[datetime] = None
+    published_at: Optional[datetime] = None
+    last_activity_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
-    
+
     @classmethod
     def from_orm(cls, obj):
         """Override to translate category"""
@@ -73,6 +75,8 @@ class EventResponse(EventBase):
             'status': obj.status,
             'created_at': obj.created_at,
             'occurred_at': obj.occurred_at,
+            'published_at': obj.published_at if hasattr(obj, 'published_at') else None,
+            'last_activity_at': obj.last_activity_at if hasattr(obj, 'last_activity_at') else None,
         }
         return cls(**data)
 

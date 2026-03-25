@@ -72,11 +72,10 @@ def get_event_comments(
     )
     
     if parent_id:
-        # Get replies
+        # Get replies for specific parent
         query = query.filter(Comment.parent_id == parent_id)
-    else:
-        # Get top-level comments
-        query = query.filter(Comment.parent_id == None)
+    # When no parent_id filter, return ALL comments (top-level + replies)
+    # Frontend handles nesting/grouping
     
     total = query.count()
     comments = query.order_by(desc(Comment.created_at)).offset(offset).limit(limit).all()
@@ -141,6 +140,10 @@ def create_comment(
     )
 
     db.add(comment)
+
+    # Update event activity timestamp
+    from app.services.event_lifecycle import touch_event_activity
+    touch_event_activity(db, event_id)
 
     # Notify parent comment author on reply
     if parent_id and parent_comment:
@@ -260,8 +263,8 @@ def get_thread_comments(
 
     if parent_id:
         query = query.filter(Comment.parent_id == parent_id)
-    else:
-        query = query.filter(Comment.parent_id == None)
+    # When no parent_id filter, return ALL comments (top-level + replies)
+    # Frontend handles nesting/grouping
 
     total = query.count()
     comments = query.order_by(desc(Comment.created_at)).offset(offset).limit(limit).all()
@@ -322,6 +325,10 @@ def create_thread_comment(
 
     db.add(comment)
     thread.reply_count += 1
+
+    # Update event activity timestamp
+    from app.services.event_lifecycle import touch_event_activity
+    touch_event_activity(db, str(thread.event_id))
 
     # Notifications
     from app.models.notifications import create_notification
@@ -410,6 +417,10 @@ def vote_comment(
             comment.dislike_count += 1
         vote = UserLike(user_id=current_user.id, comment_id=comment_id, vote_type=action)
         db.add(vote)
+
+        # Update event activity timestamp
+        from app.services.event_lifecycle import touch_event_activity
+        touch_event_activity(db, str(comment.event_id))
 
         # Notify comment owner
         from app.models.notifications import create_notification

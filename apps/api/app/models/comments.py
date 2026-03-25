@@ -18,11 +18,11 @@ class Comment(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
     # Foreign key associations
-    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
-    user_persona_id = Column(UUID(as_uuid=True), ForeignKey('user_personas.id', ondelete='SET NULL'), nullable=True)
-    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
+    user_persona_id = Column(UUID(as_uuid=True), ForeignKey('user_personas.id', ondelete='SET NULL'), nullable=True, index=True)
+    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False, index=True)
     thread_id = Column(UUID(as_uuid=True), ForeignKey('threads.id', ondelete='CASCADE'), nullable=True, index=True)
-    parent_id = Column(UUID(as_uuid=True), ForeignKey('comments.id', ondelete='CASCADE'), nullable=True)  # Reply to comment
+    parent_id = Column(UUID(as_uuid=True), ForeignKey('comments.id', ondelete='CASCADE'), nullable=True, index=True)  # Reply to comment
     
     # Comment content
     content = Column(_Text, nullable=False)
@@ -45,6 +45,7 @@ class Comment(Base):
     user = relationship("User", backref="comments")
     persona = relationship("UserPersona", backref="comments")
     event = relationship("Event", backref="comments")
+    thread = relationship("Thread", foreign_keys=[thread_id])
     parent = relationship("Comment", remote_side=[id], backref="replies")
 
     def to_dict(self, include_verified_badge=False):

@@ -3,13 +3,14 @@ User Persona Management API
 User identity management endpoints
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Header, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Header, Request, UploadFile, File
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime
 import uuid
 import json
+import os
 
 from pydantic import BaseModel
 
@@ -30,12 +31,16 @@ class PersonaUpdate(BaseModel):
     persona_name: Optional[str] = None
     avatar_color: Optional[str] = None
 
+class ReviewNotes(BaseModel):
+    review_notes: str = ""
+
 class VerificationApply(BaseModel):
     event_id: str
     stakeholder_id: str
     application_text: str = ""
     proof_type: str = "self_declaration"
     proof_data: str = ""
+    proof_files: List[str] = []  # List of uploaded file URLs
 
 router = APIRouter(prefix="/personas", tags=["User Personas"])
 
@@ -294,6 +299,7 @@ async def list_all_verifications(
                 "stakeholder_name": v.stakeholder.name if v.stakeholder else "Unknown",
                 "application_text": v.application_text,
                 "proof_type": v.proof_type,
+                "proof_files": json.loads(v.proof_files) if v.proof_files else [],
                 "status": v.status,
                 "review_notes": v.review_notes,
                 "ai_review_score": v.ai_review_score,
@@ -309,7 +315,7 @@ async def list_all_verifications(
 @router.post("/admin/verifications/{verification_id}/approve")
 async def approve_verification(
     verification_id: str,
-    review_notes: str = "",
+    body: ReviewNotes = ReviewNotes(),
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
@@ -317,13 +323,13 @@ async def approve_verification(
     verification = db.query(EventStakeholderVerification).filter(
         EventStakeholderVerification.id == verification_id
     ).first()
-    
+
     if not verification:
         raise HTTPException(status_code=404, detail="Application not found")
-    
+
     verification.status = 'approved'
     verification.reviewed_at = datetime.utcnow()
-    verification.review_notes = review_notes
+    verification.review_notes = body.review_notes
 
     # Update persona is_verified flag
     if verification.persona:
@@ -346,7 +352,7 @@ async def approve_verification(
 @router.post("/admin/verifications/{verification_id}/reject")
 async def reject_verification(
     verification_id: str,
-    review_notes: str = "",
+    body: ReviewNotes = ReviewNotes(),
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
@@ -354,13 +360,13 @@ async def reject_verification(
     verification = db.query(EventStakeholderVerification).filter(
         EventStakeholderVerification.id == verification_id
     ).first()
-    
+
     if not verification:
         raise HTTPException(status_code=404, detail="Application not found")
-    
+
     verification.status = 'rejected'
     verification.reviewed_at = datetime.utcnow()
-    verification.review_notes = review_notes
+    verification.review_notes = body.review_notes
 
     # Notify persona owner
     if verification.persona:
@@ -406,7 +412,7 @@ async def ai_review_single(
 @router.post("/admin/verifications/{verification_id}/revoke")
 async def revoke_verification(
     verification_id: str,
-    review_notes: str = "",
+    body: ReviewNotes = ReviewNotes(),
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
@@ -430,7 +436,7 @@ async def revoke_verification(
     
     verification.status = 'revoked'
     verification.reviewed_at = datetime.utcnow()
-    verification.review_notes = review_notes if review_notes else "Revoked by admin"
+    verification.review_notes = body.review_notes if body.review_notes else "Revoked by admin"
     
     # Update persona is_verified flag
     if verification.persona:
@@ -564,6 +570,7 @@ async def apply_for_verification(
     application_text = verify_data.application_text
     proof_type = verify_data.proof_type or 'self_declaration'
     proof_data = verify_data.proof_data or ''
+    proof_files_json = json.dumps(verify_data.proof_files) if verify_data.proof_files else None
     # Check persona ownership
     persona = db.query(UserPersona).filter(
         UserPersona.id == persona_id,
@@ -591,20 +598,42 @@ async def apply_for_verification(
                 detail="Application already pending review"
             )
         elif existing.status == 'rejected':
-            # Allow re-application after rejection
-            pass
+            # Allow re-application: update existing record
+            # Check stakeholder exists
+            stakeholder = db.query(Stakeholder).filter(Stakeholder.id == stakeholder_id).first()
+            if not stakeholder:
+                raise HTTPException(status_code=404, detail="Stakeholder not found")
+
+            existing.stakeholder_id = stakeholder_id
+            existing.application_text = application_text
+            existing.proof_type = proof_type
+            existing.proof_data = proof_data
+            existing.proof_files = proof_files_json
+            existing.status = 'pending'
+            existing.admin_notes = None
+            existing.ai_review_score = None
+            existing.ai_flags = None
+            db.commit()
+
+            # AI review disabled for now — manual admin review only
+
+            return {
+                "message": "Re-application submitted",
+                "application_id": str(existing.id),
+                "status": "pending",
+            }
         else:
             raise HTTPException(
                 status_code=400,
                 detail="Already have an application for this event"
             )
-    
+
     # Check stakeholder exists
     stakeholder = db.query(Stakeholder).filter(Stakeholder.id == stakeholder_id).first()
     if not stakeholder:
         raise HTTPException(status_code=404, detail="Stakeholder not found")
-    
-    # Create application
+
+    # Create new application
     try:
         application = EventStakeholderVerification(
             id=uuid.uuid4(),
@@ -614,26 +643,19 @@ async def apply_for_verification(
             application_text=application_text,
             proof_type=proof_type,
             proof_data=proof_data,
+            proof_files=proof_files_json,
             status='pending',
         )
-        
+
         db.add(application)
         db.commit()
 
-        # Trigger AI review in background (non-blocking, best-effort)
-        ai_result = None
-        try:
-            from app.services.verification_reviewer import ai_review_application
-            ai_result = await ai_review_application(db, str(application.id))
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).warning(f"AI review failed: {e}")
+        # AI review disabled for now — manual admin review only
 
         return {
             "message": "Application submitted",
             "application_id": str(application.id),
             "status": "pending",
-            "ai_review": ai_result,
         }
     except Exception as e:
         db.rollback()
@@ -644,3 +666,62 @@ async def apply_for_verification(
                 detail="You already have an application for this event"
             )
         raise
+
+
+# ==================== File Upload for Verification ====================
+
+ALLOWED_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg'}
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "verification")
+
+
+@router.post("/verify/upload")
+@limiter.limit("10/minute")
+async def upload_verification_files(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token),
+):
+    """Upload proof files for a verification application (max 5 files, 10MB each)"""
+
+    if len(files) > 5:
+        raise HTTPException(status_code=400, detail="Maximum 5 files allowed")
+
+    saved_files = []
+    for file in files:
+        # Validate extension
+        ext = os.path.splitext(file.filename or "")[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File type '{ext}' not allowed. Accepted: {', '.join(ALLOWED_EXTENSIONS)}"
+            )
+
+        # Read and validate size
+        content = await file.read()
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File '{file.filename}' exceeds 10MB limit"
+            )
+
+        # Save file
+        file_id = str(uuid.uuid4())
+        filename = f"{file_id}{ext}"
+        filepath = os.path.join(UPLOAD_DIR, filename)
+        os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+        with open(filepath, "wb") as f:
+            f.write(content)
+
+        saved_files.append({
+            "filename": filename,
+            "original_name": file.filename,
+            "url": f"/uploads/verification/{filename}",
+        })
+
+    return {
+        "message": f"{len(saved_files)} file(s) uploaded",
+        "files": saved_files,
+    }

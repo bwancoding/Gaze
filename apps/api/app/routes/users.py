@@ -35,7 +35,10 @@ async def get_my_threads(
     current_user: User = Depends(get_current_user),
 ):
     """Get all threads created by the current user."""
-    query = db.query(Thread).filter(
+    query = db.query(Thread).options(
+        joinedload(Thread.event),
+        joinedload(Thread.user_persona),
+    ).filter(
         Thread.user_id == current_user.id,
         Thread.is_deleted == False,
     )
@@ -45,16 +48,13 @@ async def get_my_threads(
 
     items = []
     for t in threads:
-        event = db.query(Event).filter(Event.id == t.event_id).first()
-        persona = db.query(UserPersona).filter(UserPersona.id == t.user_persona_id).first() if t.user_persona_id else None
-
         items.append({
             "id": str(t.id),
             "title": t.title,
             "event_id": str(t.event_id),
-            "event_title": event.title if event else "Unknown Event",
-            "persona_name": persona.persona_name if persona else "Anonymous",
-            "avatar_color": persona.avatar_color if persona else "gray",
+            "event_title": t.event.title if t.event else "Unknown Event",
+            "persona_name": t.user_persona.persona_name if t.user_persona else "Anonymous",
+            "avatar_color": t.user_persona.avatar_color if t.user_persona else "gray",
             "reply_count": t.reply_count or 0,
             "like_count": t.like_count or 0,
             "dislike_count": t.dislike_count or 0,
@@ -81,6 +81,7 @@ async def get_my_comments(
     query = db.query(Comment).options(
         joinedload(Comment.persona),
         joinedload(Comment.event),
+        joinedload(Comment.thread),
     ).filter(
         Comment.user_id == current_user.id,
         Comment.is_deleted == False,
@@ -91,12 +92,7 @@ async def get_my_comments(
 
     items = []
     for c in comments:
-        # Get thread title if comment is in a thread
-        thread_title = None
-        if c.thread_id:
-            thread = db.query(Thread).filter(Thread.id == c.thread_id).first()
-            thread_title = thread.title if thread else None
-
+        thread_title = c.thread.title if c.thread else None
         content_preview = c.content[:150] + "..." if len(c.content) > 150 else c.content
 
         items.append({

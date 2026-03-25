@@ -343,14 +343,18 @@ async def forgot_password(request: Request, email: str, db: Session = Depends(ge
     )
 
     # In production: send email with reset link
-    # For MVP: return the token directly
+    # For now: return the token in response (replace with email delivery in production)
     import logging
-    logging.info(f"[PASSWORD RESET] Token for {email}: {reset_token}")
+    logger = logging.getLogger(__name__)
+    logger.info(f"[PASSWORD RESET] Reset requested for {email}")
 
-    return {
+    is_dev = os.getenv("APP_ENV", "development") == "development"
+    response = {
         "message": "If an account with this email exists, a reset link has been sent.",
-        "reset_token": reset_token,  # MVP only — remove in production
     }
+    if is_dev:
+        response["reset_token"] = reset_token  # Only in development
+    return response
 
 
 @router.post("/reset-password")

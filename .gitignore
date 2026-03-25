@@ -52,6 +52,17 @@ coverage/
 *.db
 *.sqlite3
 
+# Uploads (user-generated content)
+apps/api/uploads/
+
+# Claude Code local settings
+.claude/settings.local.json
+.claude/launch.json
+.claude/worktrees/
+
+# TypeScript build info
+*.tsbuildinfo
+
 # Misc
 .cache/
 tmp/

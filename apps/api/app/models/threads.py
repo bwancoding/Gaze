@@ -4,6 +4,7 @@ Thread Model - Reddit-style discussion threads within events
 
 from sqlalchemy import Column, String, Text, Integer, Boolean, DateTime, ForeignKey
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 from app.core.types import UUID, JSONColumn
 import uuid
@@ -16,7 +17,7 @@ class Thread(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False, index=True)
     user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
-    user_persona_id = Column(UUID(as_uuid=True), ForeignKey('user_personas.id', ondelete='SET NULL'), nullable=True)
+    user_persona_id = Column(UUID(as_uuid=True), ForeignKey('user_personas.id', ondelete='SET NULL'), nullable=True, index=True)
 
     title = Column(String(500), nullable=False)
     content = Column(Text, nullable=False)
@@ -38,6 +39,10 @@ class Thread(Base):
 
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # Relationships for eager loading
+    user_persona = relationship("UserPersona", foreign_keys=[user_persona_id])
+    event = relationship("Event", foreign_keys=[event_id])
 
     def to_dict(self):
         return {

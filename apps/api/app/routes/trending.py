@@ -2,9 +2,12 @@
 Trending API Routes - Trending/hot events endpoints
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.orm import Session
 from typing import Optional, List
 import logging
+import os
+import secrets
 
 from app.core.database import get_db
 from app.core.limiter import limiter
@@ -15,6 +18,20 @@ from app.services.heat_calculator import HeatCalculator
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Admin auth for write endpoints
+_security = HTTPBasic(auto_error=False)
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "changeme")
+
+
+def _verify_admin(credentials: HTTPBasicCredentials = Depends(_security)):
+    if not credentials or not (
+        secrets.compare_digest(credentials.username, ADMIN_USERNAME)
+        and secrets.compare_digest(credentials.password, ADMIN_PASSWORD)
+    ):
+        raise HTTPException(status_code=401, detail="Admin credentials required")
+    return credentials.username
 
 
 @router.get("/trending")
@@ -132,7 +149,7 @@ def get_trending_sources(db: Session = Depends(get_db)):
 
 
 @router.post("/trending/refresh")
-def refresh_trending(db: Session = Depends(get_db)):
+def refresh_trending(db: Session = Depends(get_db), _admin: str = Depends(_verify_admin)):
     """
     Manually trigger trending refresh (full pipeline: fetch → dedup → cluster → heat).
     Note: This endpoint performs network requests and may take some time.
@@ -147,7 +164,7 @@ def refresh_trending(db: Session = Depends(get_db)):
 
 
 @router.post("/trending/heat/recalculate")
-def recalculate_heat(db: Session = Depends(get_db)):
+def recalculate_heat(db: Session = Depends(get_db), _admin: str = Depends(_verify_admin)):
     """Manually trigger heat score recalculation"""
     from app.services.heat_calculator import calculate_all_heat_scores
     result = calculate_all_heat_scores(db)

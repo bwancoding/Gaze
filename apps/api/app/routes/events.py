@@ -23,7 +23,7 @@ async def list_events(
     category: Optional[str] = None,
     search: Optional[str] = Query(None, description="Search events by title or summary"),
     status: Optional[str] = Query("active", regex="^(active|archived|closed|all)$"),
-    sort_by: str = Query("hot_score", regex="^(hot_score|created_at|view_count)$"),
+    sort_by: str = Query("hot_score", regex="^(hot_score|created_at|view_count|last_activity)$"),
     db: Session = Depends(get_db),
 ):
     """
@@ -79,6 +79,8 @@ async def list_events(
         query = query.order_by(Event.created_at.desc())
     elif sort_by == "view_count":
         query = query.order_by(Event.view_count.desc())
+    elif sort_by == "last_activity":
+        query = query.order_by(Event.last_activity_at.desc().nullslast())
 
     # Pagination
     offset = (page - 1) * page_size
@@ -247,34 +249,83 @@ async def get_event_sources(
     db: Session = Depends(get_db),
 ):
     """
-    Get all sources for an event
-    
-    - **event_id**: Event ID
+    Get all sources for an event.
+    Falls back to TrendingArticle data if no EventSource records exist.
     """
     event = db.query(Event).filter(Event.id == event_id).first()
-    
+
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    
+
+    # Try EventSource first
     sources = db.query(EventSource, Source).join(
         Source, EventSource.source_id == Source.id
     ).filter(EventSource.event_id == event_id).all()
-    
-    return [
-        {
-            "id": es.id,
-            "source": {
-                "id": s.id,
-                "name": s.name,
-                "bias_label": s.bias_label,
-                "bias_score": float(s.bias_score) if s.bias_score else None,
-            },
-            "article_title": es.article_title,
-            "article_url": es.article_url,
-            "published_at": es.published_at,
-        }
-        for es, s in sources
+
+    if sources:
+        return [
+            {
+                "id": es.id,
+                "source": {
+                    "id": s.id,
+                    "name": s.name,
+                    "bias_label": s.bias_label,
+                    "bias_score": float(s.bias_score) if s.bias_score else None,
+                },
+                "article_title": es.article_title,
+                "article_url": es.article_url,
+                "published_at": es.published_at,
+            }
+            for es, s in sources
+        ]
+
+    # Fallback: read from TrendingArticle via trending_origin_id
+    # Articles may be linked to newer trending_events with the same or similar title,
+    # so we find ALL trending_events matching the event title and collect their articles
+    from app.models.trending import TrendingArticle, TrendingSource, TrendingEvent
+
+    # Find all trending_event IDs that match this event's title (exact or LIKE)
+    matching_te_ids = [
+        te.id for te in db.query(TrendingEvent.id).filter(
+            TrendingEvent.title.ilike(f"%{event.title[:60]}%")
+        ).all()
     ]
+
+    # Also include the direct trending_origin_id if set
+    if event.trending_origin_id and event.trending_origin_id not in matching_te_ids:
+        matching_te_ids.append(event.trending_origin_id)
+
+    if matching_te_ids:
+        trending_sources = (
+            db.query(TrendingArticle, TrendingSource)
+            .join(TrendingSource, TrendingArticle.source_id == TrendingSource.id)
+            .filter(TrendingArticle.event_id.in_(matching_te_ids))
+            .order_by(TrendingArticle.published_at.desc())
+            .all()
+        )
+
+        # Deduplicate by URL
+        seen_urls = set()
+        result = []
+        for ta, ts in trending_sources:
+            if ta.url in seen_urls:
+                continue
+            seen_urls.add(ta.url)
+            result.append({
+                "id": ta.id,
+                "source": {
+                    "id": ts.id,
+                    "name": ts.name,
+                    "bias_label": ts.stance or "center",
+                    "bias_score": None,
+                },
+                "article_title": ta.title,
+                "article_url": ta.url,
+                "published_at": ta.published_at.isoformat() if ta.published_at else None,
+            })
+        return result
+
+    return []
 
 
 @router.get("/{event_id}/summary")
@@ -338,8 +389,14 @@ async def get_event_analysis(
             return cached
 
     try:
-        result = await generate_event_analysis(db, event_id, force=force)
+        import asyncio
+        result = await asyncio.wait_for(
+            generate_event_analysis(db, event_id, force=force),
+            timeout=45.0,
+        )
         return result
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=503, detail="Analysis generation timed out. Please try again later.")
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

@@ -66,6 +66,10 @@ class Event(Base):
     status = Column(String(20), default='active', index=True)  # candidate, active(published), archived, closed
     source_count = Column(Integer, default=0)
 
+    # Lifecycle timestamps for auto-archiving
+    published_at = Column(TIMESTAMP(timezone=True))  # When event was published to Stories
+    last_activity_at = Column(TIMESTAMP(timezone=True))  # Last article/comment/thread/vote activity
+
     # Deep analysis fields (populated by AI)
     background = Column(_Text)  # Event background/context
     cause_chain = Column(JSONColumn)  # [{cause, description, sources}]
@@ -73,7 +77,7 @@ class Event(Base):
     timeline_data = Column(JSONColumn)  # [{timestamp, title, description, sources}]
     stakeholder_perspectives = Column(JSONColumn)  # [{stakeholder_id, name, perspective, key_arguments}]
     source_article_count = Column(Integer, default=0)
-    trending_origin_id = Column(Integer, ForeignKey('trending_events.id', ondelete='SET NULL'), nullable=True)
+    trending_origin_id = Column(Integer, nullable=True)  # Reference to trending source (no FK - table may not exist)
 
     __table_args__ = (
         Index('ix_events_hot_score', 'hot_score'),
