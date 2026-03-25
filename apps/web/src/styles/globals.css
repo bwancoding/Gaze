@@ -34,3 +34,54 @@ body {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+
+/* 平滑滚动 */
+html {
+  scroll-behavior: smooth;
+}
+
+/* 优化渲染性能 */
+img, video {
+  content-visibility: auto;
+}
+
+/* 骨架屏动画优化 - 使用 GPU 加速 */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* 选择文本颜色 */
+::selection {
+  background-color: rgba(245, 158, 11, 0.3);
+  color: inherit;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #57534e;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #78716c;
+}
+
+/* 减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
