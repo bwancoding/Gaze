@@ -21,8 +21,8 @@ export default function LoginPage() {
       // Log in using JWT
       await login(email, password);
       
-      // Redirect to home page
-      router.push('/');
+      // Redirect to trending page after login
+      router.push('/trending');
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {

@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { API_BASE_URL } from '../../../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface StakeholderType {
   id: string;
@@ -40,7 +40,7 @@ export default function StakeholderManagement() {
       setIsAuthenticated(true);
       fetchData();
     } else {
-      router.push('/admin');
+      router.push('/ctrl-be5abcba');
     }
   }, []);
 
@@ -134,7 +134,7 @@ export default function StakeholderManagement() {
             </div>
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => router.push('/admin')}
+                onClick={() => router.push('/ctrl-be5abcba')}
                 className="text-stone-600 hover:text-stone-900 text-sm"
               >
                 ← Back to Dashboard

@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { isAuthenticated, fetchWithAuth } from '../lib/auth';
+import { API_BASE_URL } from '../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Comment {
   id: string;
@@ -25,53 +27,107 @@ interface Comment {
 
 interface CommentItemProps {
   comment: Comment;
-  onReply: (commentId: string, personaName: string) => void;
+  childMap: Map<string, Comment[]>;
+  commentById: Map<string, Comment>;
+  onCommentAdded: () => void;
   onDelete: (commentId: string) => void;
   depth: number;
-  currentUser?: {
-    id: string;
-    email: string;
-  };
+  maxDepth: number;
+  eventId: string;
+  threadId?: string;
+  currentUser?: { id: string; email: string };
 }
 
-// Avatar color mapping
-const avatarColors: Record<string, string> = {
-  blue: 'bg-blue-500',
-  red: 'bg-red-500',
-  green: 'bg-green-500',
-  yellow: 'bg-yellow-500',
-  purple: 'bg-purple-500',
-  pink: 'bg-pink-500',
-  indigo: 'bg-indigo-500',
-  teal: 'bg-teal-500',
-  gray: 'bg-gray-500',
+const avatarColors: Record<string, { bg: string; text: string }> = {
+  blue: { bg: 'bg-blue-100', text: 'text-blue-600' },
+  red: { bg: 'bg-red-100', text: 'text-red-600' },
+  green: { bg: 'bg-green-100', text: 'text-green-600' },
+  yellow: { bg: 'bg-yellow-100', text: 'text-yellow-600' },
+  purple: { bg: 'bg-purple-100', text: 'text-purple-600' },
+  pink: { bg: 'bg-pink-100', text: 'text-pink-600' },
+  indigo: { bg: 'bg-indigo-100', text: 'text-indigo-600' },
+  teal: { bg: 'bg-teal-100', text: 'text-teal-600' },
+  gray: { bg: 'bg-gray-100', text: 'text-gray-600' },
+  orange: { bg: 'bg-orange-100', text: 'text-orange-600' },
 };
 
-export default function CommentItem({ comment, onReply, onDelete, depth, currentUser }: CommentItemProps) {
+function timeAgo(dateString: string) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Collect all descendants flat (for comments beyond maxDepth)
+function collectDescendantsFlat(commentId: string, childMap: Map<string, Comment[]>): Comment[] {
+  const flat: Comment[] = [];
+  const queue = [...(childMap.get(commentId) || [])];
+  while (queue.length > 0) {
+    const c = queue.shift()!;
+    flat.push(c);
+    const children = childMap.get(c.id) || [];
+    queue.push(...children);
+  }
+  flat.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  return flat;
+}
+
+export default function CommentItem({
+  comment, childMap, commentById, onCommentAdded, onDelete,
+  depth, maxDepth, eventId, threadId, currentUser
+}: CommentItemProps) {
+  const router = useRouter();
   const [likes, setLikes] = useState(comment.like_count);
   const [dislikes, setDislikes] = useState(comment.dislike_count);
   const [userVote, setUserVote] = useState<'like' | 'dislike' | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showReplyForm, setShowReplyForm] = useState(false);
+  const [replyContent, setReplyContent] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
+  const [personas, setPersonas] = useState<any[]>([]);
+  const [selectedPersona, setSelectedPersona] = useState('');
+  const [showReplies, setShowReplies] = useState(depth < 1); // Auto-expand first level
+  const replyInputRef = useRef<HTMLTextAreaElement>(null);
 
   const isOwner = currentUser?.id === comment.user_id;
+  const directReplies = childMap.get(comment.id) || [];
+  const totalDescendants = countDescendants(comment.id, childMap);
+  const colors = avatarColors[comment.avatar_color] || avatarColors.gray;
+
+  // Find who this comment is replying to (for flat display with @mention)
+  const replyToName = comment.parent_id ? commentById.get(comment.parent_id)?.persona_name : null;
+
+  useEffect(() => {
+    if (showReplyForm) {
+      if (personas.length === 0) {
+        fetchWithAuth(`${API_BASE_URL}/api/personas`)
+          .then(r => r.ok ? r.json() : Promise.reject())
+          .then(data => {
+            const items = data.items || [];
+            setPersonas(items);
+            if (items.length > 0) setSelectedPersona(items[0].id);
+          })
+          .catch(() => {});
+      }
+      setTimeout(() => replyInputRef.current?.focus(), 100);
+    }
+  }, [showReplyForm]);
 
   const handleVote = async (action: 'like' | 'dislike') => {
     const token = localStorage.getItem('access_token');
-    if (!token) return;
+    if (!token) { router.push('/auth/login'); return; }
 
-    // Save old state for rollback
-    const oldLikes = likes;
-    const oldDislikes = dislikes;
-    const oldVote = userVote;
-
-    // Optimistic update
+    const oldLikes = likes, oldDislikes = dislikes, oldVote = userVote;
     if (userVote === action) {
-      // Cancel vote
       if (action === 'like') setLikes(prev => Math.max(0, prev - 1));
       else setDislikes(prev => Math.max(0, prev - 1));
       setUserVote(null);
     } else {
-      // Switch or new vote
       if (userVote === 'like') setLikes(prev => Math.max(0, prev - 1));
       if (userVote === 'dislike') setDislikes(prev => Math.max(0, prev - 1));
       if (action === 'like') setLikes(prev => prev + 1);
@@ -81,139 +137,310 @@ export default function CommentItem({ comment, onReply, onDelete, depth, current
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/comments/${comment.id}/vote?action=${action}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}` },
       });
-
       if (response.ok) {
         const data = await response.json();
-        setLikes(data.like_count);
-        setDislikes(data.dislike_count);
-        setUserVote(data.user_vote);
-      } else {
-        // Rollback
-        setLikes(oldLikes);
-        setDislikes(oldDislikes);
-        setUserVote(oldVote);
-      }
-    } catch {
-      // Rollback
-      setLikes(oldLikes);
-      setDislikes(oldDislikes);
-      setUserVote(oldVote);
-    }
+        setLikes(data.like_count); setDislikes(data.dislike_count); setUserVote(data.user_vote);
+      } else { setLikes(oldLikes); setDislikes(oldDislikes); setUserVote(oldVote); }
+    } catch { setLikes(oldLikes); setDislikes(oldDislikes); setUserVote(oldVote); }
   };
 
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this comment?')) return;
-
     setIsDeleting(true);
-
     try {
       const response = await fetch(`${API_BASE_URL}/api/comments/${comment.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-        },
+        method: 'DELETE', headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+      });
+      if (response.ok) onDelete(comment.id);
+      else { setIsDeleting(false); alert('Failed to delete comment'); }
+    } catch { setIsDeleting(false); alert('Failed to delete comment'); }
+  };
+
+  const handleReplyClick = () => {
+    if (!isAuthenticated()) { router.push('/auth/login'); return; }
+    setShowReplyForm(!showReplyForm);
+    setReplyError(null);
+  };
+
+  const handleSubmitReply = async () => {
+    if (!replyContent.trim()) return;
+    if (!selectedPersona) { setReplyError('Please create a persona first in your profile'); return; }
+
+    setIsSubmittingReply(true);
+    setReplyError(null);
+
+    try {
+      const endpoint = threadId
+        ? `${API_BASE_URL}/api/comments/thread/${threadId}`
+        : `${API_BASE_URL}/api/comments`;
+      const bodyData: any = {
+        user_persona_id: selectedPersona,
+        content: replyContent.trim(),
+        parent_id: comment.id,
+      };
+      if (!threadId) bodyData.event_id = eventId;
+
+      const response = await fetchWithAuth(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyData),
       });
 
-      if (response.ok) {
-        // Notify parent component to update state
-        onDelete(comment.id);
-      } else {
-        setIsDeleting(false);
-        alert('Failed to delete comment');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to post reply');
       }
-    } catch (err) {
-      console.error('Failed to delete comment:', err);
-      setIsDeleting(false);
-      alert('Failed to delete comment');
+
+      setReplyContent('');
+      setShowReplyForm(false);
+      setShowReplies(true);
+      onCommentAdded();
+    } catch (err: any) {
+      setReplyError(err.message || 'Failed to post reply');
+    } finally {
+      setIsSubmittingReply(false);
     }
   };
 
-  const timeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (seconds < 60) return 'Just now';
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-    return `${Math.floor(seconds / 86400)}d ago`;
+  const handleReplyKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSubmitReply();
+    }
+    if (e.key === 'Escape') setShowReplyForm(false);
   };
 
   if (comment.is_deleted) {
     return (
-      <div className="py-4 px-4 bg-stone-50 rounded-lg border border-stone-200 opacity-50">
-        <p className="text-stone-500 italic text-sm">[Deleted]</p>
+      <div className="py-2">
+        <p className="text-stone-400 italic text-xs">[This comment has been deleted]</p>
+      </div>
+    );
+  }
+
+  const isNested = depth > 0;
+  const isAtMaxDepth = depth >= maxDepth;
+
+  // At max depth, render flat list with @mentions instead of nesting further
+  if (isAtMaxDepth && directReplies.length > 0) {
+    const flatReplies = collectDescendantsFlat(comment.id, childMap);
+    return (
+      <div>
+        <SingleComment
+          comment={comment}
+          replyToName={replyToName}
+          isNested={isNested}
+          likes={likes}
+          dislikes={dislikes}
+          userVote={userVote}
+          handleVote={handleVote}
+          handleReplyClick={handleReplyClick}
+          handleDelete={handleDelete}
+          isOwner={isOwner}
+          isDeleting={isDeleting}
+          showReplyForm={showReplyForm}
+          replyContent={replyContent}
+          setReplyContent={setReplyContent}
+          replyInputRef={replyInputRef}
+          handleReplyKeyDown={handleReplyKeyDown}
+          handleSubmitReply={handleSubmitReply}
+          isSubmittingReply={isSubmittingReply}
+          replyError={replyError}
+          setShowReplyForm={setShowReplyForm}
+          personas={personas}
+          selectedPersona={selectedPersona}
+          setSelectedPersona={setSelectedPersona}
+          colors={colors}
+        />
+        {/* Flat replies with @mention */}
+        {flatReplies.map(reply => (
+          <CommentItem
+            key={reply.id}
+            comment={reply}
+            childMap={new Map()} // No more nesting
+            commentById={commentById}
+            onCommentAdded={onCommentAdded}
+            onDelete={onDelete}
+            depth={depth}
+            maxDepth={maxDepth}
+            eventId={eventId}
+            threadId={threadId}
+            currentUser={currentUser}
+          />
+        ))}
       </div>
     );
   }
 
   return (
-    <div className={`py-4 ${depth > 0 ? 'border-l-2 border-stone-100 pl-4' : ''}`}>
-      <div className="flex items-start space-x-3">
+    <div>
+      <SingleComment
+        comment={comment}
+        replyToName={replyToName}
+        isNested={isNested}
+        likes={likes}
+        dislikes={dislikes}
+        userVote={userVote}
+        handleVote={handleVote}
+        handleReplyClick={handleReplyClick}
+        handleDelete={handleDelete}
+        isOwner={isOwner}
+        isDeleting={isDeleting}
+        showReplyForm={showReplyForm}
+        replyContent={replyContent}
+        setReplyContent={setReplyContent}
+        replyInputRef={replyInputRef}
+        handleReplyKeyDown={handleReplyKeyDown}
+        handleSubmitReply={handleSubmitReply}
+        isSubmittingReply={isSubmittingReply}
+        replyError={replyError}
+        setShowReplyForm={setShowReplyForm}
+        personas={personas}
+        selectedPersona={selectedPersona}
+        setSelectedPersona={setSelectedPersona}
+        colors={colors}
+      />
+
+      {/* Nested replies */}
+      {directReplies.length > 0 && (
+        <div className={depth === 0 ? 'ml-10' : 'ml-8'}>
+          {/* Show/hide replies toggle */}
+          {!showReplies ? (
+            <button
+              onClick={() => setShowReplies(true)}
+              className="flex items-center space-x-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium py-1.5 transition-colors"
+            >
+              <svg className="w-3 h-3 transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+              <span>{totalDescendants} {totalDescendants === 1 ? 'reply' : 'replies'}</span>
+            </button>
+          ) : (
+            <div>
+              <button
+                onClick={() => setShowReplies(false)}
+                className="flex items-center space-x-1.5 text-xs text-stone-400 hover:text-stone-600 font-medium py-1.5 transition-colors"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+                <span>Hide replies</span>
+              </button>
+
+              <div className="border-l-2 border-stone-200 pl-3">
+                {directReplies.map(reply => (
+                  <CommentItem
+                    key={reply.id}
+                    comment={reply}
+                    childMap={childMap}
+                    commentById={commentById}
+                    onCommentAdded={onCommentAdded}
+                    onDelete={onDelete}
+                    depth={depth + 1}
+                    maxDepth={maxDepth}
+                    eventId={eventId}
+                    threadId={threadId}
+                    currentUser={currentUser}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Count all descendants recursively
+function countDescendants(commentId: string, childMap: Map<string, Comment[]>): number {
+  const direct = childMap.get(commentId) || [];
+  let count = direct.length;
+  for (const child of direct) {
+    count += countDescendants(child.id, childMap);
+  }
+  return count;
+}
+
+// The actual comment rendering (extracted to avoid duplication)
+function SingleComment({
+  comment, replyToName, isNested, likes, dislikes, userVote,
+  handleVote, handleReplyClick, handleDelete, isOwner, isDeleting,
+  showReplyForm, replyContent, setReplyContent, replyInputRef,
+  handleReplyKeyDown, handleSubmitReply, isSubmittingReply, replyError,
+  setShowReplyForm, personas, selectedPersona, setSelectedPersona, colors,
+}: any) {
+  return (
+    <div className="group">
+      <div className="flex items-start space-x-2.5 py-3">
         {/* Avatar */}
-        <div className={`w-10 h-10 rounded-full ${avatarColors[comment.avatar_color] || 'bg-gray-500'} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}>
+        <div className={`${isNested ? 'w-6 h-6 text-[10px]' : 'w-8 h-8 text-sm'} rounded-full ${colors.bg} ${colors.text} flex items-center justify-center font-bold flex-shrink-0 mt-0.5`}>
           {comment.persona_name.charAt(0).toUpperCase()}
         </div>
 
-        {/* Comment content */}
         <div className="flex-1 min-w-0">
-          {/* Comment header */}
-          <div className="flex items-center space-x-2 mb-2">
-            <span className="font-semibold text-stone-900">
+          {/* Header */}
+          <div className="flex items-center flex-wrap gap-x-1.5 gap-y-0.5">
+            <span className={`font-semibold text-stone-900 ${isNested ? 'text-xs' : 'text-sm'}`}>
               {comment.persona_name}
             </span>
             {comment.is_verified && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                ✓ Verified
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200">
+                Verified
               </span>
             )}
-            <span className="text-stone-500 text-sm">·</span>
-            <span className="text-stone-500 text-sm">
-              {timeAgo(comment.created_at)}
-            </span>
-            {comment.is_edited && (
-              <span className="text-stone-400 text-xs">(edited)</span>
+            {replyToName && (
+              <span className="text-stone-400 text-xs">
+                <span className="mx-0.5">&#8594;</span>
+                <span className="text-stone-500 font-medium">@{replyToName}</span>
+              </span>
             )}
+            <span className="text-stone-400 text-xs">· {timeAgo(comment.created_at)}</span>
+            {comment.is_edited && <span className="text-stone-400 text-[10px]">(edited)</span>}
           </div>
 
-          {/* Comment body */}
-          <p className="text-stone-800 leading-relaxed mb-3">
+          {/* Content */}
+          <p className={`text-stone-700 leading-relaxed mt-1 ${isNested ? 'text-[13px]' : 'text-[14px]'}`}>
             {comment.content}
           </p>
 
-          {/* Action buttons */}
-          <div className="flex items-center space-x-4">
+          {/* Actions */}
+          <div className="flex items-center space-x-3 mt-1.5">
             <button
               onClick={() => handleVote('like')}
-              className={`flex items-center space-x-1 text-sm transition-colors ${
-                userVote === 'like' ? 'text-blue-600 font-semibold' : 'text-stone-500 hover:text-stone-700'
+              className={`flex items-center space-x-0.5 text-xs transition-colors ${
+                userVote === 'like' ? 'text-blue-600 font-semibold' : 'text-stone-400 hover:text-stone-600'
               }`}
             >
-              <svg className="w-4 h-4" fill={userVote === 'like' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+              <svg className="w-3.5 h-3.5" fill={userVote === 'like' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
               </svg>
-              <span>{likes}</span>
+              {likes > 0 && <span>{likes}</span>}
             </button>
 
             <button
               onClick={() => handleVote('dislike')}
-              className={`flex items-center space-x-1 text-sm transition-colors ${
-                userVote === 'dislike' ? 'text-red-600 font-semibold' : 'text-stone-500 hover:text-stone-700'
+              className={`flex items-center space-x-0.5 text-xs transition-colors ${
+                userVote === 'dislike' ? 'text-red-600 font-semibold' : 'text-stone-400 hover:text-stone-600'
               }`}
             >
-              <svg className="w-4 h-4" fill={userVote === 'dislike' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018a2 2 0 01.485.06l3.76.94m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
+              <svg className="w-3.5 h-3.5" fill={userVote === 'dislike' ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
-              <span>{dislikes}</span>
+              {dislikes > 0 && <span>{dislikes}</span>}
             </button>
 
             <button
-              onClick={() => onReply(comment.id, comment.persona_name)}
-              className="flex items-center space-x-1 text-sm text-stone-500 hover:text-stone-700 transition-colors"
+              onClick={handleReplyClick}
+              className={`flex items-center space-x-1 text-xs transition-colors ${
+                showReplyForm ? 'text-blue-600 font-semibold' : 'text-stone-400 hover:text-blue-600'
+              }`}
             >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
               <span>Reply</span>
             </button>
 
@@ -221,12 +448,74 @@ export default function CommentItem({ comment, onReply, onDelete, depth, current
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="flex items-center space-x-1 text-sm text-red-500 hover:text-red-700 transition-colors disabled:opacity-50"
+                className="text-xs text-stone-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50"
               >
-                <span>Delete</span>
+                Delete
               </button>
             )}
           </div>
+
+          {/* Inline reply form */}
+          {showReplyForm && (
+            <div className="mt-3">
+              <div className="bg-stone-50 rounded-xl border border-stone-200 overflow-hidden">
+                {personas.length > 1 && (
+                  <div className="px-3 pt-2 flex items-center space-x-1.5">
+                    <span className="text-[10px] text-stone-500 mr-1">as</span>
+                    {personas.map((p: any) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => setSelectedPersona(p.id)}
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors ${
+                          selectedPersona === p.id
+                            ? 'bg-stone-900 text-white'
+                            : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-100'
+                        }`}
+                      >
+                        {p.persona_name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <textarea
+                  ref={replyInputRef}
+                  value={replyContent}
+                  onChange={(e: any) => setReplyContent(e.target.value)}
+                  onKeyDown={handleReplyKeyDown}
+                  placeholder={`Reply to ${comment.persona_name}...`}
+                  rows={2}
+                  className="w-full px-3 py-2 bg-transparent text-sm resize-none focus:outline-none placeholder-stone-400"
+                  maxLength={5000}
+                />
+                {replyError && (
+                  <div className="px-3 pb-1">
+                    <p className="text-xs text-red-500">{replyError}</p>
+                  </div>
+                )}
+                <div className="flex items-center justify-between px-3 pb-2">
+                  <span className="text-[10px] text-stone-400">
+                    {replyContent.length > 0 && `${replyContent.length}/5000 · `}Cmd+Enter to submit
+                  </span>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => { setShowReplyForm(false); setReplyContent(''); }}
+                      className="px-3 py-1 text-xs text-stone-500 hover:text-stone-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSubmitReply}
+                      disabled={isSubmittingReply || !replyContent.trim()}
+                      className="px-3 py-1 bg-stone-900 text-white text-xs rounded-full font-medium hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {isSubmittingReply ? '...' : 'Reply'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,9 +1,9 @@
+import { API_BASE_URL } from './config';
 /**
  * JWT Authentication Utilities
  * Token management and API calls
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface TokenResponse {
   access_token: string;

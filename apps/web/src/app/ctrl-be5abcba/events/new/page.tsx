@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { API_BASE_URL } from '../../../../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function CreateEventPage() {
   const router = useRouter();
@@ -68,7 +68,7 @@ export default function CreateEventPage() {
 
       if (response.ok) {
         alert('Event created successfully!');
-        router.push('/admin');
+        router.push('/ctrl-be5abcba');
       } else {
         const data = await response.json();
         setError(data.detail || 'Failed to create event');
@@ -92,7 +92,7 @@ export default function CreateEventPage() {
             </div>
             <div className="flex items-center space-x-4">
               <button
-                onClick={() => router.push('/admin')}
+                onClick={() => router.push('/ctrl-be5abcba')}
                 className="text-stone-600 hover:text-stone-900 text-sm"
               >
                 ← Back to Dashboard
@@ -193,7 +193,7 @@ export default function CreateEventPage() {
             <div className="flex items-center justify-end space-x-4">
               <button
                 type="button"
-                onClick={() => router.push('/admin')}
+                onClick={() => router.push('/ctrl-be5abcba')}
                 className="px-6 py-2.5 border border-stone-300 rounded-lg text-stone-700 font-medium hover:bg-stone-50 transition-colors"
               >
                 Cancel

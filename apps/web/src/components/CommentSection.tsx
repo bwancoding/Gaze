@@ -5,8 +5,8 @@ import CommentForm from './CommentForm';
 import CommentItem from './CommentItem';
 import LoginPrompt from './LoginPrompt';
 import { isAuthenticated } from '../lib/auth';
+import { API_BASE_URL } from '../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Comment {
   id: string;
@@ -25,7 +25,6 @@ interface Comment {
   created_at: string;
   updated_at: string;
   is_verified?: boolean;
-  replies?: Comment[];
 }
 
 interface CommentSectionProps {
@@ -33,41 +32,79 @@ interface CommentSectionProps {
   threadId?: string;
 }
 
+const COMMENTS_PER_PAGE = 10;
+
+// Build a nested tree from flat comment list
+function buildCommentTree(comments: Comment[]): { topLevel: Comment[]; childMap: Map<string, Comment[]> } {
+  const childMap = new Map<string, Comment[]>();
+  const topLevel: Comment[] = [];
+
+  // Index all comments by id for parent lookups
+  const commentById = new Map<string, Comment>();
+  comments.forEach(c => commentById.set(c.id, c));
+
+  comments.forEach(c => {
+    if (!c.parent_id) {
+      topLevel.push(c);
+    } else {
+      const existing = childMap.get(c.parent_id) || [];
+      existing.push(c);
+      childMap.set(c.parent_id, existing);
+    }
+  });
+
+  // Sort top-level by newest first, replies by oldest first (conversation order)
+  topLevel.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  childMap.forEach(replies => {
+    replies.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  });
+
+  return { topLevel, childMap };
+}
+
+// Flatten deep replies: collect all descendants beyond maxDepth into flat list
+function getNestedReplies(commentId: string, childMap: Map<string, Comment[]>, depth: number, maxDepth: number): Comment[] {
+  const direct = childMap.get(commentId) || [];
+  if (depth >= maxDepth) {
+    // Flatten all descendants
+    const flat: Comment[] = [];
+    const queue = [...direct];
+    while (queue.length > 0) {
+      const c = queue.shift()!;
+      flat.push(c);
+      const children = childMap.get(c.id) || [];
+      queue.push(...children);
+    }
+    return flat;
+  }
+  return direct;
+}
+
 export default function CommentSection({ eventId, threadId }: CommentSectionProps) {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [replyTo, setReplyTo] = useState<{ id: string; personaName: string } | null>(null);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loginRequiredForMore, setLoginRequiredForMore] = useState(false);
+  const [displayCount, setDisplayCount] = useState(COMMENTS_PER_PAGE);
 
-  // Check authentication status
   useEffect(() => {
-    const checkAuth = () => {
-      setIsLoggedIn(isAuthenticated());
-    };
-    
+    const checkAuth = () => setIsLoggedIn(isAuthenticated());
     checkAuth();
-    
-    // Check authentication status every 5 seconds
     const interval = setInterval(checkAuth, 5000);
-    
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch comments list
   const fetchComments = async () => {
     try {
-      const limit = isLoggedIn ? 50 : 20;
+      const limit = isLoggedIn ? 100 : 20;
       const endpoint = threadId
         ? `${API_BASE_URL}/api/comments/thread/${threadId}?limit=${limit}`
         : `${API_BASE_URL}/api/comments/event/${eventId}?limit=${limit}`;
       const response = await fetch(endpoint);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       setComments(data.items || []);
       setTotal(data.total || 0);
@@ -82,137 +119,117 @@ export default function CommentSection({ eventId, threadId }: CommentSectionProp
   };
 
   useEffect(() => {
-    if (eventId) {
-      fetchComments();
-    }
+    if (eventId) fetchComments();
   }, [eventId, isLoggedIn]);
 
-  // Handle successful comment submission
   const handleCommentSuccess = () => {
     fetchComments();
-    setReplyTo(null);
   };
 
-  // Handle reply
-  const handleReply = (commentId: string, personaName: string) => {
-    setReplyTo({ id: commentId, personaName });
-  };
-
-  // Cancel reply
-  const handleCancelReply = () => {
-    setReplyTo(null);
-  };
-
-  // Handle deletion (real-time update)
   const handleDelete = (commentId: string) => {
-    // Remove the comment from the list
     setComments(prev => prev.filter(c => c.id !== commentId));
   };
 
-  // Get top-level comments
-  const topLevelComments = comments.filter(c => !c.parent_id);
+  // Build comment tree
+  const { topLevel, childMap } = buildCommentTree(comments);
+  const commentById = new Map<string, Comment>();
+  comments.forEach(c => commentById.set(c.id, c));
 
-  // Get replies
-  const getReplies = (parentId: string) => {
-    return comments.filter(c => c.parent_id === parentId);
-  };
+  const visibleTopLevel = topLevel.slice(0, displayCount);
+  const hasMoreToShow = topLevel.length > displayCount;
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 p-6 md:p-8">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-stone-900 mb-2">
-          Comments ({total})
-        </h2>
-        <p className="text-stone-600 text-sm">
-          Share your perspective on this event
-        </p>
+    <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-stone-100 bg-stone-50/50">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-stone-900">
+            Discussion <span className="text-stone-400 font-normal text-sm">({total})</span>
+          </h2>
+        </div>
       </div>
 
-      {/* Comment form */}
-      <div className="mb-8">
+      <div className="px-6 py-4">
+        {/* Top-level comment form */}
         <CommentForm
           eventId={eventId}
           threadId={threadId}
           onSuccess={handleCommentSuccess}
-          parentId={replyTo?.id}
-          onCancel={replyTo ? handleCancelReply : undefined}
         />
-      </div>
 
-      {/* Comments list */}
-      {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map(i => (
-            <div key={i} className="animate-pulse flex space-x-4">
-              <div className="w-10 h-10 bg-stone-200 rounded-full"></div>
-              <div className="flex-1 space-y-2">
-                <div className="h-4 bg-stone-200 rounded w-1/4"></div>
-                <div className="h-4 bg-stone-200 rounded w-3/4"></div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : error ? (
-        <div className="text-center py-12">
-          <div className="text-4xl mb-4">😕</div>
-          <p className="text-stone-600">{error}</p>
-        </div>
-      ) : topLevelComments.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-4xl mb-4">💬</div>
-          <p className="text-stone-600 mb-2">No comments yet</p>
-          <p className="text-sm text-stone-500">Be the first to share your perspective!</p>
-        </div>
-      ) : (
-        <div>
-          <div className="space-y-6">
-            {topLevelComments.map(comment => (
-              <div key={comment.id}>
-                <CommentItem
-                  comment={comment}
-                  onReply={handleReply}
-                  onDelete={handleDelete}
-                  depth={0}
-                />
-                {/* Nested replies */}
-                {getReplies(comment.id).length > 0 && (
-                  <div className="ml-12 mt-4 space-y-4 border-l-2 border-stone-100 pl-6">
-                    {getReplies(comment.id).map(reply => (
-                      <CommentItem
-                        key={reply.id}
-                        comment={reply}
-                        onReply={handleReply}
-                        onDelete={handleDelete}
-                        depth={1}
-                      />
-                    ))}
-                  </div>
-                )}
+        {/* Divider */}
+        {topLevel.length > 0 && <div className="border-t border-stone-100 mt-4 mb-2"></div>}
+
+        {/* Comments */}
+        {isLoading ? (
+          <div className="space-y-4 py-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="animate-pulse flex space-x-3">
+                <div className="w-8 h-8 bg-stone-200 rounded-full flex-shrink-0"></div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-stone-200 rounded w-1/4"></div>
+                  <div className="h-3 bg-stone-200 rounded w-3/4"></div>
+                </div>
               </div>
             ))}
           </div>
-
-          {/* Not logged in + more comments available -> show login prompt */}
-          {!isLoggedIn && loginRequiredForMore && (
-            <LoginPrompt
-              total={total}
-              shown={comments.length}
-            />
-          )}
-
-          {/* Logged in + more available -> show load more */}
-          {isLoggedIn && hasMore && (
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => fetchComments()}
-                className="px-6 py-3 bg-stone-100 text-stone-700 rounded-full font-medium hover:bg-stone-200 transition-colors"
-              >
-                Load More ({total - comments.length} remaining)
-              </button>
+        ) : error ? (
+          <div className="text-center py-8">
+            <p className="text-stone-600 text-sm">{error}</p>
+            <button onClick={fetchComments} className="mt-2 text-sm text-blue-600 hover:underline">Try again</button>
+          </div>
+        ) : topLevel.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-stone-500 text-sm">No comments yet. Be the first to share your perspective!</p>
+          </div>
+        ) : (
+          <div>
+            <div className="divide-y divide-stone-50">
+              {visibleTopLevel.map(comment => (
+                <CommentItem
+                  key={comment.id}
+                  comment={comment}
+                  childMap={childMap}
+                  commentById={commentById}
+                  onCommentAdded={handleCommentSuccess}
+                  onDelete={handleDelete}
+                  depth={0}
+                  maxDepth={2}
+                  eventId={eventId}
+                  threadId={threadId}
+                />
+              ))}
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Load more comments */}
+            {hasMoreToShow && (
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => setDisplayCount(prev => prev + COMMENTS_PER_PAGE)}
+                  className="px-5 py-2 bg-stone-100 text-stone-600 rounded-full text-sm font-medium hover:bg-stone-200 transition-colors"
+                >
+                  Show more ({topLevel.length - displayCount} remaining)
+                </button>
+              </div>
+            )}
+
+            {!isLoggedIn && loginRequiredForMore && (
+              <LoginPrompt total={total} shown={comments.length} />
+            )}
+
+            {isLoggedIn && hasMore && (
+              <div className="mt-4 text-center">
+                <button
+                  onClick={fetchComments}
+                  className="px-5 py-2 bg-stone-100 text-stone-600 rounded-full text-sm font-medium hover:bg-stone-200 transition-colors"
+                >
+                  Load more from server ({total - comments.length} remaining)
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

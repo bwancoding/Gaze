@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { API_BASE_URL } from '../../../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface CandidateEvent {
   id: string;
@@ -23,7 +23,7 @@ interface TrendingEvent {
   summary: string;
   category: string;
   article_count: number;
-  hot_score: number;
+  heat_score: number;
   status: string;
   keywords: string[];
   created_at: string;
@@ -57,7 +57,7 @@ export default function CandidateReviewPage() {
   useEffect(() => {
     const storedAuth = localStorage.getItem('admin_auth');
     if (!storedAuth) {
-      router.push('/admin');
+      router.push('/ctrl-be5abcba');
       return;
     }
     fetchData();
@@ -154,7 +154,7 @@ export default function CandidateReviewPage() {
   };
 
   const handlePromote = async (trendingId: number) => {
-    if (!confirm('Promote this trending event to a candidate?')) return;
+    if (!confirm('Promote this news feed event to a candidate?')) return;
     setActionLoading(`promote-${trendingId}`);
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/trending/${trendingId}/promote`, {
@@ -174,7 +174,7 @@ export default function CandidateReviewPage() {
   };
 
   const handleRejectTrending = async (trendingId: number) => {
-    if (!confirm('Dismiss this trending event? It will be removed from review.')) return;
+    if (!confirm('Dismiss this news feed event? It will be removed from review.')) return;
     setActionLoading(`reject-${trendingId}`);
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/trending/${trendingId}/reject`, {
@@ -183,7 +183,7 @@ export default function CandidateReviewPage() {
       if (res.ok) {
         setTrendingEvents(prev => prev.filter(t => t.id !== trendingId));
         setSelectedTrending(prev => { const s = new Set(prev); s.delete(trendingId); return s; });
-        setSuccessMsg('Trending event dismissed');
+        setSuccessMsg('News feed event dismissed');
       } else {
         const data = await res.json();
         alert(data.detail || 'Failed to dismiss');
@@ -196,7 +196,7 @@ export default function CandidateReviewPage() {
 
   const handleBatchPromote = async () => {
     if (selectedTrending.size === 0) return;
-    if (!confirm(`Promote ${selectedTrending.size} trending events to candidates?`)) return;
+    if (!confirm(`Promote ${selectedTrending.size} news feed events to candidates?`)) return;
     setActionLoading('batch-promote');
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/trending/batch-promote`, {
@@ -343,7 +343,7 @@ export default function CandidateReviewPage() {
                 ) : '🚀 Run Pipeline'}
               </button>
               <button
-                onClick={() => router.push('/admin')}
+                onClick={() => router.push('/ctrl-be5abcba')}
                 className="text-stone-600 hover:text-stone-900 text-sm font-medium"
               >
                 ← Dashboard
@@ -383,7 +383,7 @@ export default function CandidateReviewPage() {
                 activeTab === 'trending' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              Trending ({trendingEvents.length})
+              News Feed ({trendingEvents.length})
             </button>
           </div>
 
@@ -434,7 +434,7 @@ export default function CandidateReviewPage() {
             {candidates.length === 0 ? (
               <div className="text-center py-20 bg-white rounded-xl border border-stone-200">
                 <p className="text-stone-500 text-lg mb-2">No candidates awaiting review</p>
-                <p className="text-stone-400 text-sm">Promote trending events or create events manually</p>
+                <p className="text-stone-400 text-sm">Promote news feed events or create events manually</p>
               </div>
             ) : (
               candidates.map((event) => (
@@ -461,7 +461,7 @@ export default function CandidateReviewPage() {
                         )}
                         {event.trending_origin_id && (
                           <span className="inline-block px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                            From Trending #{event.trending_origin_id}
+                            From Feed #{event.trending_origin_id}
                           </span>
                         )}
                       </div>
@@ -529,7 +529,7 @@ export default function CandidateReviewPage() {
 
             {trendingEvents.length === 0 ? (
               <div className="text-center py-20 bg-white rounded-xl border border-stone-200">
-                <p className="text-stone-500 text-lg mb-2">No pending trending events</p>
+                <p className="text-stone-500 text-lg mb-2">No pending news feed events</p>
                 <p className="text-stone-400 text-sm mb-4">Run the pipeline to discover new events</p>
                 <button onClick={handleRefreshPipeline} disabled={pipelineRunning}
                   className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50">
@@ -555,7 +555,7 @@ export default function CandidateReviewPage() {
                           #{index + 1}
                         </span>
                         <span className="inline-block px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
-                          {trending.hot_score?.toFixed(1) || '0'}°
+                          {trending.heat_score?.toFixed(1) || '0'}°
                         </span>
                         {trending.category && (
                           <span className="inline-block px-2.5 py-1 rounded-full text-xs font-medium bg-stone-100 text-stone-600">

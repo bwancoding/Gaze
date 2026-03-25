@@ -3,18 +3,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
+import { API_BASE_URL } from '../../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Event {
   id: string;
   title: string;
   summary?: string;
   category?: string;
-  sourceCount: number;
-  viewCount?: number;
-  hotScore?: number;
-  occurredAt?: string;
+  source_count: number;
+  view_count?: number;
+  hot_score?: number;
+  occurred_at?: string;
+  created_at?: string;
+  last_activity_at?: string;
 }
 
 const categoryStyles: Record<string, { gradient: string; bg: string; text: string; border: string; icon: string }> = {
@@ -22,6 +24,8 @@ const categoryStyles: Record<string, { gradient: string; bg: string; text: strin
   'Economy': { gradient: 'from-blue-500 to-indigo-600', bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: '📊' },
   'Technology': { gradient: 'from-violet-500 to-purple-600', bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200', icon: '💻' },
   'Politics': { gradient: 'from-amber-500 to-orange-600', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: '🏛️' },
+  'Geopolitics': { gradient: 'from-red-500 to-orange-600', bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: '🌐' },
+  'Society': { gradient: 'from-teal-500 to-cyan-600', bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200', icon: '👥' },
   'Health': { gradient: 'from-rose-500 to-pink-600', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200', icon: '🏥' },
   'Science': { gradient: 'from-cyan-500 to-sky-600', bg: 'bg-cyan-50', text: 'text-cyan-700', border: 'border-cyan-200', icon: '🔬' },
 };
@@ -33,7 +37,7 @@ const getStyle = (cat?: string) => (cat && categoryStyles[cat]) || defaultStyle;
 export default function StoriesPage() {
   const router = useRouter();
   const [events, setEvents] = useState<Event[]>([]);
-  const [sortBy, setSortBy] = useState('hot_score');
+  const [sortBy, setSortBy] = useState('last_activity');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -59,7 +63,7 @@ export default function StoriesPage() {
       setError(null);
       const params = new URLSearchParams({
         page: String(page),
-        page_size: '21',
+        page_size: '50',
         sort_by: sortBy,
       });
       if (selectedCategory) params.append('category', selectedCategory);
@@ -69,7 +73,7 @@ export default function StoriesPage() {
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
       setEvents(data.items || []);
-      setTotalPages(data.total_pages || 1);
+      setTotalPages(data.total_pages || Math.ceil((data.total || 0) / 50) || 1);
       setTotalCount(data.total || 0);
       if (data.category_counts) setCategoryCounts(data.category_counts);
     } catch (err) {
@@ -186,6 +190,7 @@ export default function StoriesPage() {
                 className="border border-stone-300 rounded-lg px-3 py-2 bg-white text-stone-700 text-sm focus:ring-2 focus:ring-stone-500 focus:border-transparent"
               >
                 <option value="hot_score">🔥 Hottest</option>
+                <option value="last_activity">⚡ Most Active</option>
                 <option value="view_count">👁 Most Viewed</option>
                 <option value="created_at">🕐 Latest</option>
               </select>
@@ -279,9 +284,9 @@ export default function StoriesPage() {
                     {featuredStory.summary}
                   </p>
                   <div className="flex items-center space-x-4 text-sm text-white/70">
-                    <span>{featuredStory.sourceCount} Sources</span>
-                    <span>{featuredStory.viewCount?.toLocaleString() || 0} Views</span>
-                    <span>{featuredStory.hotScore?.toFixed(1) || 0} Hot</span>
+                    <span>{featuredStory.source_count} Sources</span>
+                    <span>{(featuredStory.view_count || 0).toLocaleString()} Views</span>
+                    <span>🔥 {featuredStory.hot_score?.toFixed(1) || 0}</span>
                   </div>
                 </div>
               </article>
@@ -314,8 +319,8 @@ export default function StoriesPage() {
                           {event.summary}
                         </p>
                         <div className="flex items-center justify-between pt-3 border-t border-stone-100 text-xs text-stone-400">
-                          <span>{event.sourceCount} sources</span>
-                          <span>🔥 {event.hotScore?.toFixed(1) || 0}</span>
+                          <span>{event.source_count} sources</span>
+                          <span>🔥 {event.hot_score?.toFixed(1) || 0}</span>
                         </div>
                       </div>
                     </article>

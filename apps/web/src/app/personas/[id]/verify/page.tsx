@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { API_BASE_URL } from '../../../../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Persona {
   id: string;
@@ -40,6 +40,8 @@ export default function VerifyForEvent() {
   const [selectedEvent, setSelectedEvent] = useState('');
   const [selectedStakeholder, setSelectedStakeholder] = useState('');
   const [applicationText, setApplicationText] = useState('');
+  const [uploadedFiles, setUploadedFiles] = useState<{filename: string; original_name: string; url: string}[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -74,11 +76,8 @@ export default function VerifyForEvent() {
   const fetchData = async () => {
     try {
       const headers = getAuthHeaders();
-      console.log('[Verify Page] Fetching data...');
-      console.log('[Verify Page] Auth headers:', headers ? 'Has auth' : 'No auth');
-      
+
       if (!headers || Object.keys(headers).length === 0) {
-        console.error('[Verify Page] No authentication headers available');
         setError('Not authenticated. Please log in first.');
         return;
       }
@@ -90,33 +89,81 @@ export default function VerifyForEvent() {
         fetch(`${API_BASE_URL}/api/events?status=active&page_size=50`, { headers }).catch(() => null),
       ]);
 
-      console.log('[Verify Page] Responses:', {
-        personas: personasRes?.status,
-        stakeholders: stakeholdersRes?.status,
-        events: eventsRes?.status,
-      });
-
       if (personasRes?.ok) {
         const data = await personasRes.json();
         setPersonas(data.items || []);
-        console.log('[Verify Page] Loaded personas:', data.items.length);
       }
 
       if (stakeholdersRes?.ok) {
         const data = await stakeholdersRes.json();
         setStakeholders(data.items || []);
-        console.log('[Verify Page] Loaded stakeholders:', data.items.length);
       }
 
       if (eventsRes?.ok) {
         const data = await eventsRes.json();
         setEvents(data.items || []);
-        console.log('[Verify Page] Loaded events:', data.items.length);
       }
     } catch (err) {
-      console.error('[Verify Page] Failed to fetch data:', err);
       setError('Failed to load data. Please refresh the page.');
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+
+    for (let i = 0; i < files.length; i++) {
+      if (!allowedTypes.includes(files[i].type)) {
+        setError(`File "${files[i].name}" is not supported. Accepted: PDF, PNG, JPG`);
+        return;
+      }
+      if (files[i].size > maxSize) {
+        setError(`File "${files[i].name}" exceeds 10MB limit`);
+        return;
+      }
+    }
+
+    if (uploadedFiles.length + files.length > 5) {
+      setError('Maximum 5 files allowed');
+      return;
+    }
+
+    setIsUploading(true);
+    setError('');
+
+    try {
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+      }
+
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/api/personas/verify/upload`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setUploadedFiles(prev => [...prev, ...result.files]);
+      } else {
+        const result = await res.json();
+        setError(typeof result.detail === 'string' ? result.detail : 'Upload failed');
+      }
+    } catch {
+      setError('Failed to upload files');
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -151,14 +198,12 @@ export default function VerifyForEvent() {
           event_id: selectedEvent,
           stakeholder_id: selectedStakeholder,
           application_text: applicationText,
-          proof_type: 'self_declaration',
+          proof_type: uploadedFiles.length > 0 ? 'document' : 'self_declaration',
+          proof_files: uploadedFiles.map(f => f.url),
         }),
       });
 
       if (response.ok) {
-        const result = await response.json();
-        console.log('[Submit] Success:', result);
-        
         alert('Application submitted successfully! Your request will be reviewed by an admin.');
         router.replace('/personas');
       } else {
@@ -168,10 +213,8 @@ export default function VerifyForEvent() {
           ? result.detail 
           : JSON.stringify(result.detail);
         setError(errorMessage || 'Failed to submit application');
-        console.error('[Submit] Error:', errorMessage);
       }
     } catch (err) {
-      console.error('Submit error:', err);
       setError('Network error. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
@@ -338,6 +381,60 @@ export default function VerifyForEvent() {
               <p className="mt-2 text-xs text-stone-500">
                 Your application will be reviewed by an admin. Be honest and specific.
               </p>
+            </div>
+
+            {/* File Upload */}
+            <div className="bg-white rounded-xl border border-stone-200 p-6">
+              <label className="block text-sm font-medium text-stone-700 mb-2">
+                Supporting Documents (Optional)
+              </label>
+              <p className="text-xs text-stone-500 mb-3">
+                Upload proof files to strengthen your application. Accepted: PDF, PNG, JPG (max 10MB each, up to 5 files)
+              </p>
+
+              <div className="border-2 border-dashed border-stone-300 rounded-lg p-6 text-center hover:border-stone-400 transition-colors">
+                <input
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  multiple
+                  onChange={handleFileUpload}
+                  disabled={isUploading || uploadedFiles.length >= 5}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label htmlFor="file-upload" className={`cursor-pointer ${isUploading || uploadedFiles.length >= 5 ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  <div className="text-3xl mb-2">📎</div>
+                  <p className="text-sm text-stone-600">
+                    {isUploading ? 'Uploading...' : 'Click to upload files'}
+                  </p>
+                  <p className="text-xs text-stone-400 mt-1">
+                    {uploadedFiles.length}/5 files uploaded
+                  </p>
+                </label>
+              </div>
+
+              {/* Uploaded files list */}
+              {uploadedFiles.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {uploadedFiles.map((file, index) => (
+                    <div key={index} className="flex items-center justify-between bg-stone-50 rounded-lg px-4 py-2">
+                      <div className="flex items-center space-x-2 min-w-0">
+                        <span className="text-sm">
+                          {file.original_name?.endsWith('.pdf') ? '📄' : '🖼️'}
+                        </span>
+                        <span className="text-sm text-stone-700 truncate">{file.original_name}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="text-red-500 hover:text-red-700 text-sm ml-2 flex-shrink-0"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Error Message */}

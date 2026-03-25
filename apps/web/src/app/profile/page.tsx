@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import { isAuthenticated, fetchWithAuth, getAuthHeaders } from '../../lib/auth';
+import { API_BASE_URL } from '../../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Persona {
   id: string;
@@ -23,6 +23,8 @@ interface Verification {
   stakeholder_name: string;
   persona_name?: string;
   status: string;
+  review_notes?: string;
+  reviewed_at?: string;
   created_at: string;
 }
 
@@ -399,23 +401,38 @@ export default function ProfilePage() {
                 {verifications.length > 0 ? (
                   <div className="space-y-3">
                     {verifications.map(v => (
-                      <div key={v.id} className="border border-stone-200 rounded-lg p-3 flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-stone-900 text-sm">{v.event_title}</p>
-                          <p className="text-xs text-stone-600">As: {v.stakeholder_name}</p>
-                          <p className="text-xs text-stone-400">{formatDate(v.created_at)}</p>
+                      <div key={v.id} className="border border-stone-200 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-stone-900 text-sm">{v.event_title}</p>
+                            <p className="text-xs text-stone-600">As: {v.stakeholder_name}</p>
+                            <p className="text-xs text-stone-400">{formatDate(v.created_at)}</p>
+                          </div>
+                          <div className="flex flex-col items-end space-y-1">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              v.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
+                              v.status === 'rejected' || v.status === 'revoked' ? 'bg-red-100 text-red-700' :
+                              'bg-amber-100 text-amber-700'
+                            }`}>{v.status.charAt(0).toUpperCase() + v.status.slice(1)}</span>
+                            {v.status === 'pending' && (
+                              <button onClick={() => handleCancelApplication(v.id)}
+                                className="text-xs text-red-600 hover:underline">Cancel</button>
+                            )}
+                            {v.status === 'rejected' && (
+                              <button onClick={() => router.push(`/personas/${showVerifications}/verify?persona=${showVerifications}&event=${v.event_id}`)}
+                                className="text-xs text-blue-600 hover:underline">Re-apply</button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex flex-col items-end space-y-1">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            v.status === 'approved' ? 'bg-emerald-100 text-emerald-700' :
-                            v.status === 'rejected' || v.status === 'revoked' ? 'bg-red-100 text-red-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}>{v.status.charAt(0).toUpperCase() + v.status.slice(1)}</span>
-                          {v.status === 'pending' && (
-                            <button onClick={() => handleCancelApplication(v.id)}
-                              className="text-xs text-red-600 hover:underline">Cancel</button>
-                          )}
-                        </div>
+                        {v.review_notes && (
+                          <div className={`mt-2 p-2 rounded text-xs ${
+                            v.status === 'rejected' ? 'bg-red-50 text-red-700' :
+                            v.status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
+                            'bg-stone-50 text-stone-600'
+                          }`}>
+                            <span className="font-medium">Admin feedback: </span>{v.review_notes}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
