@@ -64,6 +64,45 @@ def job_clustering():
         db.close()
 
 
+def job_auto_archive():
+    """Scheduled task: Auto-archive stale/expired active events (every 1 hour)"""
+    from app.services.event_lifecycle import auto_archive_events
+    db = _get_db()
+    try:
+        logger.info("Scheduled: running auto-archive")
+        result = auto_archive_events(db)
+        logger.info(f"Scheduled: auto-archive complete - {result}")
+    except Exception as e:
+        logger.error(f"Scheduled: auto-archive error - {e}")
+    finally:
+        db.close()
+
+
+def job_cleanup_logs():
+    """Scheduled task: Prune old request_logs, page_views, and error_logs"""
+    db = _get_db()
+    try:
+        from datetime import datetime, timedelta
+        from sqlalchemy import text
+
+        cutoff_90 = datetime.utcnow() - timedelta(days=90)
+        cutoff_180 = datetime.utcnow() - timedelta(days=180)
+
+        r1 = db.execute(text("DELETE FROM request_logs WHERE timestamp < :cutoff"), {"cutoff": cutoff_90})
+        r2 = db.execute(text("DELETE FROM page_views WHERE timestamp < :cutoff"), {"cutoff": cutoff_90})
+        r3 = db.execute(text("DELETE FROM error_logs WHERE timestamp < :cutoff"), {"cutoff": cutoff_180})
+        db.commit()
+
+        total = (r1.rowcount or 0) + (r2.rowcount or 0) + (r3.rowcount or 0)
+        if total > 0:
+            logger.info(f"Scheduled: cleaned up {total} old log entries")
+    except Exception as e:
+        logger.error(f"Scheduled: log cleanup error - {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def init_scheduler():
     """Initialize and start the scheduler"""
     if scheduler.running:
@@ -96,8 +135,26 @@ def init_scheduler():
         replace_existing=True,
     )
 
+    # Every 1 hour: auto-archive stale/expired active events
+    scheduler.add_job(
+        job_auto_archive,
+        trigger=IntervalTrigger(hours=1),
+        id="auto_archive",
+        name="Auto-archive stale events",
+        replace_existing=True,
+    )
+
+    # Every 24 hours: clean up old logs (request_logs >90d, error_logs >180d)
+    scheduler.add_job(
+        job_cleanup_logs,
+        trigger=IntervalTrigger(hours=24),
+        id="log_cleanup",
+        name="Clean up old logs",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("Scheduler started with 3 jobs: fetch(4h), heat(1h), cluster(6h)")
+    logger.info("Scheduler started with 5 jobs: fetch(4h), heat(1h), cluster(6h), auto-archive(1h), log-cleanup(24h)")
 
 
 def shutdown_scheduler():
