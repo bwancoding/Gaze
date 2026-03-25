@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import Header from '../../components/Header';
+import { API_BASE_URL } from '../../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 type FeedbackType = 'bug' | 'feature' | 'content' | 'general';
 
@@ -124,7 +124,7 @@ export default function FeedbackPage() {
             {status === 'error' && (
               <div className="bg-red-900/30 border border-red-700 rounded-xl p-4 text-sm text-red-300">
                 Something went wrong. Please try again or email us directly at{' '}
-                <a href="mailto:barryinjapan@gmail.com" className="underline">barryinjapan@gmail.com</a>
+                <a href="mailto:support@wrhitw.com" className="underline">support@wrhitw.com</a>
               </div>
             )}
 
@@ -138,8 +138,8 @@ export default function FeedbackPage() {
 
             <p className="text-center text-xs text-stone-500">
               Or reach us directly at{' '}
-              <a href="mailto:barryinjapan@gmail.com" className="text-amber-500 hover:text-amber-400">
-                barryinjapan@gmail.com
+              <a href="mailto:support@wrhitw.com" className="text-amber-500 hover:text-amber-400">
+                support@wrhitw.com
               </a>
             </p>
           </form>

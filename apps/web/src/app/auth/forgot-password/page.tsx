@@ -85,10 +85,9 @@ export default function ForgotPasswordPage() {
                   <p>If an account exists for <strong>{email}</strong>, you will receive a password reset link.</p>
                 </div>
 
-                {resetToken && (
+                {resetToken && process.env.NODE_ENV === 'development' && (
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
-                    <p className="font-medium mb-2">MVP Mode: Direct Reset Link</p>
-                    <p className="mb-3 text-xs">In production, this link would be sent via email.</p>
+                    <p className="font-medium mb-2">Development: Direct Reset Link</p>
                     <a
                       href={`/auth/reset-password?token=${encodeURIComponent(resetToken)}`}
                       className="inline-block px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors"

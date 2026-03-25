@@ -4,8 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
 import { isAuthenticated, fetchWithAuth } from '../../lib/auth';
+import { API_BASE_URL } from '../../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface NotificationItem {
   id: number;

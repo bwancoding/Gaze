@@ -3,20 +3,20 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '../../../components/Header';
+import { API_BASE_URL } from '../../../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Event {
   id: string;
   title: string;
   summary?: string;
   category?: string;
-  sourceCount: number;
-  viewCount?: number;
-  hotScore?: number;
-  occurredAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  source_count: number;
+  view_count?: number;
+  hot_score?: number;
+  occurred_at?: string;
+  created_at?: string;
+  updated_at?: string;
   background?: string;
 }
 
@@ -198,9 +198,13 @@ export default function EventDetailPage() {
     if (eventId) {
       setIsLoading(true);
       setError(null);
-      Promise.all([fetchEvent(), fetchSources(), fetchAnalysis(), fetchThreads(), fetchStakeholders()])
+      // Load core data first (event, sources, threads, stakeholders)
+      // Analysis is loaded separately since it may auto-generate via AI and be slow
+      Promise.all([fetchEvent(), fetchSources(), fetchThreads(), fetchStakeholders()])
         .then(() => setIsLoading(false))
         .catch(() => { setIsLoading(false); setError('Failed to load event'); });
+      // Load analysis in background — don't block page render
+      fetchAnalysis();
     }
   }, [eventId]);
 
@@ -266,8 +270,8 @@ export default function EventDetailPage() {
               <div className="flex items-center space-x-3 mb-6">
                 <span className="inline-block bg-white/20 backdrop-blur-sm px-4 py-1.5 rounded-full text-sm font-medium text-white">{event.category}</span>
                 <div className="flex items-center space-x-4 text-white/80 text-sm">
-                  <span className="flex items-center space-x-1"><Icons.Eye /><span>{event.viewCount?.toLocaleString() || 0} Reads</span></span>
-                  <span className="flex items-center space-x-1"><Icons.Fire /><span>{event.hotScore?.toFixed(1) || 0}</span></span>
+                  <span className="flex items-center space-x-1"><Icons.Eye /><span>{event.view_count?.toLocaleString() || 0} Reads</span></span>
+                  <span className="flex items-center space-x-1"><Icons.Fire /><span>{event.hot_score?.toFixed(1) || 0}</span></span>
                   <span className="flex items-center space-x-1"><Icons.Newspaper /><span>{sources.length} Sources</span></span>
                 </div>
               </div>

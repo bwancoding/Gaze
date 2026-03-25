@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { API_BASE_URL } from '../../../lib/config';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface Verification {
   id: string;
@@ -14,6 +14,7 @@ interface Verification {
   stakeholder_name: string;
   application_text: string;
   proof_type: string;
+  proof_files: string[];
   status: string;
   created_at: string;
   review_notes: string;
@@ -50,7 +51,7 @@ export default function AdminVerifications() {
       setIsAuthenticated(true);
       fetchVerifications();
     } else {
-      router.push('/admin');
+      router.push('/ctrl-be5abcba');
     }
   }, []);
 
@@ -214,7 +215,7 @@ export default function AdminVerifications() {
           </form>
 
           <div className="mt-6 text-center text-xs text-stone-500">
-            <p>Default: admin / wrhitw_admin_2026</p>
+            <p>Admin access only</p>
           </div>
         </div>
       </div>
@@ -234,7 +235,7 @@ export default function AdminVerifications() {
             <div className="flex items-center space-x-4">
               <span className="text-sm text-stone-600">{username}</span>
               <button
-                onClick={() => router.push('/admin')}
+                onClick={() => router.push('/ctrl-be5abcba')}
                 className="text-stone-600 hover:text-stone-900 text-sm"
               >
                 Back to Dashboard
@@ -295,6 +296,26 @@ export default function AdminVerifications() {
                     <p className="text-xs font-medium text-stone-600 mb-1">Application:</p>
                     <p className="text-sm text-stone-700">{v.application_text}</p>
                   </div>
+
+                  {v.proof_files && v.proof_files.length > 0 && (
+                    <div className="bg-blue-50 rounded-lg p-3 mb-3">
+                      <p className="text-xs font-medium text-blue-700 mb-2">Uploaded Files:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {v.proof_files.map((url, i) => (
+                          <a
+                            key={i}
+                            href={`${API_BASE_URL}${url}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center space-x-1 bg-white border border-blue-200 rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50"
+                          >
+                            <span>{url.endsWith('.pdf') ? '📄' : '🖼️'}</span>
+                            <span>File {i + 1}</span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="flex items-center space-x-4 text-xs text-stone-500">
                     <span>Proof: {v.proof_type}</span>

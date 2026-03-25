@@ -32,7 +32,7 @@ export default function RegisterPage() {
 
     try {
       await register(email, password, displayName || undefined);
-      router.push('/');
+      router.push('/trending');
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
