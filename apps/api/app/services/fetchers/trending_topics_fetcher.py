@@ -43,7 +43,7 @@ class TrendingTopicsFetcher:
             connector = aiohttp.TCPConnector(ssl=False)
             self.session = aiohttp.ClientSession(
                 timeout=self.timeout,
-                headers={'User-Agent': 'WRHITW-Bot/1.0'},
+                headers={'User-Agent': 'Gaze-Bot/1.0'},
                 connector=connector,
             )
         return self.session

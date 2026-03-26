@@ -50,7 +50,7 @@ export default function FeedbackPage() {
             Share Your Thoughts
           </h1>
           <p className="text-stone-400">
-            Help us make WRHITW better. Every voice matters — just like in the stories we cover.
+            Help us make Gaze better. Every voice matters — just like in the stories we cover.
           </p>
         </div>
 

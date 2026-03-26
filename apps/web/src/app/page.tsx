@@ -111,7 +111,7 @@ export default function Home() {
           <div className="mx-auto px-[15%]">
             <div className="mx-auto text-center">
               <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-                <span className="text-white font-bold text-3xl">W</span>
+                <span className="text-white font-bold text-3xl">G</span>
               </div>
               <h3 className="text-3xl md:text-4xl font-bold mb-4">
                 What&apos;s Really Happening In The World
@@ -128,7 +128,7 @@ export default function Home() {
                   told by real people, from every corner of the earth.
                 </p>
                 <p className="text-stone-300 leading-relaxed text-lg">
-                  WRHITW exists to bring those voices together: to help humanity understand
+                  Gaze exists to bring those voices together: to help humanity understand
                   one another, engage in peaceful dialogue, and continue to grow as one family
                   under the vast sky we all share.
                 </p>
@@ -200,7 +200,7 @@ export default function Home() {
                 <h3 className="text-2xl md:text-3xl font-bold mb-4 text-center">Personas</h3>
                 <div className="bg-stone-700/50 rounded-xl border border-stone-600 p-6">
                   <p className="text-stone-300 leading-relaxed mb-4">
-                    On WRHITW, you participate through <strong className="text-stone-100">personas</strong> &mdash;
+                    On Gaze, you participate through <strong className="text-stone-100">personas</strong> &mdash;
                     identities that represent your background, expertise, or perspective.
                     A climate scientist, a local farmer, a policy analyst &mdash;
                     each persona brings unique context to discussions.
@@ -227,7 +227,7 @@ export default function Home() {
                   the same earth, and the same future.
                 </p>
                 <p className="text-stone-300 leading-relaxed mb-4">
-                  WRHITW is built on a simple conviction: that when people truly understand
+                  Gaze is built on a simple conviction: that when people truly understand
                   each other&apos;s experiences, peaceful dialogue becomes possible &mdash;
                   and with dialogue comes progress.
                 </p>
@@ -252,7 +252,7 @@ export default function Home() {
                   <Icons.BookOpen />
                 </div>
                 <div>
-                  <p className="font-semibold text-stone-100">WRHITW</p>
+                  <p className="font-semibold text-stone-100">Gaze</p>
                   <p className="text-xs text-stone-400">See the Full Story</p>
                 </div>
               </div>
@@ -265,7 +265,7 @@ export default function Home() {
             </div>
 
             <div className="mt-8 pt-8 border-t border-stone-700 text-center text-sm text-stone-500">
-              <p>&copy; 2026 WRHITW &middot; We Gaze Upon the Same Moon</p>
+              <p>&copy; 2026 Gaze &middot; We Gaze Upon the Same Moon</p>
             </div>
           </div>
         </footer>

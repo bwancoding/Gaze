@@ -52,7 +52,7 @@ class GoogleNewsFetcher:
             self.session = aiohttp.ClientSession(
                 timeout=self.timeout,
                 headers={
-                    'User-Agent': 'Mozilla/5.0 (compatible; WRHITW-Bot/1.0)',
+                    'User-Agent': 'Mozilla/5.0 (compatible; Gaze-Bot/1.0)',
                     'Accept': 'application/rss+xml, application/xml, text/xml',
                 },
                 connector=connector,

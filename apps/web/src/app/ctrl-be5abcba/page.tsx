@@ -287,7 +287,7 @@ export default function AdminDashboard() {
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
         <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-stone-900 mb-2">WRHITW Admin</h1>
+            <h1 className="text-2xl font-bold text-stone-900 mb-2">Gaze Admin</h1>
             <p className="text-stone-600">Sign in to manage events</p>
           </div>
 
@@ -348,7 +348,7 @@ export default function AdminDashboard() {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold text-stone-900">WRHITW Admin</h1>
+              <h1 className="text-xl font-bold text-stone-900">Gaze Admin</h1>
               <p className="text-xs text-stone-500">Event & Verification Management</p>
             </div>
             <div className="flex items-center space-x-3">

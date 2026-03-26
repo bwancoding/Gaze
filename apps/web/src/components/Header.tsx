@@ -11,7 +11,7 @@ interface HeaderProps {
   subtitle?: string;
 }
 
-export default function Header({ title = 'WRHITW', subtitle = "What's Really Happening In The World" }: HeaderProps) {
+export default function Header({ title = 'Gaze', subtitle = "What's Really Happening In The World" }: HeaderProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -85,7 +85,7 @@ export default function Header({ title = 'WRHITW', subtitle = "What's Really Hap
           {/* Logo */}
           <a href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
             <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">W</span>
+              <span className="text-white font-bold text-xl">G</span>
             </div>
             <div>
               <h1 className="text-xl font-bold text-neutral-900">{title}</h1>

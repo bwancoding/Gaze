@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Feedback | WRHITW',
-  description: 'Share your feedback and help us improve WRHITW. We value your input on our multi-perspective news platform.',
+  title: 'Feedback | Gaze',
+  description: 'Share your feedback and help us improve Gaze. We value your input on our multi-perspective news platform.',
   openGraph: {
-    title: 'Feedback | WRHITW',
-    description: 'Share your feedback and help us improve WRHITW.',
+    title: 'Feedback | Gaze',
+    description: 'Share your feedback and help us improve Gaze.',
   },
 };
 

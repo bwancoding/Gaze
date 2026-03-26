@@ -6,4 +6,4 @@ Disallow: /auth/
 Disallow: /profile/
 Disallow: /notifications/
 
-Sitemap: https://wrhitw.com/sitemap.xml
+Sitemap: https://gaze.com/sitemap.xml

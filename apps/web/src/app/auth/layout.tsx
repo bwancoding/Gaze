@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Sign In | WRHITW',
-  description: 'Sign in to WRHITW to join discussions, share perspectives, and engage with global news stories.',
+  title: 'Sign In | Gaze',
+  description: 'Sign in to Gaze to join discussions, share perspectives, and engage with global news stories.',
   robots: { index: false, follow: false },
 };
 

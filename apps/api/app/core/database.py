@@ -1,5 +1,5 @@
 """
-WRHITW Database Configuration
+Gaze Database Configuration
 Database connection configuration
 """
 

@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'My Personas | WRHITW',
-  description: 'Manage your discussion personas for engaging with news stories on WRHITW.',
+  title: 'My Personas | Gaze',
+  description: 'Manage your discussion personas for engaging with news stories on Gaze.',
   robots: { index: false, follow: false },
 };
 
