@@ -1,6 +1,6 @@
 """AI prompt templates for generating seed discussion content."""
 
-SEED_THREAD_PROMPT = """You are generating realistic discussion forum threads for a multi-perspective global news platform called WRHITW (What's Really Happening In The World). Given the event below, generate {thread_count} distinct discussion threads that real users would create.
+SEED_THREAD_PROMPT = """You are generating realistic discussion forum threads for a multi-perspective global news platform called Gaze. Given the event below, generate {thread_count} distinct discussion threads that real users would create.
 
 ## Event
 Title: {event_title}

@@ -22,28 +22,28 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: 'WRHITW - What\'s Really Happening In The World',
+    default: 'Gaze - What\'s Really Happening In The World',
     template: '%s',
   },
   description: 'Multi-perspective news aggregation platform. See every side of the story through diverse global voices.',
   keywords: ['news', 'global news', 'multi-perspective', 'world events', 'stakeholder analysis', 'news aggregation'],
-  authors: [{ name: 'WRHITW' }],
+  authors: [{ name: 'Gaze' }],
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'WRHITW',
+    title: 'Gaze',
   },
   openGraph: {
-    title: 'WRHITW - What\'s Really Happening In The World',
+    title: 'Gaze - What\'s Really Happening In The World',
     description: 'Multi-perspective news aggregation platform. See every side of the story through diverse global voices.',
     type: 'website',
-    siteName: 'WRHITW',
+    siteName: 'Gaze',
     locale: 'en_US',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'WRHITW - What\'s Really Happening In The World',
+    title: 'Gaze - What\'s Really Happening In The World',
     description: 'Multi-perspective news aggregation platform.',
   },
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://wrhitw.com'),

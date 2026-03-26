@@ -30,7 +30,7 @@ class HackerNewsFetcher:
             connector = aiohttp.TCPConnector(ssl=False)
             self.session = aiohttp.ClientSession(
                 timeout=self.timeout,
-                headers={'User-Agent': 'WRHITW-HN-Fetcher/1.0 (+https://wrhitw.com)'},
+                headers={'User-Agent': 'Gaze-HN-Fetcher/1.0 (+https://gaze.app)'},
                 connector=connector
             )
         return self.session

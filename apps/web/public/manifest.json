@@ -1,6 +1,6 @@
 {
-  "name": "WRHITW - What's Really Happening In The World",
-  "short_name": "WRHITW",
+  "name": "Gaze - What's Really Happening In The World",
+  "short_name": "Gaze",
   "description": "Multi-perspective news aggregation. See every side of the story.",
   "start_url": "/",
   "display": "standalone",

@@ -31,15 +31,15 @@ export async function generateMetadata({
 
   if (!event) {
     return {
-      title: 'Event Not Found | WRHITW',
+      title: 'Event Not Found | Gaze',
       description: 'This event could not be found.',
     };
   }
 
-  const title = `${event.title} | WRHITW`;
+  const title = `${event.title} | Gaze`;
   const description = event.summary
     ? event.summary.slice(0, 160)
-    : `View "${event.title}" from multiple perspectives on WRHITW.`;
+    : `View "${event.title}" from multiple perspectives on Gaze.`;
 
   return {
     title,
@@ -48,7 +48,7 @@ export async function generateMetadata({
       title: event.title,
       description,
       type: 'article',
-      siteName: 'WRHITW',
+      siteName: 'Gaze',
       ...(event.category && { tags: [event.category] }),
     },
     twitter: {

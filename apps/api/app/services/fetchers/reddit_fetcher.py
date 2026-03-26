@@ -36,7 +36,7 @@ class RedditFetcher:
             connector = aiohttp.TCPConnector(ssl=False)
             self.session = aiohttp.ClientSession(
                 timeout=self.timeout,
-                headers={'User-Agent': 'WRHITW-Reddit-Fetcher/1.0 (by /u/wrhitw_bot)'},
+                headers={'User-Agent': 'Gaze-Reddit-Fetcher/1.0 (by /u/gaze_bot)'},
                 connector=connector
             )
         return self.session

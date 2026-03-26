@@ -1,5 +1,5 @@
 """
-WRHITW AI Prompt Templates
+Gaze AI Prompt Templates
 Multi-perspective news summary generation system
 """
 
@@ -21,7 +21,7 @@ class PromptTemplate:
 class MultiPerspectiveSummaryPrompt(PromptTemplate):
     """Multi-perspective summary prompt with clear dimension-based differentiation"""
 
-    TEMPLATE = """You are a senior news analyst for WRHITW, a multi-perspective news platform. Your job is to produce three distinct perspective summaries from the source articles below.
+    TEMPLATE = """You are a senior news analyst for Gaze, a multi-perspective news platform. Your job is to produce three distinct perspective summaries from the source articles below.
 
 ## Perspective Definitions
 
@@ -157,7 +157,7 @@ Bias scale: -1.0 (strong left) to +1.0 (strong right), 0.0 = center."""
 class StakeholderAnalysisPrompt(PromptTemplate):
     """Stakeholder-based deep analysis prompt — replaces left/center/right with dynamic stakeholders"""
 
-    TEMPLATE = """You are a senior geopolitical and socio-economic analyst for WRHITW, a multi-stakeholder news platform. Your job is to produce a comprehensive deep analysis of an event from MULTIPLE stakeholder perspectives.
+    TEMPLATE = """You are a senior geopolitical and socio-economic analyst for Gaze, a multi-stakeholder news platform. Your job is to produce a comprehensive deep analysis of an event from MULTIPLE stakeholder perspectives.
 
 ## Source Articles
 

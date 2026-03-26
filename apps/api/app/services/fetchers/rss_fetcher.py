@@ -24,7 +24,7 @@ class RSSFetcher:
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession(
                 timeout=self.timeout,
-                headers={'User-Agent': 'WRHITW-RSS-Fetcher/1.0 (+https://wrhitw.com)'}
+                headers={'User-Agent': 'Gaze-RSS-Fetcher/1.0 (+https://gaze.app)'}
             )
         return self.session
 

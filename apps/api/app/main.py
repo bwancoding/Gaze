@@ -67,14 +67,14 @@ async def lifespan(app: FastAPI):
     """Application lifespan: start scheduler on startup, cleanup on shutdown"""
     from app.services.scheduler import init_scheduler, shutdown_scheduler
     init_scheduler()
-    logger.info("WRHITW API started with scheduler")
+    logger.info("Gaze API started with scheduler")
     yield
     shutdown_scheduler()
-    logger.info("WRHITW API shut down")
+    logger.info("Gaze API shut down")
 
 
 app = FastAPI(
-    title="WRHITW API",
+    title="Gaze API",
     description="Multi-perspective News Aggregation Platform API",
     version="0.2.0",
     lifespan=lifespan,
@@ -169,7 +169,7 @@ if _sentry_dsn:
 @app.get("/")
 async def root():
     return {
-        "message": "WRHITW API",
+        "message": "Gaze API",
         "version": "0.2.0",
         "status": "running",
         "docs": "/docs"

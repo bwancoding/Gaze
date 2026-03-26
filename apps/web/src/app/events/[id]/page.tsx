@@ -656,7 +656,7 @@ export default function EventDetailPage() {
 
         <footer className="bg-stone-100 border-t border-stone-200 py-12">
           <div className="container mx-auto px-6 text-center text-sm text-stone-500">
-            <p>&copy; 2026 WRHITW &middot; See Every Perspective</p>
+            <p>&copy; 2026 Gaze &middot; See Every Perspective</p>
           </div>
         </footer>
       </main>

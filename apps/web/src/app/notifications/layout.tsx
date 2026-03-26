@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Notifications | WRHITW',
+  title: 'Notifications | Gaze',
   description: 'View your notifications and stay updated on discussions you follow.',
   robots: { index: false, follow: false },
 };
