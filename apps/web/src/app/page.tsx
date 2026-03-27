@@ -3,6 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../components/Header';
+import { isAuthenticated } from '../lib/auth';
 
 // Icons
 const Icons = {
@@ -85,21 +86,23 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap justify-center gap-4">
+                  <div className="flex justify-center gap-4">
                     <button
                       onClick={() => router.push('/trending')}
-                      className="inline-flex items-center space-x-2 bg-amber-500 text-stone-900 px-7 py-3 rounded-full font-semibold hover:bg-amber-400 transition-colors shadow-lg hover:shadow-xl text-sm"
+                      className="inline-flex items-center space-x-2 bg-amber-500 text-stone-900 px-8 py-3 rounded-full font-semibold hover:bg-amber-400 transition-colors shadow-lg hover:shadow-xl text-sm"
                     >
                       <span>Explore Trending</span>
                       <Icons.ArrowRight />
                     </button>
-                    <button
-                      onClick={() => router.push('/auth/login')}
-                      className="inline-flex items-center space-x-2 bg-white/10 text-white px-7 py-3 rounded-full font-semibold hover:bg-white/20 transition-colors backdrop-blur-sm border border-white/30 text-sm"
-                    >
-                      <span>Join to Communicate</span>
-                      <Icons.ArrowRight />
-                    </button>
+                    {!isAuthenticated() && (
+                      <button
+                        onClick={() => router.push('/auth/login')}
+                        className="inline-flex items-center space-x-2 bg-white/10 text-white px-7 py-3 rounded-full font-semibold hover:bg-white/20 transition-colors backdrop-blur-sm border border-white/30 text-sm"
+                      >
+                        <span>Join to Communicate</span>
+                        <Icons.ArrowRight />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
