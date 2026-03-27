@@ -22,6 +22,11 @@ ArrowRight: () => (
 
 export default function Home() {
   const router = useRouter();
+  const [loggedIn, setLoggedIn] = React.useState(false);
+
+  React.useEffect(() => {
+    setLoggedIn(isAuthenticated());
+  }, []);
 
   return (
     <div className="min-h-screen bg-stone-900">
@@ -94,7 +99,7 @@ export default function Home() {
                       <span>Explore Trending</span>
                       <Icons.ArrowRight />
                     </button>
-                    {!isAuthenticated() && (
+                    {!loggedIn && (
                       <button
                         onClick={() => router.push('/auth/login')}
                         className="inline-flex items-center space-x-2 bg-white/10 text-white px-7 py-3 rounded-full font-semibold hover:bg-white/20 transition-colors backdrop-blur-sm border border-white/30 text-sm"
