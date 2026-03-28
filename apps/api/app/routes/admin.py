@@ -322,18 +322,28 @@ async def admin_generate_analysis(
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
-    """Trigger AI analysis generation for an event (admin)."""
+    """Trigger AI analysis generation for an event (admin). Runs in background."""
+    import asyncio
     from app.services.event_analysis_service import generate_event_analysis
+    from app.core.database import SessionLocal
 
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    try:
-        result = await generate_event_analysis(db, event_id, force=True)
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    async def _run_analysis():
+        analysis_db = SessionLocal()
+        try:
+            await generate_event_analysis(analysis_db, event_id, force=True)
+            logger.info(f"AI analysis completed for event {event_id}")
+        except Exception as e:
+            import traceback
+            logger.error(f"AI analysis failed for event {event_id}: {e}\n{traceback.format_exc()}")
+        finally:
+            analysis_db.close()
+
+    asyncio.create_task(_run_analysis())
+    return {"message": "Analysis generation started in background", "event_id": event_id}
 
 
 @router.post("/trending/{trending_id}/promote")

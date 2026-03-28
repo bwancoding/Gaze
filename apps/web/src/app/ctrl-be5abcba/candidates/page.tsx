@@ -142,9 +142,8 @@ export default function CandidateReviewPage() {
         method: 'POST', headers: getAuthHeaders(),
       });
       if (res.ok) {
-        const data = await res.json();
-        setSuccessMsg(`Analysis generated! Quality: ${data.quality_score || 'N/A'}`);
-        fetchData();
+        setSuccessMsg('Analysis generation started. It may take 1-2 minutes to complete.');
+        setTimeout(() => fetchData(), 60000);
       } else {
         const data = await res.json();
         alert(data.detail || 'Failed to generate analysis');
