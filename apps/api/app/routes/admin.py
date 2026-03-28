@@ -361,7 +361,7 @@ async def admin_promote_trending(
         source_count=trending.article_count,
         hot_score=trending.heat_score or 0,
         trending_origin_id=trending.id,
-        tags=json.dumps(trending.keywords) if trending.keywords else None,
+        tags=trending.keywords if isinstance(trending.keywords, list) else None,
     )
     db.add(event)
 
@@ -380,7 +380,8 @@ async def admin_promote_trending(
                 await generate_event_analysis(analysis_db, str(event.id), force=True)
                 logger.info(f"AI analysis completed for event {event.id}")
             except Exception as e:
-                logger.warning(f"AI analysis failed for event {event.id}: {e}")
+                import traceback
+                logger.error(f"AI analysis failed for event {event.id}: {e}\n{traceback.format_exc()}")
             finally:
                 analysis_db.close()
         asyncio.create_task(_run_analysis())
@@ -443,7 +444,7 @@ async def admin_batch_promote(
             source_count=trending.article_count,
             hot_score=trending.heat_score or 0,
             trending_origin_id=trending.id,
-            tags=json.dumps(trending.keywords) if trending.keywords else None,
+            tags=trending.keywords if isinstance(trending.keywords, list) else None,
         )
         db.add(event)
         db.flush()  # Get event.id
@@ -464,7 +465,8 @@ async def admin_batch_promote(
                     await generate_event_analysis(analysis_db, item["event_id"], force=True)
                     logger.info(f"AI analysis completed for event {item['event_id']}")
                 except Exception as e:
-                    logger.warning(f"AI analysis failed for event {item['event_id']}: {e}")
+                    import traceback as _tb
+                    logger.error(f"AI analysis failed for event {item['event_id']}: {e}\n{_tb.format_exc()}")
                 finally:
                     analysis_db.close()
         asyncio.create_task(_run_batch_analysis())

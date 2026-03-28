@@ -217,8 +217,13 @@ async def generate_event_analysis(
     event.stakeholder_perspectives = stakeholder_perspectives
     event.source_article_count = len(articles)
 
-    db.commit()
-    db.refresh(analysis)
+    try:
+        db.commit()
+        db.refresh(analysis)
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Failed to commit analysis for event {event_id}: {e}")
+        raise
 
     logger.info(f"Stakeholder analysis cached for event {event_id}, {len(stakeholder_perspectives)} stakeholders identified")
 
