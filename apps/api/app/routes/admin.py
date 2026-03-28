@@ -532,18 +532,24 @@ async def admin_trigger_pipeline(
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
-    """Manually trigger the full news pipeline (fetch → dedup → cluster → heat → trim)."""
+    """Manually trigger the full news pipeline (fetch → dedup → cluster → heat → trim). Runs in background."""
     from app.services.news_aggregator import run_full_pipeline
+    from app.core.database import SessionLocal
     import asyncio
-    try:
-        # run_full_pipeline uses asyncio.run() internally, which conflicts with
-        # the already-running event loop in FastAPI. Run it in a thread instead.
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(None, run_full_pipeline, db)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        logger.exception("Pipeline failed")
-        raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(e)}")
+
+    async def _run_pipeline():
+        pipeline_db = SessionLocal()
+        try:
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, run_full_pipeline, pipeline_db)
+            logger.info(f"Pipeline complete: {result}")
+        except Exception as e:
+            logger.exception("Pipeline failed")
+        finally:
+            pipeline_db.close()
+
+    asyncio.create_task(_run_pipeline())
+    return {"status": "started", "message": "Pipeline running in background. This may take several minutes."}
 
 
 @router.post("/pipeline/heat-recalculate")
@@ -618,14 +624,23 @@ async def admin_seed_all_interactions(
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
-    """Seed fake interactions (threads, comments, votes) for all active events."""
+    """Seed fake interactions (threads, comments, votes) for all active events. Runs in background."""
+    import asyncio
     from app.services.seed_interactions import seed_all_active_events
-    try:
-        result = await seed_all_active_events(db, force=force)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        logger.exception("Seed interactions failed")
-        raise HTTPException(status_code=500, detail=f"Seed failed: {str(e)}")
+    from app.core.database import SessionLocal
+
+    async def _run_seed():
+        seed_db = SessionLocal()
+        try:
+            result = await seed_all_active_events(seed_db, force=force)
+            logger.info(f"Seed interactions complete: {result}")
+        except Exception as e:
+            logger.exception("Seed interactions failed")
+        finally:
+            seed_db.close()
+
+    asyncio.create_task(_run_seed())
+    return {"status": "started", "message": "Seeding interactions in background. This may take a few minutes."}
 
 
 @router.post("/events/{event_id}/seed-interactions")
@@ -635,17 +650,27 @@ async def admin_seed_event_interactions(
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
-    """Seed fake interactions for a specific event."""
+    """Seed fake interactions for a specific event. Runs in background."""
+    import asyncio
     from app.services.seed_interactions import seed_event_interactions
+    from app.core.database import SessionLocal
+
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    try:
-        result = await seed_event_interactions(db, event_id, force=force)
-        return {"status": "success", "result": result}
-    except Exception as e:
-        logger.exception(f"Seed failed for event {event_id}")
-        raise HTTPException(status_code=500, detail=f"Seed failed: {str(e)}")
+
+    async def _run_seed():
+        seed_db = SessionLocal()
+        try:
+            result = await seed_event_interactions(seed_db, event_id, force=force)
+            logger.info(f"Seed interactions for event {event_id} complete: {result}")
+        except Exception as e:
+            logger.exception(f"Seed failed for event {event_id}")
+        finally:
+            seed_db.close()
+
+    asyncio.create_task(_run_seed())
+    return {"status": "started", "message": f"Seeding interactions for event {event_id} in background."}
 
 
 @router.delete("/seed-interactions")
