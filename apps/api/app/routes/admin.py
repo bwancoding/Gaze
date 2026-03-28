@@ -725,19 +725,25 @@ async def admin_analytics(
     )
 
     # ── Engagement ──
-    total_threads = query_one("SELECT COUNT(*) FROM threads WHERE is_deleted = 0")
-    new_threads = query_one("SELECT COUNT(*) FROM threads WHERE created_at >= :start AND is_deleted = 0")
-    total_comments = query_one("SELECT COUNT(*) FROM comments WHERE is_deleted = 0")
-    new_comments = query_one("SELECT COUNT(*) FROM comments WHERE created_at >= :start AND is_deleted = 0")
-    new_likes = query_one("SELECT COUNT(*) FROM user_likes WHERE created_at >= :start")
-    threads_by_day = query_all(
-        "SELECT DATE(created_at) as date, COUNT(*) as count FROM threads "
-        "WHERE created_at >= :start AND is_deleted = 0 GROUP BY DATE(created_at) ORDER BY date"
-    )
-    comments_by_day = query_all(
-        "SELECT DATE(created_at) as date, COUNT(*) as count FROM comments "
-        "WHERE created_at >= :start AND is_deleted = 0 GROUP BY DATE(created_at) ORDER BY date"
-    )
+    total_threads = new_threads = total_comments = new_comments = new_likes = 0
+    threads_by_day = []
+    comments_by_day = []
+    try:
+        total_threads = query_one("SELECT COUNT(*) FROM threads WHERE is_deleted = false")
+        new_threads = query_one("SELECT COUNT(*) FROM threads WHERE created_at >= :start AND is_deleted = false")
+        total_comments = query_one("SELECT COUNT(*) FROM comments WHERE is_deleted = false")
+        new_comments = query_one("SELECT COUNT(*) FROM comments WHERE created_at >= :start AND is_deleted = false")
+        new_likes = query_one("SELECT COUNT(*) FROM user_likes WHERE created_at >= :start")
+        threads_by_day = query_all(
+            "SELECT DATE(created_at) as date, COUNT(*) as count FROM threads "
+            "WHERE created_at >= :start AND is_deleted = false GROUP BY DATE(created_at) ORDER BY date"
+        )
+        comments_by_day = query_all(
+            "SELECT DATE(created_at) as date, COUNT(*) as count FROM comments "
+            "WHERE created_at >= :start AND is_deleted = false GROUP BY DATE(created_at) ORDER BY date"
+        )
+    except Exception as e:
+        logger.debug(f"Engagement analytics query error: {e}")
 
     # ── Content ──
     total_active_events = query_one("SELECT COUNT(*) FROM events WHERE status = 'active'")
@@ -745,16 +751,23 @@ async def admin_analytics(
         "SELECT category, COUNT(*) as count FROM events WHERE status = 'active' "
         "GROUP BY category ORDER BY count DESC"
     )
-    most_viewed_events = query_all(
-        "SELECT e.id, e.title, e.view_count, "
-        "  (SELECT COUNT(*) FROM comments c WHERE c.event_id = e.id AND c.is_deleted = 0) as comment_count "
-        "FROM events e WHERE e.status = 'active' ORDER BY e.view_count DESC LIMIT 10"
-    )
-    most_discussed_events = query_all(
-        "SELECT e.id, e.title, e.view_count, "
-        "  (SELECT COUNT(*) FROM comments c WHERE c.event_id = e.id AND c.is_deleted = 0) as comment_count "
-        "FROM events e WHERE e.status = 'active' ORDER BY comment_count DESC LIMIT 10"
-    )
+    try:
+        most_viewed_events = query_all(
+            "SELECT e.id, e.title, e.view_count, "
+            "  (SELECT COUNT(*) FROM comments c WHERE c.event_id = e.id AND c.is_deleted = false) as comment_count "
+            "FROM events e WHERE e.status = 'active' ORDER BY e.view_count DESC LIMIT 10"
+        )
+        most_discussed_events = query_all(
+            "SELECT e.id, e.title, e.view_count, "
+            "  (SELECT COUNT(*) FROM comments c WHERE c.event_id = e.id AND c.is_deleted = false) as comment_count "
+            "FROM events e WHERE e.status = 'active' ORDER BY comment_count DESC LIMIT 10"
+        )
+    except Exception:
+        most_viewed_events = query_all(
+            "SELECT id, title, view_count, 0 as comment_count "
+            "FROM events WHERE status = 'active' ORDER BY view_count DESC LIMIT 10"
+        )
+        most_discussed_events = most_viewed_events
 
     # ── Traffic (from request_logs) ──
     traffic = {"total_requests": 0, "unique_ips": 0, "requests_by_day": [],
@@ -771,7 +784,7 @@ async def admin_analytics(
             "WHERE timestamp >= :start GROUP BY DATE(timestamp) ORDER BY date"
         )
         traffic["slow_requests"] = query_one(
-            "SELECT COUNT(*) FROM request_logs WHERE timestamp >= :start AND is_slow = 1"
+            "SELECT COUNT(*) FROM request_logs WHERE timestamp >= :start AND is_slow = true"
         )
         traffic["error_count"] = query_one(
             "SELECT COUNT(*) FROM request_logs WHERE timestamp >= :start AND status_code >= 500"
