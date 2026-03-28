@@ -52,11 +52,11 @@ def job_update_heat():
 
 def job_clustering():
     """Scheduled task: Incremental clustering + trim (every 6 hours)"""
-    from app.services.news_aggregator import run_clustering
+    from app.services.event_clusterer import cluster_new_articles
     db = _get_db()
     try:
         logger.info("Scheduled: running clustering")
-        result = run_clustering(db)
+        result = cluster_new_articles(db)
         logger.info(f"Scheduled: clustering complete - {result}")
     except Exception as e:
         logger.error(f"Scheduled: clustering error - {e}")

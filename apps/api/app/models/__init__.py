@@ -60,7 +60,7 @@ class Event(Base):
     updated_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now())
     archived_at = Column(TIMESTAMP(timezone=True))
     closed_at = Column(TIMESTAMP(timezone=True))
-    hot_score = Column(DECIMAL(5, 2), default=0)
+    hot_score = Column(DECIMAL(10, 2), default=0)
     view_count = Column(Integer, default=0)
     bookmark_count = Column(Integer, default=0)
     status = Column(String(20), default='active', index=True)  # candidate, active(published), archived, closed

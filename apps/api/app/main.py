@@ -56,6 +56,14 @@ def _run_migrations():
             """))
             conn.commit()
 
+            # Widen hot_score from DECIMAL(5,2) to DECIMAL(10,2) for scores > 999
+            try:
+                conn.execute(text("ALTER TABLE events ALTER COLUMN hot_score TYPE DECIMAL(10,2)"))
+                conn.commit()
+                logger.info("Migration: widened hot_score to DECIMAL(10,2)")
+            except Exception:
+                conn.rollback()  # Already the right type or SQLite
+
 try:
     _run_migrations()
 except Exception as e:
