@@ -491,9 +491,7 @@ export default function AdminDashboard() {
                     method: 'POST', headers: getAuthHeaders(),
                   });
                   if (res.ok) {
-                    const data = await res.json();
-                    const r = data.result || {};
-                    alert(`Seeded ${r.seeded || 0} events, skipped ${r.skipped || 0}, errors ${r.errors || 0}`);
+                    alert('Seeding started in background. It may take a few minutes. Refresh the page later to see results.');
                   } else {
                     const data = await res.json();
                     alert(data.detail || 'Seed failed');
