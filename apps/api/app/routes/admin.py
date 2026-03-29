@@ -888,3 +888,73 @@ async def admin_analytics(
         "page_views": page_views,
         "recent_errors": recent_errors,
     }
+
+
+@router.post("/data-cleanup")
+async def admin_data_cleanup(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """One-time data cleanup: fix tags, remove duplicates, fix categories, remove non-news."""
+    import json
+    results = {"tags_fixed": 0, "duplicates_removed": 0, "non_news_removed": 0, "categories_fixed": 0}
+
+    # 1. Fix broken tags (single-character arrays from json.dumps double-encoding)
+    events = db.query(Event).all()
+    for event in events:
+        if event.tags and len(event.tags) > 5:
+            # Check if tags look like exploded characters from a JSON string
+            sample = ''.join(event.tags[:20])
+            if sample.startswith('["') or sample.startswith("[\""):
+                try:
+                    # Reconstruct the original JSON string and parse it
+                    original = ''.join(event.tags)
+                    parsed = json.loads(original)
+                    if isinstance(parsed, list) and all(isinstance(t, str) for t in parsed):
+                        event.tags = parsed
+                        results["tags_fixed"] += 1
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+    # 2. Remove duplicate events (same title, keep the one with more views/comments)
+    from collections import defaultdict
+    title_groups = defaultdict(list)
+    active_events = db.query(Event).filter(Event.status.in_(['active', 'candidate'])).all()
+    for event in active_events:
+        title_groups[event.title.strip().lower()].append(event)
+
+    for title, group in title_groups.items():
+        if len(group) > 1:
+            # Keep the one with most views, then most recent
+            group.sort(key=lambda e: (e.view_count or 0, e.created_at or datetime.min), reverse=True)
+            for dup in group[1:]:
+                dup.status = 'dismissed'
+                results["duplicates_removed"] += 1
+                logger.info(f"Dismissed duplicate: '{dup.title[:50]}'")
+
+    # 3. Remove non-news content
+    non_news_patterns = [
+        'deploytarot', 'meow.camera', 'show hn:', 'ask hn:',
+        'launch hn:', 'tell hn:',
+    ]
+    for event in active_events:
+        title_lower = event.title.strip().lower()
+        if any(pattern in title_lower for pattern in non_news_patterns):
+            event.status = 'dismissed'
+            results["non_news_removed"] += 1
+            logger.info(f"Dismissed non-news: '{event.title[:50]}'")
+
+    # 4. Fix category misclassifications
+    category_fixes = {
+        "Apple discontinues the Mac Pro": "Technology",
+        "DOJ confirms FBI Director Kash Patel's personal email was hacked": "Geopolitics",
+    }
+    for event in active_events:
+        if event.title in category_fixes and event.category != category_fixes[event.title]:
+            old_cat = event.category
+            event.category = category_fixes[event.title]
+            results["categories_fixed"] += 1
+            logger.info(f"Fixed category: '{event.title[:50]}' {old_cat} -> {event.category}")
+
+    db.commit()
+    return {"status": "success", "results": results}
