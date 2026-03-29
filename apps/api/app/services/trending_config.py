@@ -62,7 +62,7 @@ RSS_MAX_ARTICLES_PER_FEED: int = int(os.getenv("RSS_MAX_ARTICLES_PER_FEED", "100
 RSS_SOURCES: List[Dict] = [
     # P0 priority - authoritative media
     {"id": 1, "name": "Reuters", "stance": "center", "region": "international",
-     "url": "https://www.reutersagency.com/feed/", "priority": "P0", "enabled": True},
+     "url": "https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com&ceid=US:en&hl=en-US&gl=US", "priority": "P0", "enabled": True},
     {"id": 2, "name": "Associated Press", "stance": "center", "region": "international",
      "url": "https://apnews.com/apf-topnews", "priority": "P0", "enabled": True},
     {"id": 3, "name": "BBC News", "stance": "center-left", "region": "uk",
@@ -97,7 +97,7 @@ RSS_SOURCES: List[Dict] = [
     {"id": 16, "name": "BBC World", "stance": "center-left", "region": "uk",
      "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "priority": "P0", "enabled": True},
     {"id": 17, "name": "Reuters World", "stance": "center", "region": "international",
-     "url": "https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best", "priority": "P0", "enabled": True},
+     "url": "https://news.google.com/rss/search?q=when:24h+allinurl:reuters.com+world&ceid=US:en&hl=en-US&gl=US", "priority": "P0", "enabled": True},
     {"id": 18, "name": "Guardian World", "stance": "left", "region": "uk",
      "url": "https://www.theguardian.com/world/rss", "priority": "P1", "enabled": True},
     {"id": 19, "name": "CNN World", "stance": "left", "region": "us",

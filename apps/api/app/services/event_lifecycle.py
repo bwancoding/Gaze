@@ -9,7 +9,7 @@ Handles auto-archiving of active events based on:
 Also provides helper to update last_activity_at on relevant actions.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func as sa_func
 
@@ -28,7 +28,7 @@ def auto_archive_events(db: Session) -> dict:
     Run auto-archive logic on all active events.
     Returns summary of actions taken.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     archived_inactivity = 0
     archived_expired = 0
     archived_overflow = 0
@@ -107,5 +107,5 @@ def touch_event_activity(db: Session, event_id: str):
     """
     event = db.query(Event).filter(Event.id == event_id).first()
     if event and event.status == 'active':
-        event.last_activity_at = datetime.utcnow()
+        event.last_activity_at = datetime.now(timezone.utc)
         # Don't commit here — caller is responsible for committing
