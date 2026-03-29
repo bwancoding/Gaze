@@ -123,6 +123,17 @@ class TrendingTopicsFetcher:
                         if score < 50:
                             continue
 
+                        # Filter out non-news HN posts (Show HN, personal projects, etc.)
+                        hn_title = item.get('title', '')
+                        hn_title_lower = hn_title.lower()
+                        if any(prefix in hn_title_lower for prefix in [
+                            'show hn:', 'ask hn:', 'launch hn:', 'tell hn:',
+                        ]):
+                            continue
+                        # Skip entries that look like domain names / product launches
+                        if hn_title.endswith('.com') or hn_title.endswith('.io') or hn_title.endswith('.camera'):
+                            continue
+
                         topics.append({
                             'title': item.get('title', ''),
                             'source': 'Hacker News',
