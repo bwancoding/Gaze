@@ -185,11 +185,17 @@ class EventClusterer:
             return True, None, best_similarity
         return False, best_event, best_similarity
 
-    def classify_category(self, text: str) -> Optional[str]:
+    def classify_category(self, text: str, title: str = "") -> Optional[str]:
         text_lower = text.lower()
-        scores: Dict[str, int] = {}
+        title_lower = title.lower() if title else ""
+        scores: Dict[str, float] = {}
         for category, keywords in CATEGORY_KEYWORDS.items():
-            score = sum(1 for kw in keywords if kw in text_lower)
+            score = 0.0
+            for kw in keywords:
+                if kw in title_lower:
+                    score += 3.0  # Title matches count 3x
+                elif kw in text_lower:
+                    score += 1.0
             if score > 0:
                 scores[category] = score
         if not scores:
@@ -206,7 +212,7 @@ class EventClusterer:
         keywords = TextPreprocessor.extract_keywords(combined_text, self.top_keywords)
 
         first_article = articles[0]
-        category = self.classify_category(combined_text)
+        category = self.classify_category(combined_text, title=first_article.title or "")
 
         event = TrendingEvent(
             title=first_article.title,
@@ -330,7 +336,7 @@ def backfill_categories(db: Session) -> Dict:
     updated = 0
     for event in events:
         text = clusterer.extract_event_vector(event)
-        category = clusterer.classify_category(text)
+        category = clusterer.classify_category(text, title=event.title or "")
         if category:
             event.category = category
             updated += 1
