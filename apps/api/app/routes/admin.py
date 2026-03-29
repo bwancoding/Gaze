@@ -715,13 +715,20 @@ async def admin_analytics(
         result = db.execute(sql_text(sql), {"start": start_str, **params})
         return [dict(row._mapping) for row in result.fetchall()]
 
+    # Subquery to exclude seed users
+    seed_filter = "email NOT LIKE '%@seed.wrhitw.local'"
+    seed_user_exclude = "user_id NOT IN (SELECT id FROM users WHERE email LIKE '%@seed.wrhitw.local')"
+
     # ── Users ──
-    total_users = query_one("SELECT COUNT(*) FROM users")
-    new_registrations = query_one("SELECT COUNT(*) FROM users WHERE created_at >= :start")
-    active_users = query_one("SELECT COUNT(*) FROM users WHERE last_login_at >= :start")
+    today_str = now.strftime("%Y-%m-%d")
+    total_users = query_one(f"SELECT COUNT(*) FROM users WHERE {seed_filter}")
+    new_registrations = query_one(f"SELECT COUNT(*) FROM users WHERE {seed_filter} AND created_at >= :start")
+    active_users = query_one(f"SELECT COUNT(*) FROM users WHERE {seed_filter} AND last_login_at >= :start")
+    today_registrations = query_one(f"SELECT COUNT(*) FROM users WHERE {seed_filter} AND DATE(created_at) = :today", today=today_str)
+    today_active_users = query_one(f"SELECT COUNT(*) FROM users WHERE {seed_filter} AND DATE(last_login_at) = :today", today=today_str)
     registrations_by_day = query_all(
-        "SELECT DATE(created_at) as date, COUNT(*) as count FROM users "
-        "WHERE created_at >= :start GROUP BY DATE(created_at) ORDER BY date"
+        f"SELECT DATE(created_at) as date, COUNT(*) as count FROM users "
+        f"WHERE {seed_filter} AND created_at >= :start GROUP BY DATE(created_at) ORDER BY date"
     )
 
     # ── Engagement ──
@@ -729,18 +736,18 @@ async def admin_analytics(
     threads_by_day = []
     comments_by_day = []
     try:
-        total_threads = query_one("SELECT COUNT(*) FROM threads WHERE is_deleted = false")
-        new_threads = query_one("SELECT COUNT(*) FROM threads WHERE created_at >= :start AND is_deleted = false")
-        total_comments = query_one("SELECT COUNT(*) FROM comments WHERE is_deleted = false")
-        new_comments = query_one("SELECT COUNT(*) FROM comments WHERE created_at >= :start AND is_deleted = false")
-        new_likes = query_one("SELECT COUNT(*) FROM user_likes WHERE created_at >= :start")
+        total_threads = query_one(f"SELECT COUNT(*) FROM threads WHERE is_deleted = false AND {seed_user_exclude}")
+        new_threads = query_one(f"SELECT COUNT(*) FROM threads WHERE created_at >= :start AND is_deleted = false AND {seed_user_exclude}")
+        total_comments = query_one(f"SELECT COUNT(*) FROM comments WHERE is_deleted = false AND {seed_user_exclude}")
+        new_comments = query_one(f"SELECT COUNT(*) FROM comments WHERE created_at >= :start AND is_deleted = false AND {seed_user_exclude}")
+        new_likes = query_one(f"SELECT COUNT(*) FROM user_likes WHERE created_at >= :start AND {seed_user_exclude}")
         threads_by_day = query_all(
-            "SELECT DATE(created_at) as date, COUNT(*) as count FROM threads "
-            "WHERE created_at >= :start AND is_deleted = false GROUP BY DATE(created_at) ORDER BY date"
+            f"SELECT DATE(created_at) as date, COUNT(*) as count FROM threads "
+            f"WHERE created_at >= :start AND is_deleted = false AND {seed_user_exclude} GROUP BY DATE(created_at) ORDER BY date"
         )
         comments_by_day = query_all(
-            "SELECT DATE(created_at) as date, COUNT(*) as count FROM comments "
-            "WHERE created_at >= :start AND is_deleted = false GROUP BY DATE(created_at) ORDER BY date"
+            f"SELECT DATE(created_at) as date, COUNT(*) as count FROM comments "
+            f"WHERE created_at >= :start AND is_deleted = false AND {seed_user_exclude} GROUP BY DATE(created_at) ORDER BY date"
         )
     except Exception as e:
         logger.debug(f"Engagement analytics query error: {e}")
@@ -753,14 +760,14 @@ async def admin_analytics(
     )
     try:
         most_viewed_events = query_all(
-            "SELECT e.id, e.title, e.view_count, "
-            "  (SELECT COUNT(*) FROM comments c WHERE c.event_id = e.id AND c.is_deleted = false) as comment_count "
-            "FROM events e WHERE e.status = 'active' ORDER BY e.view_count DESC LIMIT 10"
+            f"SELECT e.id, e.title, e.view_count, "
+            f"  (SELECT COUNT(*) FROM comments c WHERE c.event_id = e.id AND c.is_deleted = false AND c.{seed_user_exclude}) as comment_count "
+            f"FROM events e WHERE e.status = 'active' ORDER BY e.view_count DESC LIMIT 10"
         )
         most_discussed_events = query_all(
-            "SELECT e.id, e.title, e.view_count, "
-            "  (SELECT COUNT(*) FROM comments c WHERE c.event_id = e.id AND c.is_deleted = false) as comment_count "
-            "FROM events e WHERE e.status = 'active' ORDER BY comment_count DESC LIMIT 10"
+            f"SELECT e.id, e.title, e.view_count, "
+            f"  (SELECT COUNT(*) FROM comments c WHERE c.event_id = e.id AND c.is_deleted = false AND c.{seed_user_exclude}) as comment_count "
+            f"FROM events e WHERE e.status = 'active' ORDER BY comment_count DESC LIMIT 10"
         )
     except Exception:
         most_viewed_events = query_all(
@@ -807,8 +814,8 @@ async def admin_analytics(
         logger.debug(f"Traffic analytics query error: {e}")
 
     # ── Page Views ──
-    page_views = {"total": 0, "unique_visitors": 0, "views_by_day": [],
-                  "top_pages": [], "top_referrers": []}
+    page_views = {"total": 0, "unique_visitors": 0, "today_pv": 0, "today_uv": 0,
+                  "views_by_day": [], "uv_by_day": [], "top_pages": [], "top_referrers": []}
     try:
         page_views["total"] = query_one(
             "SELECT COUNT(*) FROM page_views WHERE timestamp >= :start"
@@ -816,8 +823,18 @@ async def admin_analytics(
         page_views["unique_visitors"] = query_one(
             "SELECT COUNT(DISTINCT client_ip) FROM page_views WHERE timestamp >= :start"
         )
+        page_views["today_pv"] = query_one(
+            "SELECT COUNT(*) FROM page_views WHERE DATE(timestamp) = :today", today=today_str
+        )
+        page_views["today_uv"] = query_one(
+            "SELECT COUNT(DISTINCT client_ip) FROM page_views WHERE DATE(timestamp) = :today", today=today_str
+        )
         page_views["views_by_day"] = query_all(
             "SELECT DATE(timestamp) as date, COUNT(*) as count FROM page_views "
+            "WHERE timestamp >= :start GROUP BY DATE(timestamp) ORDER BY date"
+        )
+        page_views["uv_by_day"] = query_all(
+            "SELECT DATE(timestamp) as date, COUNT(DISTINCT client_ip) as count FROM page_views "
             "WHERE timestamp >= :start GROUP BY DATE(timestamp) ORDER BY date"
         )
         page_views["top_pages"] = query_all(
@@ -848,6 +865,8 @@ async def admin_analytics(
             "total": total_users,
             "new_registrations": new_registrations,
             "active_users": active_users,
+            "today_registrations": today_registrations,
+            "today_active_users": today_active_users,
             "registrations_by_day": registrations_by_day,
         },
         "engagement": {
