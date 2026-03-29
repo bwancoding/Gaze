@@ -944,17 +944,37 @@ async def admin_data_cleanup(
             results["non_news_removed"] += 1
             logger.info(f"Dismissed non-news: '{event.title[:50]}'")
 
-    # 4. Fix category misclassifications
-    category_fixes = {
-        "Apple discontinues the Mac Pro": "Technology",
-        "DOJ confirms FBI Director Kash Patel's personal email was hacked": "Geopolitics",
-    }
+    # 4. Re-classify all active/candidate events using improved classifier
+    from app.services.event_clusterer import EventClusterer
+    clusterer = EventClusterer(db)
     for event in active_events:
-        if event.title in category_fixes and event.category != category_fixes[event.title]:
+        if event.status == 'dismissed':
+            continue
+        text = f"{event.title or ''} {event.summary or ''}"
+        new_cat = clusterer.classify_category(text, title=event.title or "")
+        if new_cat and new_cat != event.category:
             old_cat = event.category
-            event.category = category_fixes[event.title]
+            event.category = new_cat
             results["categories_fixed"] += 1
-            logger.info(f"Fixed category: '{event.title[:50]}' {old_cat} -> {event.category}")
+            logger.info(f"Re-classified: '{event.title[:50]}' {old_cat} -> {new_cat}")
+
+    # 5. Clean up trending pool: dismiss duplicates and non-news
+    from app.models.trending import TrendingEvent as TE
+    trending_events = db.query(TE).filter(TE.status == 'raw').all()
+    trending_title_groups = defaultdict(list)
+    for te in trending_events:
+        trending_title_groups[te.title.strip().lower()].append(te)
+    for title, group in trending_title_groups.items():
+        if len(group) > 1:
+            group.sort(key=lambda e: (e.heat_score or 0), reverse=True)
+            for dup in group[1:]:
+                dup.status = 'dismissed'
+                results["duplicates_removed"] += 1
+    for te in trending_events:
+        title_lower = te.title.strip().lower()
+        if any(pattern in title_lower for pattern in non_news_patterns):
+            te.status = 'dismissed'
+            results["non_news_removed"] += 1
 
     db.commit()
     return {"status": "success", "results": results}
