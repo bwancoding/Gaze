@@ -720,9 +720,12 @@ async def admin_analytics(
     seed_user_exclude = "user_id NOT IN (SELECT id FROM users WHERE email LIKE '%@seed.wrhitw.local')"
 
     # ── Users ──
+    today_str = now.strftime("%Y-%m-%d")
     total_users = query_one(f"SELECT COUNT(*) FROM users WHERE {seed_filter}")
     new_registrations = query_one(f"SELECT COUNT(*) FROM users WHERE {seed_filter} AND created_at >= :start")
     active_users = query_one(f"SELECT COUNT(*) FROM users WHERE {seed_filter} AND last_login_at >= :start")
+    today_registrations = query_one(f"SELECT COUNT(*) FROM users WHERE {seed_filter} AND DATE(created_at) = :today", today=today_str)
+    today_active_users = query_one(f"SELECT COUNT(*) FROM users WHERE {seed_filter} AND DATE(last_login_at) = :today", today=today_str)
     registrations_by_day = query_all(
         f"SELECT DATE(created_at) as date, COUNT(*) as count FROM users "
         f"WHERE {seed_filter} AND created_at >= :start GROUP BY DATE(created_at) ORDER BY date"
@@ -811,8 +814,8 @@ async def admin_analytics(
         logger.debug(f"Traffic analytics query error: {e}")
 
     # ── Page Views ──
-    page_views = {"total": 0, "unique_visitors": 0, "views_by_day": [],
-                  "top_pages": [], "top_referrers": []}
+    page_views = {"total": 0, "unique_visitors": 0, "today_pv": 0, "today_uv": 0,
+                  "views_by_day": [], "uv_by_day": [], "top_pages": [], "top_referrers": []}
     try:
         page_views["total"] = query_one(
             "SELECT COUNT(*) FROM page_views WHERE timestamp >= :start"
@@ -820,8 +823,18 @@ async def admin_analytics(
         page_views["unique_visitors"] = query_one(
             "SELECT COUNT(DISTINCT client_ip) FROM page_views WHERE timestamp >= :start"
         )
+        page_views["today_pv"] = query_one(
+            "SELECT COUNT(*) FROM page_views WHERE DATE(timestamp) = :today", today=today_str
+        )
+        page_views["today_uv"] = query_one(
+            "SELECT COUNT(DISTINCT client_ip) FROM page_views WHERE DATE(timestamp) = :today", today=today_str
+        )
         page_views["views_by_day"] = query_all(
             "SELECT DATE(timestamp) as date, COUNT(*) as count FROM page_views "
+            "WHERE timestamp >= :start GROUP BY DATE(timestamp) ORDER BY date"
+        )
+        page_views["uv_by_day"] = query_all(
+            "SELECT DATE(timestamp) as date, COUNT(DISTINCT client_ip) as count FROM page_views "
             "WHERE timestamp >= :start GROUP BY DATE(timestamp) ORDER BY date"
         )
         page_views["top_pages"] = query_all(
@@ -852,6 +865,8 @@ async def admin_analytics(
             "total": total_users,
             "new_registrations": new_registrations,
             "active_users": active_users,
+            "today_registrations": today_registrations,
+            "today_active_users": today_active_users,
             "registrations_by_day": registrations_by_day,
         },
         "engagement": {

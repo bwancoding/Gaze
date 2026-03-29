@@ -12,6 +12,8 @@ interface AnalyticsData {
     total: number;
     new_registrations: number;
     active_users: number;
+    today_registrations: number;
+    today_active_users: number;
     registrations_by_day: { date: string; count: number }[];
   };
   engagement: {
@@ -41,7 +43,10 @@ interface AnalyticsData {
   page_views: {
     total: number;
     unique_visitors: number;
+    today_pv: number;
+    today_uv: number;
     views_by_day: { date: string; count: number }[];
+    uv_by_day: { date: string; count: number }[];
     top_pages: { path: string; count: number }[];
     top_referrers: { referrer: string; count: number }[];
   };
@@ -194,9 +199,17 @@ export default function AnalyticsDashboard() {
               <KPICard label="New Users" value={data.users.new_registrations} suffix={`in ${days}d`} color="emerald" />
               <KPICard label="Active Users" value={data.users.active_users} suffix={`in ${days}d`} color="blue" />
               <KPICard label="Page Views" value={data.page_views.total} suffix={`in ${days}d`} color="violet" />
-              <KPICard label="API Requests" value={data.traffic.total_requests} suffix={`in ${days}d`} color="amber" />
+              <KPICard label="UV" value={data.page_views.unique_visitors} suffix={`in ${days}d`} color="indigo" />
               <KPICard label="Errors" value={data.traffic.error_count} suffix={`in ${days}d`}
                 color={data.traffic.error_count > 0 ? 'red' : 'emerald'} />
+            </div>
+
+            {/* Today's Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <KPICard label="Today PV" value={data.page_views.today_pv} color="violet" />
+              <KPICard label="Today UV" value={data.page_views.today_uv} color="indigo" />
+              <KPICard label="Today New Users" value={data.users.today_registrations} color="emerald" />
+              <KPICard label="Today Active Users" value={data.users.today_active_users} color="blue" />
             </div>
 
             {/* Engagement Row */}
@@ -209,8 +222,8 @@ export default function AnalyticsDashboard() {
 
             {/* Charts Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <BarChart title="Page Views by Day" data={data.page_views.views_by_day} color="bg-violet-500" />
-              <BarChart title="API Requests by Day" data={data.traffic.requests_by_day} color="bg-amber-500" />
+              <BarChart title="PV by Day" data={data.page_views.views_by_day} color="bg-violet-500" />
+              <BarChart title="UV by Day" data={data.page_views.uv_by_day || []} color="bg-indigo-500" />
               <BarChart title="New Comments by Day" data={data.engagement.comments_by_day} color="bg-blue-500" />
               <BarChart title="New Registrations by Day" data={data.users.registrations_by_day} color="bg-emerald-500" />
             </div>
@@ -300,6 +313,7 @@ function KPICard({ label, value, suffix, color = 'stone' }: {
   const colorMap: Record<string, string> = {
     stone: 'text-stone-900', emerald: 'text-emerald-600', blue: 'text-blue-600',
     violet: 'text-violet-600', amber: 'text-amber-600', red: 'text-red-600', rose: 'text-rose-600',
+    indigo: 'text-indigo-600',
   };
   return (
     <div className="bg-white p-4 rounded-xl border border-stone-200">
