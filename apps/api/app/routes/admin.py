@@ -900,6 +900,7 @@ async def admin_data_cleanup(
     non_news_patterns = [
         'deploytarot', 'meow.camera', 'show hn:', 'ask hn:',
         'launch hn:', 'tell hn:',
+        'go hard on agents', 'not on your filesystem',
     ]
     for event in active_events:
         title_lower = event.title.strip().lower()
