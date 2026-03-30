@@ -279,23 +279,32 @@ async def admin_publish_event(
     return {"message": "Event published, stakeholder analysis queued", "event_id": str(event_id)}
 
 
-def _generate_analysis_background(event_id: str):
+async def _generate_analysis_background(event_id: str):
     """Background task: generate AI stakeholder analysis for an event."""
-    import asyncio
     from app.core.database import SessionLocal
     from app.services.event_analysis_service import generate_event_analysis
 
     db = SessionLocal()
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(generate_event_analysis(db, event_id, force=True))
-        print(f"[Auto-Analysis] Generated for event {event_id}: {result.get('stakeholder_count', 0)} stakeholders")
+        result = await generate_event_analysis(db, event_id, force=True)
+        logger.info(f"[Auto-Analysis] Generated for event {event_id}")
     except Exception as e:
-        print(f"[Auto-Analysis] Failed for event {event_id}: {e}")
+        import traceback
+        logger.error(f"[Auto-Analysis] Failed for event {event_id}: {e}\n{traceback.format_exc()}")
     finally:
         db.close()
-        loop.close()
+
+
+# Keep references to background tasks so they don't get garbage collected
+_background_tasks: set = set()
+
+
+def _schedule_analysis(coro):
+    """Schedule an async task and keep a reference to prevent GC."""
+    import asyncio
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
 
 @router.post("/events/{event_id}/reject")
@@ -323,26 +332,11 @@ async def admin_generate_analysis(
     username: str = Depends(verify_admin_credentials),
 ):
     """Trigger AI analysis generation for an event (admin). Runs in background."""
-    import asyncio
-    from app.services.event_analysis_service import generate_event_analysis
-    from app.core.database import SessionLocal
-
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    async def _run_analysis():
-        analysis_db = SessionLocal()
-        try:
-            await generate_event_analysis(analysis_db, event_id, force=True)
-            logger.info(f"AI analysis completed for event {event_id}")
-        except Exception as e:
-            import traceback
-            logger.error(f"AI analysis failed for event {event_id}: {e}\n{traceback.format_exc()}")
-        finally:
-            analysis_db.close()
-
-    asyncio.create_task(_run_analysis())
+    _schedule_analysis(_generate_analysis_background(event_id))
     return {"message": "Analysis generation started in background", "event_id": event_id}
 
 
@@ -380,23 +374,7 @@ async def admin_promote_trending(
     db.refresh(event)
 
     # Trigger AI analysis in background (non-blocking)
-    import asyncio
-    try:
-        from app.services.event_analysis_service import generate_event_analysis
-        from app.core.database import SessionLocal
-        async def _run_analysis():
-            analysis_db = SessionLocal()
-            try:
-                await generate_event_analysis(analysis_db, str(event.id), force=True)
-                logger.info(f"AI analysis completed for event {event.id}")
-            except Exception as e:
-                import traceback
-                logger.error(f"AI analysis failed for event {event.id}: {e}\n{traceback.format_exc()}")
-            finally:
-                analysis_db.close()
-        asyncio.create_task(_run_analysis())
-    except Exception as e:
-        logger.warning(f"Failed to schedule AI analysis: {e}")
+    _schedule_analysis(_generate_analysis_background(str(event.id)))
 
     return {
         "message": "Trending event promoted to candidate (AI analysis generating in background)",
@@ -464,24 +442,8 @@ async def admin_batch_promote(
     db.commit()
 
     # Trigger AI analysis for all promoted events in background
-    import asyncio
-    try:
-        from app.services.event_analysis_service import generate_event_analysis
-        from app.core.database import SessionLocal
-        async def _run_batch_analysis():
-            for item in promoted:
-                analysis_db = SessionLocal()
-                try:
-                    await generate_event_analysis(analysis_db, item["event_id"], force=True)
-                    logger.info(f"AI analysis completed for event {item['event_id']}")
-                except Exception as e:
-                    import traceback as _tb
-                    logger.error(f"AI analysis failed for event {item['event_id']}: {e}\n{_tb.format_exc()}")
-                finally:
-                    analysis_db.close()
-        asyncio.create_task(_run_batch_analysis())
-    except Exception as e:
-        logger.warning(f"Failed to schedule batch AI analysis: {e}")
+    for item in promoted:
+        _schedule_analysis(_generate_analysis_background(item["event_id"]))
 
     return {
         "promoted": len(promoted),
@@ -494,7 +456,6 @@ async def admin_batch_promote(
 @router.post("/events/batch-publish")
 async def admin_batch_publish(
     event_ids: List[str],
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
@@ -515,9 +476,12 @@ async def admin_batch_publish(
         event.published_at = datetime.utcnow()
         event.last_activity_at = datetime.utcnow()
         published.append({"event_id": eid, "title": event.title})
-        background_tasks.add_task(_generate_analysis_background, eid)
 
     db.commit()
+
+    # Trigger AI analysis for all published events
+    for item in published:
+        _schedule_analysis(_generate_analysis_background(item["event_id"]))
 
     return {
         "published": len(published),
