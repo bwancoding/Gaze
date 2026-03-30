@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '../../../components/Header';
+import StakeholderDeclare from '../../../components/StakeholderDeclare';
 import { API_BASE_URL } from '../../../lib/config';
 
 
@@ -585,6 +586,22 @@ export default function EventDetailPage() {
             </div>
           </div>
         </section>
+
+        {/* Stakeholder Declaration */}
+        {(perspectives.length > 0 || stakeholders.length > 0) && (
+          <section className="container mx-auto px-6 pb-4">
+            <div className="max-w-5xl mx-auto">
+              <StakeholderDeclare
+                eventId={eventId}
+                stakeholders={
+                  perspectives.length > 0
+                    ? perspectives.map(p => ({ stakeholder_id: p.stakeholder_id, stakeholder_name: p.stakeholder_name }))
+                    : stakeholders.map(s => ({ stakeholder_id: s.stakeholder_id, stakeholder_name: s.stakeholder_name }))
+                }
+              />
+            </div>
+          </section>
+        )}
 
         {/* Discussion - Always Visible Below Tabs */}
         <section id="discussion" className="container mx-auto px-6 pb-12">

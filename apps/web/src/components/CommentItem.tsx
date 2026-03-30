@@ -23,6 +23,8 @@ interface Comment {
   created_at: string;
   updated_at: string;
   is_verified?: boolean;
+  stakeholder_name?: string | null;
+  verification_level?: 'verified' | 'declared' | null;
 }
 
 interface CommentItemProps {
@@ -386,7 +388,18 @@ function SingleComment({
             <span className={`font-semibold text-stone-900 ${isNested ? 'text-xs' : 'text-sm'}`}>
               {comment.persona_name}
             </span>
-            {comment.is_verified && (
+            {comment.verification_level === 'verified' && comment.stakeholder_name && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200">
+                <svg className="w-2.5 h-2.5 mr-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                {comment.stakeholder_name}
+              </span>
+            )}
+            {comment.verification_level === 'declared' && comment.stakeholder_name && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-stone-100 text-stone-500 border border-stone-200">
+                {comment.stakeholder_name}
+              </span>
+            )}
+            {comment.is_verified && !comment.verification_level && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200">
                 Verified
               </span>
