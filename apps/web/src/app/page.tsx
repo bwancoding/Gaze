@@ -71,8 +71,8 @@ export default function Home() {
                   </h2>
 
                   <p className="text-base md:text-lg text-slate-300 mb-8 leading-relaxed max-w-xl mx-auto">
-                    Every major event has many sides. We bring them all together
-                    so you can hear the full story, not just one version of it.
+                    Every global event carries multiple perspectives.
+                    We bring them together so you can see the full picture.
                   </p>
 
                   <div className="flex flex-wrap justify-center gap-3 mb-8">
@@ -130,14 +130,14 @@ export default function Home() {
               <div className="bg-stone-700/50 rounded-2xl border border-stone-600 p-8 text-center mb-12">
                 <h4 className="text-2xl font-bold mb-4">Our Mission</h4>
                 <p className="text-stone-300 leading-relaxed text-lg mb-4">
-                  Most news gives you one angle. But real events affect real people
-                  in different ways. A trade war looks different to a factory worker in Ohio
-                  than it does to a farmer in Vietnam.
+                  Most news presents one editorial angle. But every major event affects
+                  different groups in different ways. A trade policy that benefits one
+                  industry may displace workers in another.
                 </p>
                 <p className="text-stone-300 leading-relaxed text-lg">
-                  Gaze puts those perspectives side by side. We aggregate coverage from
-                  hundreds of sources, break down who is affected and how, then let the
-                  people involved speak for themselves.
+                  Gaze aggregates coverage from hundreds of sources, identifies the
+                  stakeholders involved, and presents their perspectives side by side.
+                  Then we let the people affected speak for themselves.
                 </p>
               </div>
             </div>
@@ -154,27 +154,27 @@ export default function Home() {
                   <div className="text-3xl mb-3">{'\u{1F4F0}'}</div>
                   <h4 className="font-semibold mb-2">Aggregate</h4>
                   <p className="text-stone-400 text-sm">
-                    We pull from hundreds of news sources worldwide and group
-                    related articles into one event. You get the full picture,
-                    not just one outlet&apos;s version.
+                    We monitor hundreds of news sources worldwide and cluster
+                    related articles into unified events, giving you comprehensive
+                    coverage rather than a single outlet&apos;s take.
                   </p>
                 </div>
                 <div className="bg-stone-800 rounded-xl border border-stone-700 p-6">
                   <div className="text-3xl mb-3">{'\u{1F50D}'}</div>
                   <h4 className="font-semibold mb-2">Break Down</h4>
                   <p className="text-stone-400 text-sm">
-                    Each event gets broken down into background, causes, impact,
-                    and timeline. You also see how different groups are affected,
-                    with their perspectives laid out side by side.
+                    Each event is analyzed for background, root causes, impact,
+                    and timeline. Stakeholder perspectives are identified and
+                    presented side by side for comparison.
                   </p>
                 </div>
                 <div className="bg-stone-800 rounded-xl border border-stone-700 p-6">
                   <div className="text-3xl mb-3">{'\u{1F91D}'}</div>
                   <h4 className="font-semibold mb-2">Discuss</h4>
                   <p className="text-stone-400 text-sm">
-                    Real stakeholders can claim their identity and share
-                    first-hand perspectives. Everyone else can join the
-                    conversation and ask questions.
+                    Verified stakeholders can claim their identity and share
+                    first-hand perspectives. The broader community can join
+                    the conversation, ask questions, and engage directly.
                   </p>
                 </div>
               </div>
@@ -190,13 +190,13 @@ export default function Home() {
                 <h3 className="text-2xl md:text-3xl font-bold mb-4 text-center">Why Multiple Perspectives?</h3>
                 <div className="bg-stone-700/50 rounded-xl border border-stone-600 p-6">
                   <p className="text-stone-300 leading-relaxed mb-4">
-                    Most news covers events from one editorial angle. But a military conflict
-                    looks very different to a soldier, a refugee, and a diplomat. A tech layoff
-                    means one thing to shareholders and another to the engineers who got let go.
+                    A military conflict is experienced very differently by a soldier, a refugee,
+                    and a diplomat. A policy change carries different weight for those who shaped it
+                    and those who live with the consequences.
                   </p>
                   <p className="text-stone-300 leading-relaxed">
-                    We lay out these perspectives side by side. We don&apos;t tell you what to think.
-                    You read, you compare, you decide.
+                    By presenting these perspectives side by side, we give you the context
+                    to form your own understanding rather than adopting a single narrative.
                   </p>
                 </div>
               </div>
@@ -205,13 +205,14 @@ export default function Home() {
                 <h3 className="text-2xl md:text-3xl font-bold mb-4 text-center">Speak as Who You Are</h3>
                 <div className="bg-stone-700/50 rounded-xl border border-stone-600 p-6">
                   <p className="text-stone-300 leading-relaxed mb-4">
-                    On Gaze, you can claim your connection to an event. If you&apos;re a nurse
-                    commenting on a healthcare policy, or a local resident discussing a
-                    natural disaster in your town, your identity adds weight to your words.
+                    On Gaze, you can claim your connection to an event. A healthcare worker
+                    commenting on medical policy, or a local resident discussing a disaster
+                    in their community, brings context that outside observers cannot.
                   </p>
                   <p className="text-stone-300 leading-relaxed">
-                    Declare yourself with one click, or submit proof to get a verified badge.
-                    Readers can see who is actually affected vs. who is just commenting.
+                    Declare your stakeholder identity with one click, or submit documentation
+                    for a verified badge. Readers can distinguish first-hand accounts
+                    from general commentary.
                   </p>
                 </div>
               </div>
@@ -226,17 +227,17 @@ export default function Home() {
               <div className="bg-gradient-to-br from-stone-800 to-stone-800/80 rounded-2xl border border-stone-700 p-8 text-center">
                 <h3 className="text-2xl md:text-3xl font-bold mb-4">We Share This World</h3>
                 <p className="text-stone-300 leading-relaxed mb-4">
-                  No matter where you&apos;re from, the big events of our time affect all of us.
-                  The better we understand each other&apos;s realities, the better our
-                  conversations get.
+                  The defining events of our time cross every border. Understanding
+                  them requires hearing from the people closest to them, not just the
+                  loudest commentators.
                 </p>
                 <p className="text-stone-300 leading-relaxed mb-4">
-                  Gaze is built on a simple idea: put all the perspectives in one place
-                  and let people talk it out. No spin, no paywall, no algorithm deciding
-                  what you should care about.
+                  Gaze exists to make that possible: comprehensive coverage,
+                  transparent analysis, and open conversation. No spin, no paywall,
+                  no algorithm filtering what matters.
                 </p>
                 <p className="text-amber-300 leading-relaxed font-medium">
-                  Come see what&apos;s really happening.
+                  See what&apos;s really happening.
                 </p>
               </div>
             </div>
