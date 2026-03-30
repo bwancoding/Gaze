@@ -40,8 +40,32 @@ def check_verified_status(db: Session, persona_id: str, event_id: str) -> bool:
         EventStakeholderVerification.event_id == event_id,
         EventStakeholderVerification.status == 'approved'
     ).first()
-    
+
     return verification is not None
+
+
+def get_stakeholder_info(db: Session, persona_id: str, event_id: str) -> dict:
+    """Get stakeholder verification info for a persona on an event.
+    Returns stakeholder_name and verification_level ('verified', 'declared', or None)."""
+    from app.models.stakeholders import Stakeholder
+
+    verification = (
+        db.query(EventStakeholderVerification, Stakeholder)
+        .join(Stakeholder, EventStakeholderVerification.stakeholder_id == Stakeholder.id)
+        .filter(
+            EventStakeholderVerification.user_persona_id == persona_id,
+            EventStakeholderVerification.event_id == event_id,
+            EventStakeholderVerification.status.in_(['approved', 'declared']),
+        )
+        .first()
+    )
+
+    if not verification:
+        return {"stakeholder_name": None, "verification_level": None}
+
+    esv, stakeholder = verification
+    level = "verified" if esv.status == "approved" else "declared"
+    return {"stakeholder_name": stakeholder.name, "verification_level": level}
 
 
 @router.get("/event/{event_id}")
@@ -80,14 +104,22 @@ def get_event_comments(
     total = query.count()
     comments = query.order_by(desc(Comment.created_at)).offset(offset).limit(limit).all()
     
+    items = []
+    for comment in comments:
+        item = {**comment.to_dict(include_verified_badge=True)}
+        if comment.user_persona_id:
+            info = get_stakeholder_info(db, str(comment.user_persona_id), event_id)
+            item["is_verified"] = info["verification_level"] == "verified"
+            item["stakeholder_name"] = info["stakeholder_name"]
+            item["verification_level"] = info["verification_level"]
+        else:
+            item["is_verified"] = False
+            item["stakeholder_name"] = None
+            item["verification_level"] = None
+        items.append(item)
+
     return {
-        "items": [
-            {
-                **comment.to_dict(include_verified_badge=True),
-                "is_verified": check_verified_status(db, str(comment.user_persona_id), event_id) if comment.user_persona_id else False
-            }
-            for comment in comments
-        ],
+        "items": items,
         "total": total,
         "has_more": total > offset + limit,
         "login_required_for_more": current_user is None and total > 20
@@ -158,11 +190,14 @@ def create_comment(
     db.commit()
     db.refresh(comment)
 
+    info = get_stakeholder_info(db, user_persona_id, event_id)
     return {
         "message": "Comment created successfully",
         "comment": {
             **comment.to_dict(include_verified_badge=True),
-            "is_verified": check_verified_status(db, user_persona_id, event_id)
+            "is_verified": info["verification_level"] == "verified",
+            "stakeholder_name": info["stakeholder_name"],
+            "verification_level": info["verification_level"],
         }
     }
 

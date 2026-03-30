@@ -25,6 +25,8 @@ interface Comment {
   created_at: string;
   updated_at: string;
   is_verified?: boolean;
+  stakeholder_name?: string | null;
+  verification_level?: 'verified' | 'declared' | null;
 }
 
 interface CommentSectionProps {

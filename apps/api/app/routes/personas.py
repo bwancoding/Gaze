@@ -505,6 +505,124 @@ async def cancel_verification(
     return {"message": "Application cancelled successfully"}
 
 
+# ==================== Quick Self-Declaration ====================
+
+class QuickDeclareRequest(BaseModel):
+    event_id: str
+    stakeholder_id: str
+    reason: str = ""  # Optional: why you are this stakeholder
+
+
+@router.post("/quick-declare")
+@limiter.limit("10/minute")
+async def quick_declare_stakeholder(
+    request: Request,
+    data: QuickDeclareRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token),
+):
+    """
+    Quick self-declaration as a stakeholder for an event.
+
+    Instantly grants 'declared' status (no admin review needed).
+    User can later upgrade to 'verified' by submitting proof.
+    """
+    # Get or create default persona
+    persona = db.query(UserPersona).filter(
+        UserPersona.user_id == current_user.id,
+        UserPersona.is_deleted == False,
+    ).first()
+
+    if not persona:
+        import random
+        persona = UserPersona(
+            id=uuid.uuid4(),
+            user_id=current_user.id,
+            persona_name=random.choice(["Anonymous Observer", "Curious Reader", "Global Citizen"]),
+            avatar_color=random.choice(['blue', 'green', 'purple', 'orange', 'teal']),
+            is_verified=False,
+        )
+        db.add(persona)
+        db.flush()
+
+    # Check stakeholder exists
+    stakeholder = db.query(Stakeholder).filter(Stakeholder.id == data.stakeholder_id).first()
+    if not stakeholder:
+        raise HTTPException(status_code=404, detail="Stakeholder not found")
+
+    # Check event exists
+    event = db.query(Event).filter(Event.id == data.event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # Check existing verification
+    existing = db.query(EventStakeholderVerification).filter(
+        EventStakeholderVerification.user_persona_id == persona.id,
+        EventStakeholderVerification.event_id == data.event_id,
+    ).first()
+
+    if existing:
+        if existing.status in ('approved', 'declared'):
+            return {
+                "message": "Already declared",
+                "verification_id": str(existing.id),
+                "status": existing.status,
+                "stakeholder_name": stakeholder.name,
+                "persona_id": str(persona.id),
+                "persona_name": persona.persona_name,
+            }
+        elif existing.status == 'pending':
+            # Upgrade pending to declared
+            existing.status = 'declared'
+            existing.proof_type = 'self_declaration'
+            db.commit()
+            return {
+                "message": "Declaration confirmed",
+                "verification_id": str(existing.id),
+                "status": "declared",
+                "stakeholder_name": stakeholder.name,
+                "persona_id": str(persona.id),
+                "persona_name": persona.persona_name,
+            }
+        elif existing.status == 'rejected':
+            # Allow re-declaration
+            existing.status = 'declared'
+            existing.proof_type = 'self_declaration'
+            existing.application_text = data.reason or existing.application_text
+            existing.stakeholder_id = data.stakeholder_id
+            db.commit()
+            return {
+                "message": "Re-declared",
+                "verification_id": str(existing.id),
+                "status": "declared",
+                "stakeholder_name": stakeholder.name,
+                "persona_id": str(persona.id),
+                "persona_name": persona.persona_name,
+            }
+
+    # Create new declaration
+    verification = EventStakeholderVerification(
+        id=uuid.uuid4(),
+        user_persona_id=persona.id,
+        event_id=data.event_id,
+        stakeholder_id=data.stakeholder_id,
+        application_text=data.reason,
+        proof_type='self_declaration',
+        status='declared',
+    )
+    db.add(verification)
+    db.commit()
+
+    return {
+        "message": "Declared as stakeholder",
+        "verification_id": str(verification.id),
+        "status": "declared",
+        "stakeholder_name": stakeholder.name,
+        "persona_id": str(persona.id),
+        "persona_name": persona.persona_name,
+    }
+
+
 # ==================== Event-Level Verification ====================
 
 @router.get("/{persona_id}/verifications")
