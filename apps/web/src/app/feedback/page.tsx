@@ -50,7 +50,7 @@ export default function FeedbackPage() {
             Share Your Thoughts
           </h1>
           <p className="text-stone-400">
-            Help us make Gaze better. Every voice matters — just like in the stories we cover.
+            Help us make Gaze better. Your feedback shapes what we build next.
           </p>
         </div>
 

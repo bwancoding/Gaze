@@ -71,15 +71,14 @@ export default function Home() {
                   </h2>
 
                   <p className="text-base md:text-lg text-slate-300 mb-8 leading-relaxed max-w-xl mx-auto">
-                    We see all of humanity as stewards of this world,
-                    sailing together through the same vast cosmos.
-                    Now, let us resolve what we face together — through peaceful dialogue.
+                    Every major event has many sides. We bring them all together
+                    so you can hear the full story, not just one version of it.
                   </p>
 
                   <div className="flex flex-wrap justify-center gap-3 mb-8">
                     <div className="flex items-center space-x-2 bg-white/10 px-4 py-2 rounded-full backdrop-blur-sm border border-white/20">
                       <div className="w-2 h-2 bg-gradient-to-r from-blue-400 to-indigo-500 rounded-full"></div>
-                      <span className="text-xs font-medium">AI Deep Analysis</span>
+                      <span className="text-xs font-medium">Multi-Source Coverage</span>
                     </div>
                     <div className="flex items-center space-x-2 bg-white/10 px-4 py-2 rounded-full backdrop-blur-sm border border-white/20">
                       <div className="w-2 h-2 bg-gradient-to-r from-amber-400 to-orange-500 rounded-full"></div>
@@ -87,7 +86,7 @@ export default function Home() {
                     </div>
                     <div className="flex items-center space-x-2 bg-white/10 px-4 py-2 rounded-full backdrop-blur-sm border border-white/20">
                       <div className="w-2 h-2 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full"></div>
-                      <span className="text-xs font-medium">Community Discussion</span>
+                      <span className="text-xs font-medium">Open Discussion</span>
                     </div>
                   </div>
 
@@ -131,14 +130,14 @@ export default function Home() {
               <div className="bg-stone-700/50 rounded-2xl border border-stone-600 p-8 text-center mb-12">
                 <h4 className="text-2xl font-bold mb-4">Our Mission</h4>
                 <p className="text-stone-300 leading-relaxed text-lg mb-4">
-                  We believe that every person on this planet is a steward of our shared world.
-                  Beneath the noise of headlines and the fog of bias, there are real stories &mdash;
-                  told by real people, from every corner of the earth.
+                  Most news gives you one angle. But real events affect real people
+                  in different ways. A trade war looks different to a factory worker in Ohio
+                  than it does to a farmer in Vietnam.
                 </p>
                 <p className="text-stone-300 leading-relaxed text-lg">
-                  Gaze exists to bring those voices together: to help humanity understand
-                  one another, engage in peaceful dialogue, and continue to grow as one family
-                  under the vast sky we all share.
+                  Gaze puts those perspectives side by side. We aggregate coverage from
+                  hundreds of sources, break down who is affected and how, then let the
+                  people involved speak for themselves.
                 </p>
               </div>
             </div>
@@ -155,27 +154,27 @@ export default function Home() {
                   <div className="text-3xl mb-3">{'\u{1F4F0}'}</div>
                   <h4 className="font-semibold mb-2">Aggregate</h4>
                   <p className="text-stone-400 text-sm">
-                    We continuously monitor hundreds of news sources worldwide,
-                    clustering related articles into unified events so you see the full picture,
-                    not just one outlet&apos;s take.
+                    We pull from hundreds of news sources worldwide and group
+                    related articles into one event. You get the full picture,
+                    not just one outlet&apos;s version.
                   </p>
                 </div>
                 <div className="bg-stone-800 rounded-xl border border-stone-700 p-6">
-                  <div className="text-3xl mb-3">{'\u{1F916}'}</div>
-                  <h4 className="font-semibold mb-2">Analyze</h4>
+                  <div className="text-3xl mb-3">{'\u{1F50D}'}</div>
+                  <h4 className="font-semibold mb-2">Break Down</h4>
                   <p className="text-stone-400 text-sm">
-                    AI identifies the stakeholders affected by each event and generates
-                    deep analysis: background, cause chains, impact, timelines, and
-                    multiple perspectives side by side.
+                    Each event gets broken down into background, causes, impact,
+                    and timeline. You also see how different groups are affected,
+                    with their perspectives laid out side by side.
                   </p>
                 </div>
                 <div className="bg-stone-800 rounded-xl border border-stone-700 p-6">
                   <div className="text-3xl mb-3">{'\u{1F91D}'}</div>
-                  <h4 className="font-semibold mb-2">Dialogue</h4>
+                  <h4 className="font-semibold mb-2">Discuss</h4>
                   <p className="text-stone-400 text-sm">
-                    Community members share perspectives, listen to each other,
-                    and engage in respectful conversation &mdash; because understanding
-                    starts with hearing another voice.
+                    Real stakeholders can claim their identity and share
+                    first-hand perspectives. Everyone else can join the
+                    conversation and ask questions.
                   </p>
                 </div>
               </div>
@@ -191,31 +190,28 @@ export default function Home() {
                 <h3 className="text-2xl md:text-3xl font-bold mb-4 text-center">Why Multiple Perspectives?</h3>
                 <div className="bg-stone-700/50 rounded-xl border border-stone-600 p-6">
                   <p className="text-stone-300 leading-relaxed mb-4">
-                    Traditional news often presents events from a single editorial viewpoint.
-                    But every major event affects many groups differently &mdash;
-                    governments, civilians, businesses, communities, future generations &mdash;
-                    and each has a story worth hearing.
+                    Most news covers events from one editorial angle. But a military conflict
+                    looks very different to a soldier, a refugee, and a diplomat. A tech layoff
+                    means one thing to shareholders and another to the engineers who got let go.
                   </p>
                   <p className="text-stone-300 leading-relaxed">
-                    By presenting these stakeholder perspectives side by side, we don&apos;t tell you
-                    what to think. We give you the information to think for yourself, with empathy
-                    for all those involved.
+                    We lay out these perspectives side by side. We don&apos;t tell you what to think.
+                    You read, you compare, you decide.
                   </p>
                 </div>
               </div>
 
               <div>
-                <h3 className="text-2xl md:text-3xl font-bold mb-4 text-center">Personas</h3>
+                <h3 className="text-2xl md:text-3xl font-bold mb-4 text-center">Speak as Who You Are</h3>
                 <div className="bg-stone-700/50 rounded-xl border border-stone-600 p-6">
                   <p className="text-stone-300 leading-relaxed mb-4">
-                    On Gaze, you participate through <strong className="text-stone-100">personas</strong> &mdash;
-                    identities that represent your background, expertise, or perspective.
-                    A climate scientist, a local farmer, a policy analyst &mdash;
-                    each persona brings unique context to discussions.
+                    On Gaze, you can claim your connection to an event. If you&apos;re a nurse
+                    commenting on a healthcare policy, or a local resident discussing a
+                    natural disaster in your town, your identity adds weight to your words.
                   </p>
                   <p className="text-stone-300 leading-relaxed">
-                    Personas can be verified to indicate authentic stakeholder representation,
-                    adding credibility and trust to the community conversation.
+                    Declare yourself with one click, or submit proof to get a verified badge.
+                    Readers can see who is actually affected vs. who is just commenting.
                   </p>
                 </div>
               </div>
@@ -230,18 +226,17 @@ export default function Home() {
               <div className="bg-gradient-to-br from-stone-800 to-stone-800/80 rounded-2xl border border-stone-700 p-8 text-center">
                 <h3 className="text-2xl md:text-3xl font-bold mb-4">We Share This World</h3>
                 <p className="text-stone-300 leading-relaxed mb-4">
-                  We are all stewards of this planet. Regardless of where we were born,
-                  what language we speak, or what we believe &mdash; we share the same sky,
-                  the same earth, and the same future.
+                  No matter where you&apos;re from, the big events of our time affect all of us.
+                  The better we understand each other&apos;s realities, the better our
+                  conversations get.
                 </p>
                 <p className="text-stone-300 leading-relaxed mb-4">
-                  Gaze is built on a simple conviction: that when people truly understand
-                  each other&apos;s experiences, peaceful dialogue becomes possible &mdash;
-                  and with dialogue comes progress.
+                  Gaze is built on a simple idea: put all the perspectives in one place
+                  and let people talk it out. No spin, no paywall, no algorithm deciding
+                  what you should care about.
                 </p>
                 <p className="text-amber-300 leading-relaxed font-medium">
-                  Join us in building a world where every voice is heard,
-                  every perspective is valued, and humanity moves forward together.
+                  Come see what&apos;s really happening.
                 </p>
               </div>
             </div>
