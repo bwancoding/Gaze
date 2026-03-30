@@ -509,7 +509,8 @@ async def cancel_verification(
 
 class QuickDeclareRequest(BaseModel):
     event_id: str
-    stakeholder_id: str
+    stakeholder_id: str = ""  # Existing stakeholder ID (optional if custom_name provided)
+    custom_name: str = ""  # Custom stakeholder name (e.g. "Local Journalist")
     reason: str = ""  # Optional: why you are this stakeholder
 
 
@@ -545,15 +546,55 @@ async def quick_declare_stakeholder(
         db.add(persona)
         db.flush()
 
-    # Check stakeholder exists
-    stakeholder = db.query(Stakeholder).filter(Stakeholder.id == data.stakeholder_id).first()
-    if not stakeholder:
-        raise HTTPException(status_code=404, detail="Stakeholder not found")
-
     # Check event exists
     event = db.query(Event).filter(Event.id == data.event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
+
+    # Resolve stakeholder: use existing ID or create from custom name
+    if data.stakeholder_id:
+        stakeholder = db.query(Stakeholder).filter(Stakeholder.id == data.stakeholder_id).first()
+        if not stakeholder:
+            raise HTTPException(status_code=404, detail="Stakeholder not found")
+    elif data.custom_name and data.custom_name.strip():
+        custom_name = data.custom_name.strip()
+        if len(custom_name) > 100:
+            raise HTTPException(status_code=400, detail="Stakeholder name too long (max 100 characters)")
+        # Find or create stakeholder with this name
+        from app.models.stakeholders import StakeholderType, EventStakeholder
+        stakeholder = db.query(Stakeholder).filter(Stakeholder.name == custom_name).first()
+        if not stakeholder:
+            # Get or create a generic "Group" type
+            group_type = db.query(StakeholderType).filter(StakeholderType.name == "Group").first()
+            if not group_type:
+                group_type = StakeholderType(id=uuid.uuid4(), name="Group", description="General group")
+                db.add(group_type)
+                db.flush()
+            stakeholder = Stakeholder(
+                id=uuid.uuid4(),
+                name=custom_name,
+                type_id=group_type.id,
+                description=f"User-declared stakeholder: {custom_name}",
+                is_active=True,
+            )
+            db.add(stakeholder)
+            db.flush()
+        # Link stakeholder to event if not already linked
+        existing_link = db.query(EventStakeholder).filter(
+            EventStakeholder.event_id == data.event_id,
+            EventStakeholder.stakeholder_id == stakeholder.id,
+        ).first()
+        if not existing_link:
+            db.add(EventStakeholder(
+                id=uuid.uuid4(),
+                event_id=data.event_id,
+                stakeholder_id=stakeholder.id,
+                is_ai_generated=False,
+                status='approved',
+            ))
+            db.flush()
+    else:
+        raise HTTPException(status_code=400, detail="Either stakeholder_id or custom_name is required")
 
     # Check existing verification
     existing = db.query(EventStakeholderVerification).filter(
@@ -621,6 +662,55 @@ async def quick_declare_stakeholder(
         "persona_id": str(persona.id),
         "persona_name": persona.persona_name,
     }
+
+
+class QuickUndeclareRequest(BaseModel):
+    event_id: str
+    stakeholder_id: str
+
+
+@router.post("/quick-undeclare")
+@limiter.limit("10/minute")
+async def quick_undeclare_stakeholder(
+    request: Request,
+    data: QuickUndeclareRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token),
+):
+    """
+    Cancel a self-declaration for an event.
+
+    Only 'declared' status can be cancelled by the user.
+    Admin-approved verifications cannot be undone here.
+    """
+    # Find user's persona
+    persona = db.query(UserPersona).filter(
+        UserPersona.user_id == current_user.id,
+        UserPersona.is_deleted == False,
+    ).first()
+
+    if not persona:
+        raise HTTPException(status_code=404, detail="No persona found")
+
+    verification = db.query(EventStakeholderVerification).filter(
+        EventStakeholderVerification.user_persona_id == persona.id,
+        EventStakeholderVerification.event_id == data.event_id,
+        EventStakeholderVerification.stakeholder_id == data.stakeholder_id,
+    ).first()
+
+    if not verification:
+        raise HTTPException(status_code=404, detail="Declaration not found")
+
+    if verification.status == 'approved':
+        raise HTTPException(status_code=400, detail="Verified status can only be revoked by an admin")
+
+    if verification.status != 'declared':
+        raise HTTPException(status_code=400, detail=f"Cannot cancel {verification.status} declaration")
+
+    db.delete(verification)
+    db.commit()
+
+    return {"message": "Declaration cancelled"}
 
 
 # ==================== Event-Level Verification ====================

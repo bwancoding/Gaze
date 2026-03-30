@@ -19,8 +19,12 @@ interface StakeholderDeclareProps {
 export default function StakeholderDeclare({ eventId, stakeholders, onDeclared }: StakeholderDeclareProps) {
   const router = useRouter();
   const [declaring, setDeclaring] = useState<string | null>(null);
+  const [undeclaring, setUndeclaring] = useState<string | null>(null);
   const [declared, setDeclared] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [showCustom, setShowCustom] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customDeclared, setCustomDeclared] = useState<string[]>([]);
 
   const handleDeclare = async (stakeholderId: string, stakeholderName: string) => {
     if (!isAuthenticated()) {
@@ -55,6 +59,75 @@ export default function StakeholderDeclare({ eventId, stakeholders, onDeclared }
     }
   };
 
+  const handleUndeclare = async (stakeholderId: string) => {
+    setUndeclaring(stakeholderId);
+    setError(null);
+
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/api/personas/quick-undeclare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: eventId,
+          stakeholder_id: stakeholderId,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || 'Failed to cancel declaration');
+      }
+
+      setDeclared(prev => {
+        const next = new Set(prev);
+        next.delete(stakeholderId);
+        return next;
+      });
+    } catch (err: any) {
+      setError(err.message || 'Failed to cancel declaration');
+    } finally {
+      setUndeclaring(null);
+    }
+  };
+
+  const handleCustomDeclare = async () => {
+    const name = customName.trim();
+    if (!name) return;
+
+    if (!isAuthenticated()) {
+      router.push(`/auth/login?redirect=/events/${eventId}`);
+      return;
+    }
+
+    setDeclaring('custom');
+    setError(null);
+
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/api/personas/quick-declare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event_id: eventId,
+          custom_name: name,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || 'Failed to declare');
+      }
+
+      setCustomDeclared(prev => [...prev, name]);
+      setCustomName('');
+      setShowCustom(false);
+      onDeclared?.(name);
+    } catch (err: any) {
+      setError(err.message || 'Failed to declare');
+    } finally {
+      setDeclaring(null);
+    }
+  };
+
   if (stakeholders.length === 0) return null;
 
   return (
@@ -73,26 +146,36 @@ export default function StakeholderDeclare({ eventId, stakeholders, onDeclared }
         {stakeholders.map((sh) => {
           const isDeclared = declared.has(sh.stakeholder_id);
           const isLoading = declaring === sh.stakeholder_id;
+          const isCancelling = undeclaring === sh.stakeholder_id;
 
           return (
             <button
               key={sh.stakeholder_id}
-              onClick={() => !isDeclared && handleDeclare(sh.stakeholder_id, sh.stakeholder_name)}
-              disabled={isDeclared || isLoading}
+              onClick={() => isDeclared ? handleUndeclare(sh.stakeholder_id) : handleDeclare(sh.stakeholder_id, sh.stakeholder_name)}
+              disabled={isLoading || isCancelling}
               className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                 isDeclared
-                  ? 'bg-green-100 text-green-700 border border-green-300 cursor-default'
+                  ? 'bg-green-100 text-green-700 border border-green-300 hover:bg-red-50 hover:text-red-600 hover:border-red-300 cursor-pointer'
                   : isLoading
                   ? 'bg-blue-100 text-blue-500 border border-blue-200 cursor-wait'
                   : 'bg-white text-stone-700 border border-stone-300 hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50 cursor-pointer'
               }`}
+              title={isDeclared ? 'Click to cancel declaration' : undefined}
             >
-              {isDeclared ? (
+              {isCancelling ? (
+                <>
+                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span>Cancelling...</span>
+                </>
+              ) : isDeclared ? (
                 <>
                   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
-                  <span>Declared as {sh.stakeholder_name}</span>
+                  <span>{sh.stakeholder_name}</span>
                 </>
               ) : isLoading ? (
                 <>
@@ -103,13 +186,69 @@ export default function StakeholderDeclare({ eventId, stakeholders, onDeclared }
                   <span>Declaring...</span>
                 </>
               ) : (
-                <>
-                  <span>I am {sh.stakeholder_name}</span>
-                </>
+                <span>I am {sh.stakeholder_name}</span>
               )}
             </button>
           );
         })}
+
+        {/* Custom declared items */}
+        {customDeclared.map((name) => (
+          <span
+            key={name}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-700 border border-green-300"
+          >
+            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+            <span>{name}</span>
+          </span>
+        ))}
+
+        {/* Other / Custom identity button */}
+        {!showCustom ? (
+          <button
+            onClick={() => {
+              if (!isAuthenticated()) {
+                router.push(`/auth/login?redirect=/events/${eventId}`);
+                return;
+              }
+              setShowCustom(true);
+            }}
+            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-white text-stone-500 border border-dashed border-stone-300 hover:border-blue-400 hover:text-blue-600 cursor-pointer transition-all"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Other</span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 w-full mt-1">
+            <input
+              type="text"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCustomDeclare(); if (e.key === 'Escape') setShowCustom(false); }}
+              placeholder="e.g. Local Journalist, Military Family..."
+              className="flex-1 px-3 py-1.5 rounded-lg border border-stone-300 text-sm focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200"
+              maxLength={100}
+              autoFocus
+            />
+            <button
+              onClick={handleCustomDeclare}
+              disabled={!customName.trim() || declaring === 'custom'}
+              className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {declaring === 'custom' ? '...' : 'Declare'}
+            </button>
+            <button
+              onClick={() => { setShowCustom(false); setCustomName(''); }}
+              className="px-2 py-1.5 text-stone-400 hover:text-stone-600 text-sm transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
 
       {error && (

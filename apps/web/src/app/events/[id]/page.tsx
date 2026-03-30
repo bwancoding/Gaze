@@ -244,7 +244,7 @@ export default function EventDetailPage() {
   const perspectiveCount = perspectives.length || stakeholders.length;
 
   const tabs: { key: TabKey; label: string; icon: React.ReactNode; count?: number }[] = [
-    { key: 'overview', label: 'Overview', icon: <Icons.Robot /> },
+    { key: 'overview', label: 'Overview', icon: <Icons.Analysis /> },
     { key: 'perspectives', label: 'Perspectives', icon: <Icons.Users />, count: perspectiveCount },
     { key: 'analysis', label: 'Deep Analysis', icon: <Icons.Analysis /> },
     { key: 'sources', label: 'Sources', icon: <Icons.Newspaper />, count: sources.length },
@@ -370,15 +370,14 @@ export default function EventDetailPage() {
                         </div>
 
                         <div className="flex items-center space-x-2 text-xs text-stone-400 pt-2">
-                          <Icons.Robot />
-                          <span>AI-generated analysis, for reference only</span>
+                          <span>Auto-generated from source articles. May contain inaccuracies.</span>
                         </div>
                       </>
                     ) : (
                       <div className="text-center py-12">
-                        <div className="text-4xl mb-4">&#x1F916;</div>
-                        <p className="text-stone-600 mb-2">Deep analysis is being generated</p>
-                        <p className="text-sm text-stone-400">Check back soon for background, perspectives, and impact analysis</p>
+                        <div className="text-4xl mb-4">&#x23F3;</div>
+                        <p className="text-stone-600 mb-2">Analysis is being prepared</p>
+                        <p className="text-sm text-stone-400">Check back soon for background, perspectives, and impact breakdown</p>
                       </div>
                     )}
                   </div>
@@ -423,7 +422,7 @@ export default function EventDetailPage() {
                             <div className="flex items-center space-x-2 mb-3">
                               <div className={`w-2.5 h-2.5 rounded-full ${color.dot}`}></div>
                               <h4 className={`font-bold ${color.text}`}>{sh.stakeholder_name}</h4>
-                              {sh.is_ai_generated && <span className="text-xs bg-white/60 text-stone-500 px-2 py-0.5 rounded">AI</span>}
+                              {sh.is_ai_generated && <span className="text-xs bg-white/60 text-stone-500 px-2 py-0.5 rounded">Auto</span>}
                             </div>
                             {sh.perspective_summary && <p className="text-stone-700 text-sm leading-relaxed mb-3">{sh.perspective_summary}</p>}
                             {sh.key_concerns?.length > 0 && (
@@ -443,8 +442,7 @@ export default function EventDetailPage() {
                       </div>
                     )}
                     <div className="flex items-center space-x-2 text-xs text-stone-400 mt-3">
-                      <Icons.Robot />
-                      <span>AI-generated from source articles, not editorial opinions</span>
+                      <span>Generated from source articles, not editorial opinions</span>
                     </div>
                   </div>
                 )}
@@ -513,14 +511,13 @@ export default function EventDetailPage() {
                         )}
 
                         <div className="flex items-center space-x-2 text-sm text-stone-400 pt-4 border-t border-stone-200">
-                          <Icons.Robot />
-                          <span>AI-generated analysis, for reference only</span>
+                          <span>Auto-generated from source articles. May contain inaccuracies.</span>
                         </div>
                       </>
                     ) : (
                       <div className="text-center py-12">
-                        <div className="text-4xl mb-4">&#x1F916;</div>
-                        <p className="text-stone-600">Deep analysis is being generated</p>
+                        <div className="text-4xl mb-4">&#x23F3;</div>
+                        <p className="text-stone-600">Deep analysis is being prepared</p>
                       </div>
                     )}
                   </div>
@@ -606,11 +603,11 @@ export default function EventDetailPage() {
         {/* Discussion - Always Visible Below Tabs */}
         <section id="discussion" className="container mx-auto px-6 pb-12">
           <div className="max-w-5xl mx-auto">
-            {/* Gentle philosophy reminder */}
+            {/* Community reminder */}
             <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/60 rounded-xl px-5 py-3 mb-4 flex items-center space-x-3">
               <span className="text-lg flex-shrink-0">{'\u{1F30D}'}</span>
               <p className="text-sm text-stone-600">
-                We are all stewards of this world. Share your perspective with empathy, listen with an open mind, and help build understanding across every voice.
+                If you&apos;re directly affected by this event, claim your stakeholder identity above. Your first-hand perspective matters most here.
               </p>
             </div>
 
