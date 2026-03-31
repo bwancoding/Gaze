@@ -312,7 +312,7 @@ export default function CommentItem({
           {!showReplies ? (
             <button
               onClick={() => setShowReplies(true)}
-              className="flex items-center space-x-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium py-1.5 transition-colors"
+              className="flex items-center space-x-1.5 text-xs text-neutral-600 hover:text-neutral-900 font-medium py-1.5 transition-colors"
             >
               <svg className="w-3 h-3 transform -rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -448,7 +448,7 @@ function SingleComment({
             <button
               onClick={handleReplyClick}
               className={`flex items-center space-x-1 text-xs transition-colors ${
-                showReplyForm ? 'text-blue-600 font-semibold' : 'text-stone-400 hover:text-blue-600'
+                showReplyForm ? 'text-neutral-900 font-semibold' : 'text-stone-400 hover:text-neutral-600'
               }`}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -480,7 +480,7 @@ function SingleComment({
                         key={p.id}
                         type="button"
                         onClick={() => setSelectedPersona(p.id)}
-                        className={`px-2 py-0.5 rounded-full text-[11px] font-medium transition-colors ${
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
                           selectedPersona === p.id
                             ? 'bg-stone-900 text-white'
                             : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-100'
@@ -520,7 +520,7 @@ function SingleComment({
                     <button
                       onClick={handleSubmitReply}
                       disabled={isSubmittingReply || !replyContent.trim()}
-                      className="px-3 py-1 bg-stone-900 text-white text-xs rounded-full font-medium hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="px-3 py-1 bg-stone-900 text-white text-xs rounded-md font-medium hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       {isSubmittingReply ? '...' : 'Reply'}
                     </button>

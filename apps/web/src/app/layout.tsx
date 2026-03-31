@@ -1,10 +1,16 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter, Dancing_Script } from 'next/font/google'
+import { Source_Serif_4, DM_Sans, Dancing_Script } from 'next/font/google'
 import '../styles/globals.css'
 import AnalyticsTracker from '../components/AnalyticsTracker'
 
-const inter = Inter({
+const sourceSerif = Source_Serif_4({
   subsets: ['latin'],
+  variable: '--font-serif',
+  display: 'swap',
+})
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-sans',
   display: 'swap',
 })
 const dancingScript = Dancing_Script({
@@ -14,7 +20,7 @@ const dancingScript = Dancing_Script({
 })
 
 export const viewport: Viewport = {
-  themeColor: '#1c1917',
+  themeColor: '#18181B',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
@@ -63,7 +69,7 @@ export default function RootLayout({
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
       </head>
-      <body className={`${inter.className} ${dancingScript.variable}`}>
+      <body className={`${dmSans.variable} ${sourceSerif.variable} ${dancingScript.variable} font-sans`}>
         <AnalyticsTracker />
         {children}
       </body>
