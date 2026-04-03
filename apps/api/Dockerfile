@@ -44,6 +44,8 @@ COPY . .
 RUN mkdir -p uploads
 
 ENV PORT=8000
+ENV PYTHONUNBUFFERED=1
+
 EXPOSE ${PORT}
 
 # Run with uvicorn - use shell form so $PORT is expanded

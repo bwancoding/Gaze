@@ -1,3 +1,6 @@
+import sys
+print(f"[BOOT] Python {sys.version} starting...", flush=True)
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,7 +10,9 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.core.limiter import limiter
 from app.core.database import engine, Base, SessionLocal
+print("[BOOT] Database engine created", flush=True)
 from app.routes import events, admin, stakeholders, stakeholder_verify, personas, comments, auth, trending, threads, users, notifications, feedback, analytics
+print("[BOOT] Routes imported", flush=True)
 import logging
 import os
 import traceback
@@ -25,7 +30,9 @@ import app.models.feedback  # noqa: F401
 import app.models.request_log  # noqa: F401
 import app.models.page_view  # noqa: F401
 import app.models.error_log  # noqa: F401
+print("[BOOT] Models imported, creating tables...", flush=True)
 Base.metadata.create_all(bind=engine)
+print("[BOOT] Tables created", flush=True)
 
 # Migrate: add new columns to existing tables (SQLite doesn't support ALTER TABLE via create_all)
 def _run_migrations():
