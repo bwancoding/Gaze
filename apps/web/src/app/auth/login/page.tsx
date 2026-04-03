@@ -18,11 +18,8 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Log in using JWT
       await login(email, password);
-      
-      // Redirect to trending page after login
-      router.push('/trending');
+      router.push('/stories');
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -31,26 +28,24 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen" style={{ background: 'var(--color-paper)' }}>
       <Header />
-      
+
       <main className="container mx-auto px-6 py-12">
         <div className="max-w-md mx-auto">
-          {/* Login card */}
-          <div className="bg-white rounded-2xl border border-stone-200 p-8 shadow-lg">
+          <div className="border rounded-md p-8" style={{ borderColor: 'var(--color-rule)' }}>
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-stone-900 mb-2">
+              <h1 className="font-serif font-bold mb-2" style={{ color: 'var(--color-ink)', fontSize: '1.75rem' }}>
                 Welcome Back
               </h1>
-              <p className="text-stone-600">
+              <p className="text-sm" style={{ color: 'var(--color-ink-light)' }}>
                 Sign in to share your perspective
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-6">
-              {/* Email input */}
+            <form onSubmit={handleLogin} className="space-y-5">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-stone-700 mb-2">
+                <label htmlFor="email" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-ink)' }}>
                   Email
                 </label>
                 <input
@@ -60,17 +55,17 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="test@example.com"
                   required
-                  className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 border rounded-md text-sm focus:outline-none transition-colors"
+                  style={{ background: 'var(--color-paper)', borderColor: 'var(--color-rule)', color: 'var(--color-ink)' }}
                 />
               </div>
 
-              {/* Password input */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label htmlFor="password" className="block text-sm font-medium text-stone-700">
+                  <label htmlFor="password" className="block text-sm font-medium" style={{ color: 'var(--color-ink)' }}>
                     Password
                   </label>
-                  <a href="/auth/forgot-password" className="text-xs text-blue-600 hover:text-blue-700">
+                  <a href="/auth/forgot-password" className="text-xs" style={{ color: 'var(--color-accent)' }}>
                     Forgot password?
                   </a>
                 </div>
@@ -81,31 +76,31 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   required
-                  className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 border rounded-md text-sm focus:outline-none transition-colors"
+                  style={{ background: 'var(--color-paper)', borderColor: 'var(--color-rule)', color: 'var(--color-ink)' }}
                 />
               </div>
 
-              {/* Error message */}
               {error && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                <div className="p-4 border rounded-md text-sm" style={{ borderColor: 'var(--color-accent)', background: 'rgba(194,65,12,0.05)', color: 'var(--color-ink)' }}>
                   {error}
                 </div>
               )}
 
-              {/* Submit button */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full py-3 rounded-md font-medium text-sm text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: 'var(--color-accent)' }}
               >
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </button>
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-stone-600">
+              <p className="text-sm" style={{ color: 'var(--color-ink-light)' }}>
                 Don&apos;t have an account?{' '}
-                <a href="/auth/register" className="text-blue-600 hover:text-blue-700 font-medium">
+                <a href="/auth/register" className="font-medium" style={{ color: 'var(--color-accent)' }}>
                   Create Account
                 </a>
               </p>

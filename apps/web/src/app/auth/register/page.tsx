@@ -32,7 +32,7 @@ export default function RegisterPage() {
 
     try {
       await register(email, password, displayName || undefined);
-      router.push('/trending');
+      router.push('/stories');
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
@@ -40,25 +40,31 @@ export default function RegisterPage() {
     }
   };
 
+  const inputStyle = {
+    background: 'var(--color-paper)',
+    borderColor: 'var(--color-rule)',
+    color: 'var(--color-ink)',
+  };
+
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen" style={{ background: 'var(--color-paper)' }}>
       <Header />
 
       <main className="container mx-auto px-6 py-12">
         <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-2xl border border-stone-200 p-8 shadow-lg">
+          <div className="border rounded-md p-8" style={{ borderColor: 'var(--color-rule)' }}>
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-stone-900 mb-2">
+              <h1 className="font-serif font-bold mb-2" style={{ color: 'var(--color-ink)', fontSize: '1.75rem' }}>
                 Create Account
               </h1>
-              <p className="text-stone-600">
+              <p className="text-sm" style={{ color: 'var(--color-ink-light)' }}>
                 Join the conversation, see every perspective
               </p>
             </div>
 
             <form onSubmit={handleRegister} className="space-y-5">
               <div>
-                <label htmlFor="displayName" className="block text-sm font-medium text-stone-700 mb-2">
+                <label htmlFor="displayName" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-ink)' }}>
                   Display Name
                 </label>
                 <input
@@ -67,14 +73,15 @@ export default function RegisterPage() {
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   placeholder="How others will see you"
-                  className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 border rounded-md text-sm focus:outline-none transition-colors"
+                  style={inputStyle}
                 />
-                <p className="mt-1 text-xs text-stone-400">Optional. Defaults to your email username.</p>
+                <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-light)' }}>Optional. Defaults to your email username.</p>
               </div>
 
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-stone-700 mb-2">
-                  Email <span className="text-red-500">*</span>
+                <label htmlFor="email" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-ink)' }}>
+                  Email <span style={{ color: 'var(--color-accent)' }}>*</span>
                 </label>
                 <input
                   id="email"
@@ -83,13 +90,14 @@ export default function RegisterPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   required
-                  className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 border rounded-md text-sm focus:outline-none transition-colors"
+                  style={inputStyle}
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-stone-700 mb-2">
-                  Password <span className="text-red-500">*</span>
+                <label htmlFor="password" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-ink)' }}>
+                  Password <span style={{ color: 'var(--color-accent)' }}>*</span>
                 </label>
                 <input
                   id="password"
@@ -99,13 +107,14 @@ export default function RegisterPage() {
                   placeholder="At least 6 characters"
                   required
                   minLength={6}
-                  className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 border rounded-md text-sm focus:outline-none transition-colors"
+                  style={inputStyle}
                 />
               </div>
 
               <div>
-                <label htmlFor="confirmPassword" className="block text-sm font-medium text-stone-700 mb-2">
-                  Confirm Password <span className="text-red-500">*</span>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-ink)' }}>
+                  Confirm Password <span style={{ color: 'var(--color-accent)' }}>*</span>
                 </label>
                 <input
                   id="confirmPassword"
@@ -115,12 +124,13 @@ export default function RegisterPage() {
                   placeholder="Re-enter your password"
                   required
                   minLength={6}
-                  className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 border rounded-md text-sm focus:outline-none transition-colors"
+                  style={inputStyle}
                 />
               </div>
 
               {error && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                <div className="p-4 border rounded-md text-sm" style={{ borderColor: 'var(--color-accent)', background: 'rgba(194,65,12,0.05)', color: 'var(--color-ink)' }}>
                   {error}
                 </div>
               )}
@@ -128,23 +138,24 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full py-3 rounded-md font-medium text-sm text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: 'var(--color-accent)' }}
               >
                 {isLoading ? 'Creating Account...' : 'Create Account'}
               </button>
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-sm text-stone-600">
+              <p className="text-sm" style={{ color: 'var(--color-ink-light)' }}>
                 Already have an account?{' '}
-                <a href="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium">
+                <a href="/auth/login" className="font-medium" style={{ color: 'var(--color-accent)' }}>
                   Sign In
                 </a>
               </p>
             </div>
 
             <div className="mt-4 text-center">
-              <p className="text-xs text-stone-400">
+              <p className="text-xs" style={{ color: 'var(--color-ink-light)' }}>
                 By creating an account, you agree to participate respectfully and share genuine perspectives.
               </p>
             </div>
