@@ -73,21 +73,25 @@ def _run_migrations():
 
 try:
     _run_migrations()
+    print("[BOOT] Migrations done", flush=True)
 except Exception as e:
+    print(f"[BOOT] Migration warning: {e}", flush=True)
     logger.warning(f"Migration warning (non-fatal): {e}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: start scheduler on startup, cleanup on shutdown"""
+    print("[BOOT] Lifespan startup begin", flush=True)
     from app.services.scheduler import init_scheduler, shutdown_scheduler
     init_scheduler()
+    print("[BOOT] Scheduler started, lifespan ready", flush=True)
     logger.info("Gaze API started with scheduler")
     yield
     shutdown_scheduler()
     logger.info("Gaze API shut down")
 
-
+print("[BOOT] Creating FastAPI app...", flush=True)
 app = FastAPI(
     title="Gaze API",
     description="Multi-perspective News Aggregation Platform API",
@@ -96,6 +100,7 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+print("[BOOT] App created, adding middleware...", flush=True)
 
 # CORS configuration
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")]
@@ -130,6 +135,7 @@ app.include_router(analytics.router, prefix="/api", tags=["Analytics"])
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+print("[BOOT] Module loading complete, uvicorn should start now", flush=True)
 
 # Global exception handler - catch unhandled errors and log them
 @app.exception_handler(Exception)
