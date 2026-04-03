@@ -19,7 +19,6 @@ export default function ForgotPasswordPage() {
     try {
       const result = await forgotPassword(email);
       setSent(true);
-      // MVP: show the reset token directly (in production, sent via email)
       if (result.reset_token) {
         setResetToken(result.reset_token);
       }
@@ -31,18 +30,17 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen" style={{ background: 'var(--color-paper)' }}>
       <Header />
 
       <main className="container mx-auto px-6 py-12">
         <div className="max-w-md mx-auto">
-          <div className="bg-white rounded-2xl border border-stone-200 p-8 shadow-lg">
+          <div className="border rounded-md p-8" style={{ borderColor: 'var(--color-rule)' }}>
             <div className="text-center mb-8">
-              <div className="text-4xl mb-4">🔑</div>
-              <h1 className="text-3xl font-bold text-stone-900 mb-2">
+              <h1 className="font-serif font-bold mb-2" style={{ color: 'var(--color-ink)', fontSize: '1.75rem' }}>
                 Forgot Password
               </h1>
-              <p className="text-stone-600">
+              <p className="text-sm" style={{ color: 'var(--color-ink-light)' }}>
                 Enter your email to receive a password reset link
               </p>
             </div>
@@ -50,7 +48,7 @@ export default function ForgotPasswordPage() {
             {!sent ? (
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-stone-700 mb-2">
+                  <label htmlFor="email" className="block text-sm font-medium mb-2" style={{ color: 'var(--color-ink)' }}>
                     Email Address
                   </label>
                   <input
@@ -60,12 +58,13 @@ export default function ForgotPasswordPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
                     required
-                    className="w-full px-4 py-3 border border-stone-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    className="w-full px-4 py-3 border rounded-md text-sm focus:outline-none transition-colors"
+                    style={{ background: 'var(--color-paper)', borderColor: 'var(--color-rule)', color: 'var(--color-ink)' }}
                   />
                 </div>
 
                 {error && (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+                  <div className="p-4 border rounded-md text-sm" style={{ borderColor: 'var(--color-accent)', background: 'rgba(194,65,12,0.05)', color: 'var(--color-ink)' }}>
                     {error}
                   </div>
                 )}
@@ -73,24 +72,26 @@ export default function ForgotPasswordPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3.5 bg-stone-900 text-white rounded-xl font-medium hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="w-full py-3 rounded-md font-medium text-sm text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ background: 'var(--color-accent)' }}
                 >
                   {isLoading ? 'Sending...' : 'Send Reset Link'}
                 </button>
               </form>
             ) : (
               <div className="space-y-6">
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm">
+                <div className="p-4 border rounded-md text-sm" style={{ borderColor: 'var(--color-rule)', background: 'rgba(194,65,12,0.04)', color: 'var(--color-ink)' }}>
                   <p className="font-medium mb-1">Check your email</p>
-                  <p>If an account exists for <strong>{email}</strong>, you will receive a password reset link.</p>
+                  <p style={{ color: 'var(--color-ink-light)' }}>If an account exists for <strong>{email}</strong>, you will receive a password reset link.</p>
                 </div>
 
                 {resetToken && process.env.NODE_ENV === 'development' && (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
-                    <p className="font-medium mb-2">Development: Direct Reset Link</p>
+                  <div className="p-4 border rounded-md text-sm" style={{ borderColor: 'var(--color-accent)', background: 'rgba(194,65,12,0.05)' }}>
+                    <p className="font-medium mb-2" style={{ color: 'var(--color-ink)' }}>Development: Direct Reset Link</p>
                     <a
                       href={`/auth/reset-password?token=${encodeURIComponent(resetToken)}`}
-                      className="inline-block px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors"
+                      className="inline-block px-4 py-2 rounded-md text-sm font-medium text-white transition-colors"
+                      style={{ background: 'var(--color-accent)' }}
                     >
                       Reset Password Now
                     </a>
@@ -100,15 +101,15 @@ export default function ForgotPasswordPage() {
             )}
 
             <div className="mt-6 text-center space-y-2">
-              <p className="text-sm text-stone-600">
+              <p className="text-sm" style={{ color: 'var(--color-ink-light)' }}>
                 Remember your password?{' '}
-                <a href="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium">
+                <a href="/auth/login" className="font-medium" style={{ color: 'var(--color-accent)' }}>
                   Sign In
                 </a>
               </p>
-              <p className="text-sm text-stone-600">
+              <p className="text-sm" style={{ color: 'var(--color-ink-light)' }}>
                 Don&apos;t have an account?{' '}
-                <a href="/auth/register" className="text-blue-600 hover:text-blue-700 font-medium">
+                <a href="/auth/register" className="font-medium" style={{ color: 'var(--color-accent)' }}>
                   Create Account
                 </a>
               </p>

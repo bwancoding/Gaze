@@ -79,7 +79,7 @@ export default function Header({ title = 'Gaze', subtitle = "What's Really Happe
     }`;
 
   return (
-    <header className="bg-white border-b border-neutral-200 sticky top-0 z-50">
+    <header className="sticky top-0 z-50 border-b" style={{ background: 'var(--color-paper)', borderColor: 'var(--color-rule)' }}>
       <div className="container mx-auto px-4 py-3 sm:py-4">
         <div className="flex items-center justify-between">
           {/* Logo — typographic, no colored box */}
@@ -91,7 +91,6 @@ export default function Header({ title = 'Gaze', subtitle = "What's Really Happe
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-5">
             <a href="/" className={navLinkClass('/')}>Home</a>
-            <a href="/trending" className={navLinkClass('/trending')}>Trending</a>
             <a href="/stories" className={navLinkClass('/stories')}>Stories</a>
             <a href="/feedback" className={navLinkClass('/feedback')}>Feedback</a>
 
@@ -194,7 +193,6 @@ export default function Header({ title = 'Gaze', subtitle = "What's Really Happe
           <div className="md:hidden mt-3 pt-3 border-t border-neutral-200">
             <nav className="flex flex-col space-y-1 mb-3">
               <a href="/" className={mobileNavLinkClass('/')}>Home</a>
-              <a href="/trending" className={mobileNavLinkClass('/trending')}>Trending</a>
               <a href="/stories" className={mobileNavLinkClass('/stories')}>Stories</a>
               <a href="/feedback" className={mobileNavLinkClass('/feedback')}>Feedback</a>
             </nav>

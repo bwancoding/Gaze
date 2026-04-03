@@ -131,9 +131,9 @@ export default function StakeholderDeclare({ eventId, stakeholders, onDeclared }
   if (stakeholders.length === 0) return null;
 
   return (
-    <div className="bg-white border border-neutral-200 rounded-lg p-5">
-      <h3 className="font-semibold text-neutral-900 text-sm mb-1">Are you a stakeholder in this event?</h3>
-      <p className="text-xs text-neutral-500 mb-4">
+    <div className="rounded-lg border p-5" style={{ background: '#F0ECE3', borderColor: 'var(--color-rule)' }}>
+      <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--color-ink)' }}>Are you a stakeholder in this event?</h3>
+      <p className="text-xs mb-4" style={{ color: 'var(--color-ink-light)' }}>
         Declare your connection to speak with a stakeholder badge. You can submit verification proof later.
       </p>
 
@@ -150,11 +150,15 @@ export default function StakeholderDeclare({ eventId, stakeholders, onDeclared }
               disabled={isLoading || isCancelling}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
                 isDeclared
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-red-50 hover:text-red-600 hover:border-red-300'
+                  ? 'text-[#C2410C] border hover:opacity-70'
                   : isLoading
-                  ? 'bg-neutral-100 text-neutral-400 border border-neutral-200 cursor-wait'
-                  : 'bg-white text-neutral-700 border border-neutral-300 hover:border-neutral-900 hover:text-neutral-900'
+                  ? 'text-neutral-400 border cursor-wait'
+                  : 'text-neutral-700 border hover:text-[#C2410C] hover:border-[#C2410C]'
               }`}
+              style={{
+                background: isDeclared ? '#FFF7ED' : 'white',
+                borderColor: isDeclared ? '#C2410C' : 'var(--color-rule)',
+              }}
               title={isDeclared ? 'Click to cancel declaration' : undefined}
             >
               {isCancelling ? (
@@ -179,7 +183,8 @@ export default function StakeholderDeclare({ eventId, stakeholders, onDeclared }
         {customDeclared.map((name) => (
           <span
             key={name}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm bg-emerald-50 text-emerald-700 border border-emerald-300"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-[#C2410C] border"
+            style={{ background: '#FFF7ED', borderColor: '#C2410C' }}
           >
             <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -198,7 +203,8 @@ export default function StakeholderDeclare({ eventId, stakeholders, onDeclared }
               }
               setShowCustom(true);
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-neutral-500 border border-dashed border-neutral-300 hover:border-neutral-900 hover:text-neutral-900 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border border-dashed transition-colors hover:text-[#C2410C] hover:border-[#C2410C]"
+            style={{ color: 'var(--color-ink-light)', borderColor: 'var(--color-rule)' }}
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -213,20 +219,23 @@ export default function StakeholderDeclare({ eventId, stakeholders, onDeclared }
               onChange={(e) => setCustomName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleCustomDeclare(); if (e.key === 'Escape') setShowCustom(false); }}
               placeholder="e.g. Local Journalist, Military Family..."
-              className="flex-1 px-3 py-1.5 rounded-md border border-neutral-300 text-sm focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+              className="flex-1 px-3 py-1.5 rounded-md border text-sm focus:outline-none"
+              style={{ borderColor: 'var(--color-rule)', background: 'white' }}
               maxLength={100}
               autoFocus
             />
             <button
               onClick={handleCustomDeclare}
               disabled={!customName.trim() || declaring === 'custom'}
-              className="px-3 py-1.5 bg-neutral-900 text-white text-sm rounded-md hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 text-white text-sm rounded-md hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              style={{ background: 'var(--color-accent)' }}
             >
               {declaring === 'custom' ? '...' : 'Declare'}
             </button>
             <button
               onClick={() => { setShowCustom(false); setCustomName(''); }}
-              className="px-2 py-1.5 text-neutral-400 hover:text-neutral-600 text-sm transition-colors"
+              className="px-2 py-1.5 text-sm transition-colors hover:text-neutral-600"
+              style={{ color: 'var(--color-ink-light)' }}
             >
               Cancel
             </button>
@@ -235,7 +244,7 @@ export default function StakeholderDeclare({ eventId, stakeholders, onDeclared }
       </div>
 
       {error && (
-        <p className="text-xs text-red-600 mt-2">{error}</p>
+        <p className="text-xs mt-2" style={{ color: '#C2410C' }}>{error}</p>
       )}
     </div>
   );

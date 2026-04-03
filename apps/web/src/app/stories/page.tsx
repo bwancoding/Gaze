@@ -36,6 +36,21 @@ const getCatClass = (cat?: string): string => {
   return (cat && map[cat]) || 'bg-neutral-100 text-neutral-700';
 };
 
+/* ── Time ago helper ───────────────────────────────── */
+function formatTimeAgo(dateStr?: string): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
 export default function StoriesPage() {
   const router = useRouter();
   const [events, setEvents] = useState<Event[]>([]);
@@ -49,6 +64,9 @@ export default function StoriesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({});
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   // Debounce search
   useEffect(() => {
@@ -91,23 +109,26 @@ export default function StoriesPage() {
     fetchEvents();
   }, [fetchEvents]);
 
+  const leadEvent = events[0];
+  const restEvents = events.slice(1);
+
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen" style={{ background: 'var(--color-paper)' }}>
       <Header />
 
-      {/* Page Header with Search */}
-      <section className="bg-white border-b border-neutral-200">
+      {/* Page Header */}
+      <section className="border-b" style={{ borderColor: 'var(--color-rule)' }}>
         <div className="container mx-auto px-6 py-8">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
             <div>
-              <h1 className="font-serif text-headline text-neutral-900 mb-1">Stories</h1>
-              <p className="text-sm text-neutral-500">
+              <h1 className="font-serif font-bold mb-1" style={{ color: 'var(--color-ink)', fontSize: 'clamp(1.5rem, 3vw, 2rem)' }}>Stories</h1>
+              <p className="text-sm" style={{ color: 'var(--color-ink-light)' }}>
                 {totalCount > 0 ? `${totalCount} events with stakeholder perspectives` : 'Events published with stakeholder perspectives'}
               </p>
             </div>
             {/* Search Bar */}
             <div className="relative w-full md:w-72">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--color-ink-light)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
@@ -115,12 +136,18 @@ export default function StoriesPage() {
                 placeholder="Search events..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-neutral-300 rounded-md bg-white text-sm focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900 transition-colors"
+                className="w-full pl-10 pr-4 py-2 border rounded-md text-sm transition-colors focus:outline-none"
+                style={{
+                  background: 'var(--color-paper)',
+                  borderColor: 'var(--color-rule)',
+                  color: 'var(--color-ink)',
+                }}
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--color-ink-light)' }}
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
@@ -132,25 +159,25 @@ export default function StoriesPage() {
         </div>
       </section>
 
-      {/* Filters Bar */}
-      <section className="sticky top-[57px] z-20 bg-white border-b border-neutral-200">
-        <div className="container mx-auto px-6 py-2.5">
+      {/* Filters Bar — editorial underline tabs */}
+      <section className="sticky top-[57px] z-20 border-b" style={{ background: 'var(--color-paper)', borderColor: 'var(--color-rule)' }}>
+        <div className="container mx-auto px-6">
           <div className="flex items-center justify-between gap-4">
-            {/* Category pills */}
-            <div className="flex flex-wrap gap-1 flex-1">
+            {/* Category tabs */}
+            <div className="flex gap-0 flex-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
               <button
                 onClick={() => { setSelectedCategory(null); setPage(1); }}
-                className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                  selectedCategory === null
-                    ? 'bg-neutral-900 text-white'
-                    : 'text-neutral-600 hover:bg-neutral-100'
-                }`}
+                className="relative px-3 py-2.5 text-sm transition-colors whitespace-nowrap"
+                style={{ color: selectedCategory === null ? 'var(--color-ink)' : 'var(--color-ink-light)' }}
               >
                 All
                 {Object.values(categoryCounts).reduce((a, b) => a + b, 0) > 0 && (
-                  <span className="ml-1.5 text-xs opacity-60">
+                  <span className="ml-1 text-xs opacity-50">
                     {Object.values(categoryCounts).reduce((a, b) => a + b, 0)}
                   </span>
+                )}
+                {selectedCategory === null && (
+                  <span className="absolute bottom-0 left-3 right-3 h-0.5" style={{ background: 'var(--color-accent)' }} />
                 )}
               </button>
               {CATEGORIES.map(cat => {
@@ -159,14 +186,14 @@ export default function StoriesPage() {
                   <button
                     key={cat}
                     onClick={() => { setSelectedCategory(selectedCategory === cat ? null : cat); setPage(1); }}
-                    className={`px-3 py-1 rounded-md text-sm transition-colors ${
-                      selectedCategory === cat
-                        ? 'bg-neutral-900 text-white'
-                        : 'text-neutral-600 hover:bg-neutral-100'
-                    }`}
+                    className="relative px-3 py-2.5 text-sm transition-colors whitespace-nowrap"
+                    style={{ color: selectedCategory === cat ? 'var(--color-ink)' : 'var(--color-ink-light)' }}
                   >
                     {cat}
-                    {count > 0 && <span className="ml-1.5 text-xs opacity-60">{count}</span>}
+                    {count > 0 && <span className="ml-1 text-xs opacity-50">{count}</span>}
+                    {selectedCategory === cat && (
+                      <span className="absolute bottom-0 left-3 right-3 h-0.5" style={{ background: 'var(--color-accent)' }} />
+                    )}
                   </button>
                 );
               })}
@@ -176,7 +203,12 @@ export default function StoriesPage() {
             <select
               value={sortBy}
               onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
-              className="border border-neutral-300 rounded-md px-3 py-1.5 bg-white text-neutral-700 text-sm focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900"
+              className="border rounded-md px-3 py-1.5 text-sm focus:outline-none"
+              style={{
+                background: 'var(--color-paper)',
+                borderColor: 'var(--color-rule)',
+                color: 'var(--color-ink-light)',
+              }}
             >
               <option value="hot_score">Hottest</option>
               <option value="last_activity">Most Active</option>
@@ -191,22 +223,23 @@ export default function StoriesPage() {
       {(debouncedSearch || selectedCategory) && (
         <section className="container mx-auto px-6 pt-4">
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-neutral-400">Showing:</span>
+            <span style={{ color: 'var(--color-ink-light)' }}>Showing:</span>
             {selectedCategory && (
-              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md ${getCatClass(selectedCategory)} text-xs font-medium`}>
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-sm ${getCatClass(selectedCategory)} text-xs font-medium`}>
                 {selectedCategory}
                 <button onClick={() => setSelectedCategory(null)} className="ml-1 hover:opacity-70">&times;</button>
               </span>
             )}
             {debouncedSearch && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-neutral-100 text-neutral-600 text-xs">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-sm text-xs" style={{ background: 'var(--color-rule)', color: 'var(--color-ink-light)' }}>
                 &ldquo;{debouncedSearch}&rdquo;
                 <button onClick={() => setSearchQuery('')} className="ml-1 hover:opacity-70">&times;</button>
               </span>
             )}
             <button
               onClick={() => { setSelectedCategory(null); setSearchQuery(''); }}
-              className="text-xs text-neutral-400 hover:text-neutral-600 underline"
+              className="text-xs underline"
+              style={{ color: 'var(--color-ink-light)' }}
             >
               Clear all
             </button>
@@ -217,7 +250,7 @@ export default function StoriesPage() {
       {/* Error */}
       {error && (
         <div className="container mx-auto px-6 py-4">
-          <div className="border border-amber-300 bg-amber-50 rounded-lg p-4 text-sm text-amber-800">{error}</div>
+          <div className="border rounded-md p-4 text-sm" style={{ borderColor: 'var(--color-accent)', background: 'rgba(194,65,12,0.05)', color: 'var(--color-ink)' }}>{error}</div>
         </div>
       )}
 
@@ -226,14 +259,14 @@ export default function StoriesPage() {
         <section className="container mx-auto px-6 py-8">
           <div className="space-y-4">
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className="animate-pulse h-20 bg-neutral-200 rounded-lg" />
+              <div key={i} className="animate-pulse h-20 rounded-md" style={{ background: 'var(--color-rule)' }} />
             ))}
           </div>
         </section>
       ) : events.length === 0 ? (
         <section className="container mx-auto px-6 py-20 text-center">
-          <h3 className="font-serif text-lg text-neutral-900 mb-2">No stories found</h3>
-          <p className="text-sm text-neutral-500 mb-4">
+          <h3 className="font-serif text-lg mb-2" style={{ color: 'var(--color-ink)' }}>No stories found</h3>
+          <p className="text-sm mb-4" style={{ color: 'var(--color-ink-light)' }}>
             {debouncedSearch
               ? `No results for "${debouncedSearch}"${selectedCategory ? ` in ${selectedCategory}` : ''}`
               : selectedCategory
@@ -243,7 +276,8 @@ export default function StoriesPage() {
           {(debouncedSearch || selectedCategory) && (
             <button
               onClick={() => { setSelectedCategory(null); setSearchQuery(''); }}
-              className="px-4 py-2 bg-neutral-900 text-white rounded-md text-sm hover:bg-neutral-800 transition-colors"
+              className="px-4 py-2 rounded-md text-sm transition-colors text-white"
+              style={{ background: 'var(--color-ink)' }}
             >
               Clear Filters
             </button>
@@ -251,37 +285,74 @@ export default function StoriesPage() {
         </section>
       ) : (
         <section className="container mx-auto px-6 py-8">
-          {/* Stories grid — clean cards */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {events.map(event => (
+          {/* Lead story — editorial feature */}
+          {leadEvent && (
+            <article
+              onClick={() => router.push(`/events/${leadEvent.id}`)}
+              className="group cursor-pointer mb-8 pb-8 border-b flex gap-6"
+              style={{ borderColor: 'var(--color-rule)' }}
+            >
+              <div className="w-1 flex-shrink-0 rounded-full" style={{ background: 'var(--color-accent)' }} />
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(leadEvent.category)}`}>
+                    {leadEvent.category}
+                  </span>
+                  {mounted && leadEvent.last_activity_at && (
+                    <span className="text-xs" style={{ color: 'var(--color-ink-light)' }} suppressHydrationWarning>
+                      {formatTimeAgo(leadEvent.last_activity_at)}
+                    </span>
+                  )}
+                </div>
+                <h3
+                  className="font-serif font-bold leading-tight mb-2 group-hover:opacity-75 transition-opacity"
+                  style={{ color: 'var(--color-ink)', fontSize: 'clamp(1.25rem, 3vw, 1.75rem)', letterSpacing: '-0.01em' }}
+                >
+                  {leadEvent.title}
+                </h3>
+                {leadEvent.summary && (
+                  <p className="text-sm leading-relaxed max-w-2xl line-clamp-2 mb-3" style={{ color: 'var(--color-ink-light)' }}>
+                    {leadEvent.summary}
+                  </p>
+                )}
+                <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--color-ink-light)' }}>
+                  <span>{leadEvent.source_count} sources</span>
+                  <span className="w-1 h-1 rounded-full" style={{ background: 'var(--color-rule)' }} />
+                  <span>{(leadEvent.view_count || 0).toLocaleString()} views</span>
+                </div>
+              </div>
+            </article>
+          )}
+
+          {/* Rest — two-column editorial list */}
+          <div className="grid md:grid-cols-2 gap-x-8 gap-y-0">
+            {restEvents.map(event => (
               <article
                 key={event.id}
                 onClick={() => router.push(`/events/${event.id}`)}
-                className="group bg-white border border-neutral-200 rounded-lg overflow-hidden hover:border-neutral-400 transition-colors cursor-pointer"
+                className="group py-4 cursor-pointer border-b"
+                style={{ borderColor: 'var(--color-rule)' }}
               >
-                {/* Category bar — thin, flat color */}
-                <div className={`h-0.5 ${getCatClass(event.category).split(' ')[0]}`} />
-                <div className="p-5">
-                  <div className="flex items-center justify-between mb-2.5">
-                    <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${getCatClass(event.category)}`}>
-                      {event.category}
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(event.category)}`}>
+                    {event.category}
+                  </span>
+                  {mounted && event.last_activity_at && (
+                    <span className="text-xs" style={{ color: 'var(--color-ink-light)' }} suppressHydrationWarning>
+                      {formatTimeAgo(event.last_activity_at)}
                     </span>
-                    {event.hot_score && event.hot_score > 0 && (
-                      <span className="text-xs text-neutral-400 font-medium">{event.hot_score.toFixed(1)}</span>
-                    )}
-                  </div>
-                  <h3 className="font-serif font-semibold text-neutral-900 mb-2 line-clamp-2 group-hover:text-accent transition-colors leading-snug">
-                    {event.title}
-                  </h3>
-                  {event.summary && (
-                    <p className="text-sm text-neutral-500 leading-relaxed mb-4 line-clamp-3">
-                      {event.summary}
-                    </p>
                   )}
-                  <div className="flex items-center justify-between pt-3 border-t border-neutral-100 text-xs text-neutral-400">
-                    <span>{event.source_count} sources</span>
-                    <span>{(event.view_count || 0).toLocaleString()} views</span>
-                  </div>
+                </div>
+                <h3
+                  className="font-serif font-semibold leading-snug mb-1.5 group-hover:opacity-75 transition-opacity"
+                  style={{ color: 'var(--color-ink)' }}
+                >
+                  {event.title}
+                </h3>
+                <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--color-ink-light)' }}>
+                  <span>{event.source_count} sources</span>
+                  <span className="w-1 h-1 rounded-full" style={{ background: 'var(--color-rule)' }} />
+                  <span>{(event.view_count || 0).toLocaleString()} views</span>
                 </div>
               </article>
             ))}
@@ -289,23 +360,25 @@ export default function StoriesPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center space-x-4 mt-10">
+            <div className="flex items-center justify-center gap-4 mt-10 pt-6 border-t" style={{ borderColor: 'var(--color-rule)' }}>
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="px-4 py-2 border border-neutral-300 rounded-md text-sm text-neutral-700 hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 border rounded-md text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ borderColor: 'var(--color-rule)', color: 'var(--color-ink-light)' }}
               >
-                Previous
+                &larr; Previous
               </button>
-              <span className="text-sm text-neutral-500">
-                Page {page} of {totalPages}
+              <span className="text-sm font-serif" style={{ color: 'var(--color-ink-light)' }}>
+                {page} / {totalPages}
               </span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="px-4 py-2 border border-neutral-300 rounded-md text-sm text-neutral-700 hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 border rounded-md text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{ borderColor: 'var(--color-rule)', color: 'var(--color-ink-light)' }}
               >
-                Next
+                Next &rarr;
               </button>
             </div>
           )}

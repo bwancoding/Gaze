@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '../../../components/Header';
 import StakeholderDeclare from '../../../components/StakeholderDeclare';
@@ -71,6 +71,8 @@ interface StakeholderInfo {
   status: string;
 }
 
+/* ── Helpers ── */
+
 const getCatClass = (cat?: string): string => {
   const map: Record<string, string> = {
     'Environment': 'cat-environment',
@@ -88,16 +90,52 @@ const getCatClass = (cat?: string): string => {
 };
 
 const stakeholderAccents = [
-  { border: 'border-l-blue-500', text: 'text-blue-700', bg: 'bg-blue-50' },
-  { border: 'border-l-amber-500', text: 'text-amber-700', bg: 'bg-amber-50' },
-  { border: 'border-l-rose-500', text: 'text-rose-700', bg: 'bg-rose-50' },
-  { border: 'border-l-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50' },
-  { border: 'border-l-violet-500', text: 'text-violet-700', bg: 'bg-violet-50' },
-  { border: 'border-l-cyan-500', text: 'text-cyan-700', bg: 'bg-cyan-50' },
-  { border: 'border-l-orange-500', text: 'text-orange-700', bg: 'bg-orange-50' },
+  { border: 'border-l-[#C2410C]', text: 'text-[#C2410C]', bg: 'bg-orange-50/50' },
+  { border: 'border-l-[#1E40AF]', text: 'text-[#1E40AF]', bg: 'bg-blue-50/50' },
+  { border: 'border-l-[#166534]', text: 'text-[#166534]', bg: 'bg-emerald-50/50' },
+  { border: 'border-l-[#92400E]', text: 'text-[#92400E]', bg: 'bg-amber-50/50' },
+  { border: 'border-l-[#5B21B6]', text: 'text-[#5B21B6]', bg: 'bg-violet-50/50' },
+  { border: 'border-l-[#9D174D]', text: 'text-[#9D174D]', bg: 'bg-rose-50/50' },
+  { border: 'border-l-[#134E4A]', text: 'text-[#134E4A]', bg: 'bg-teal-50/50' },
 ];
 
-type TabKey = 'overview' | 'perspectives' | 'analysis' | 'sources' | 'timeline';
+const timeAgo = (dateStr?: string): string => {
+  if (!dateStr) return '';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const hours = Math.floor(diff / 3600000);
+  if (hours < 1) return 'just now';
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+const biasLabel = (label?: string) => {
+  const map: Record<string, { text: string; color: string }> = {
+    'left': { text: 'Left', color: 'text-blue-600' },
+    'center-left': { text: 'Center-Left', color: 'text-blue-500' },
+    'center': { text: 'Center', color: 'text-neutral-500' },
+    'center-right': { text: 'Center-Right', color: 'text-red-400' },
+    'right': { text: 'Right', color: 'text-red-600' },
+  };
+  return label ? map[label] || { text: label, color: 'text-neutral-400' } : null;
+};
+
+/* ── Scroll reveal hook ── */
+function useScrollReveal() {
+  useEffect(() => {
+    const els = document.querySelectorAll('.reveal, .reveal-left, .reveal-right, .reveal-scale');
+    if (!els.length) return;
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('is-visible'); io.unobserve(e.target); } }),
+      { threshold: 0.12 }
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  });
+}
+
+type TabKey = 'overview' | 'discussion' | 'perspectives' | 'analysis' | 'sources' | 'timeline';
 
 export default function EventDetailPage() {
   const params = useParams();
@@ -112,6 +150,10 @@ export default function EventDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
+  const [sourcePage, setSourcePage] = useState(1);
+  const SOURCES_PER_PAGE = 10;
+
+  useScrollReveal();
 
   const fetchEvent = async () => {
     const response = await fetch(`${API_BASE_URL}/api/events/${eventId}`);
@@ -161,30 +203,43 @@ export default function EventDetailPage() {
     }
   }, [eventId]);
 
+  /* ── Loading state ── */
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-neutral-50">
+      <div className="min-h-screen" style={{ background: 'var(--color-paper)' }}>
         <Header />
-        <div className="container mx-auto px-6 py-12">
-          <div className="animate-pulse space-y-6 max-w-3xl">
-            <div className="h-6 bg-neutral-200 rounded w-1/4"></div>
-            <div className="h-10 bg-neutral-200 rounded w-3/4"></div>
-            <div className="h-4 bg-neutral-200 rounded w-full"></div>
-            <div className="h-4 bg-neutral-200 rounded w-2/3"></div>
+        <div className="max-w-6xl mx-auto px-6 py-16">
+          <div className="animate-pulse space-y-6">
+            <div className="h-4 bg-neutral-200/60 rounded w-20" />
+            <div className="h-10 bg-neutral-200/60 rounded w-3/4" />
+            <div className="h-5 bg-neutral-200/60 rounded w-full" />
+            <div className="h-5 bg-neutral-200/60 rounded w-2/3" />
+            <div className="h-px bg-neutral-200/60 my-8" />
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+              <div className="lg:col-span-8 space-y-4">
+                <div className="h-4 bg-neutral-200/60 rounded w-full" />
+                <div className="h-4 bg-neutral-200/60 rounded w-5/6" />
+                <div className="h-4 bg-neutral-200/60 rounded w-4/6" />
+              </div>
+              <div className="lg:col-span-4 space-y-4">
+                <div className="h-32 bg-neutral-200/60 rounded" />
+              </div>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
+  /* ── Error state ── */
   if (error || !event) {
     return (
-      <div className="min-h-screen bg-neutral-50">
+      <div className="min-h-screen" style={{ background: 'var(--color-paper)' }}>
         <Header />
-        <div className="container mx-auto px-6 py-20 text-center">
-          <h2 className="font-serif text-title text-neutral-900 mb-4">{error || 'Event Not Found'}</h2>
-          <button onClick={() => router.push('/')} className="text-sm text-neutral-500 hover:text-neutral-900 underline">
-            Back to Home
+        <div className="max-w-6xl mx-auto px-6 py-20 text-center">
+          <h2 className="font-serif text-2xl text-neutral-900 mb-4">{error || 'Event Not Found'}</h2>
+          <button onClick={() => router.push('/stories')} className="text-sm text-neutral-500 hover:text-neutral-900 underline">
+            Back to Stories
           </button>
         </div>
       </div>
@@ -197,51 +252,111 @@ export default function EventDetailPage() {
 
   const tabs: { key: TabKey; label: string; count?: number }[] = [
     { key: 'overview', label: 'Overview' },
+    { key: 'discussion', label: 'Discussion', count: threads.length },
     { key: 'perspectives', label: 'Perspectives', count: perspectiveCount },
     { key: 'analysis', label: 'Deep Analysis' },
     { key: 'sources', label: 'Sources', count: sources.length },
     { key: 'timeline', label: 'Timeline', count: timeline.length },
   ];
 
+  /* ── Source breakdown by outlet name ── */
+  const sourcesByOutlet = sources.reduce<Record<string, number>>((acc, s) => {
+    const name = s.source?.name || 'Unknown';
+    acc[name] = (acc[name] || 0) + 1;
+    return acc;
+  }, {});
+
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen" style={{ background: 'var(--color-paper)' }}>
       <Header />
       <main>
-        {/* Back + Event Header */}
-        <section className="bg-white border-b border-neutral-200">
-          <div className="container mx-auto px-6 pt-6 pb-8">
-            <button onClick={() => router.push('/')} className="text-sm text-neutral-500 hover:text-neutral-900 mb-6 inline-block">
-              &larr; Back
+
+        {/* ── Hero Header ─────────────────────────────────── */}
+        <section className="relative grain" style={{ background: 'var(--color-warm-dark)' }}>
+          <div className="max-w-6xl mx-auto px-6 pt-8 pb-12 lg:pb-16">
+            {/* Back link */}
+            <button
+              onClick={() => router.back()}
+              className="text-sm text-neutral-400 hover:text-white mb-8 inline-flex items-center gap-1.5 transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="opacity-60"><path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Back
             </button>
-            <div className="max-w-3xl">
-              <div className="flex items-center gap-3 mb-4">
-                <span className={`text-xs px-2.5 py-0.5 rounded-md font-medium ${getCatClass(event.category)}`}>{event.category}</span>
-                <span className="text-xs text-neutral-400">{event.view_count?.toLocaleString() || 0} reads</span>
-                <span className="text-xs text-neutral-400">{sources.length} sources</span>
+
+            <div className="max-w-4xl">
+              {/* Category + meta */}
+              <div className="flex items-center gap-3 mb-5">
+                <span className={`text-xs px-2.5 py-1 rounded font-medium ${getCatClass(event.category)}`}>
+                  {event.category}
+                </span>
+                <span className="text-xs text-neutral-400">{timeAgo(event.occurred_at || event.created_at)}</span>
               </div>
-              <h1 className="font-serif text-3xl md:text-4xl font-bold text-neutral-900 mb-4 leading-tight">{event.title}</h1>
-              <p className="text-neutral-600 leading-relaxed">{event.summary}</p>
+
+              {/* Title */}
+              <h1 className="font-serif text-3xl md:text-4xl lg:text-[2.75rem] font-bold text-white mb-5 leading-[1.15] tracking-tight">
+                {event.title}
+              </h1>
+
+              {/* Summary */}
+              {event.summary && (
+                <p className="text-neutral-300 text-lg leading-relaxed max-w-3xl">
+                  {event.summary}
+                </p>
+              )}
+
+              {/* Inline stats row */}
+              <div className="flex items-center gap-6 mt-8 pt-6 border-t border-white/10">
+                <div>
+                  <span className="text-2xl font-serif font-bold text-white stat-number">{sources.length}</span>
+                  <span className="text-xs text-neutral-400 ml-1.5 uppercase tracking-wider">Sources</span>
+                </div>
+                <div className="w-px h-6 bg-white/10" />
+                <div>
+                  <span className="text-2xl font-serif font-bold text-white stat-number">{event.view_count?.toLocaleString() || 0}</span>
+                  <span className="text-xs text-neutral-400 ml-1.5 uppercase tracking-wider">Reads</span>
+                </div>
+                <div className="w-px h-6 bg-white/10" />
+                <div>
+                  <span className="text-2xl font-serif font-bold text-white stat-number">{perspectiveCount}</span>
+                  <span className="text-xs text-neutral-400 ml-1.5 uppercase tracking-wider">Perspectives</span>
+                </div>
+                {(event.hot_score ?? 0) > 0 && (
+                  <>
+                    <div className="w-px h-6 bg-white/10" />
+                    <div>
+                      <span className="text-2xl font-serif font-bold text-[#C2410C] stat-number">{event.hot_score?.toFixed(1)}</span>
+                      <span className="text-xs text-neutral-400 ml-1.5 uppercase tracking-wider">Heat</span>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Tab Bar — Sticky */}
-        <div className="sticky top-[57px] z-30 bg-white border-b border-neutral-200">
-          <div className="container mx-auto px-6">
-            <div className="max-w-3xl flex">
+        {/* ── Tab Bar ──────────────────────────────────────── */}
+        <div className="border-b" style={{ background: 'var(--color-paper)', borderColor: 'var(--color-rule)' }}>
+          <div className="max-w-6xl mx-auto px-6">
+            <div className="flex gap-1 overflow-x-auto scrollbar-hide">
               {tabs.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className={`px-4 py-3 text-sm transition-colors border-b-2 ${
+                  className={`relative px-4 py-3.5 text-sm whitespace-nowrap transition-colors ${
                     activeTab === tab.key
-                      ? 'text-neutral-900 font-semibold border-neutral-900'
-                      : 'text-neutral-500 hover:text-neutral-900 border-transparent'
+                      ? 'text-neutral-900 font-semibold'
+                      : 'text-neutral-400 hover:text-neutral-700'
                   }`}
                 >
                   {tab.label}
                   {tab.count !== undefined && tab.count > 0 && (
-                    <span className="ml-1.5 text-xs text-neutral-400">{tab.count}</span>
+                    <span className={`ml-1.5 text-xs ${activeTab === tab.key ? 'text-[#C2410C]' : 'text-neutral-300'}`}>
+                      {tab.count}
+                    </span>
+                  )}
+                  {/* Active underline */}
+                  {activeTab === tab.key && (
+                    <span className="absolute bottom-0 left-2 right-2 h-[2px] bg-neutral-900 rounded-full" />
                   )}
                 </button>
               ))}
@@ -249,322 +364,453 @@ export default function EventDetailPage() {
           </div>
         </div>
 
-        {/* Tab Content */}
-        <section className="container mx-auto px-6 py-8">
-          <div className="max-w-3xl">
+        {/* ── Two-column body ─────────────────────────────── */}
+        <div className="max-w-6xl mx-auto px-6 py-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14">
 
-            {/* ===== Overview Tab ===== */}
-            {activeTab === 'overview' && (
-              <div className="space-y-6">
-                {analysis?.background ? (
-                  <>
-                    <div>
-                      <h3 className="font-serif text-title text-neutral-900 mb-3">Background</h3>
-                      <p className="text-neutral-700 leading-relaxed">
-                        {analysis.background.length > 600
-                          ? analysis.background.slice(0, 600) + '...'
-                          : analysis.background}
-                      </p>
-                      {analysis.background.length > 600 && (
-                        <button
-                          onClick={() => setActiveTab('analysis')}
-                          className="text-sm text-accent hover:underline mt-2"
-                        >
-                          Read full analysis
-                        </button>
+            {/* ── Main content (8 cols) ── */}
+            <div className="lg:col-span-8 min-w-0">
+
+              {/* ===== Overview Tab ===== */}
+              {activeTab === 'overview' && (
+                <div className="space-y-8 reveal">
+                  {analysis?.background ? (
+                    <>
+                      <div>
+                        <h3 className="font-serif text-xl text-neutral-900 mb-3">Background</h3>
+                        <p className="text-neutral-600 leading-[1.8]">
+                          {analysis.background.length > 800
+                            ? analysis.background.slice(0, 800) + '...'
+                            : analysis.background}
+                        </p>
+                        {analysis.background.length > 800 && (
+                          <button
+                            onClick={() => setActiveTab('analysis')}
+                            className="text-sm text-[#C2410C] hover:underline mt-3 font-medium"
+                          >
+                            Read full analysis &rarr;
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Quick stats — editorial inline */}
+                      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 py-4 border-y" style={{ borderColor: 'var(--color-rule)' }}>
+                        {[
+                          { label: 'Perspectives', value: perspectiveCount, tab: 'perspectives' as TabKey },
+                          { label: 'Root Causes', value: analysis.cause_chain?.length || 0, tab: 'analysis' as TabKey },
+                          { label: 'Sources', value: sources.length, tab: 'sources' as TabKey },
+                          { label: 'Timeline Events', value: timeline.length, tab: 'timeline' as TabKey },
+                        ].map((stat, i) => (
+                          <button
+                            key={stat.label}
+                            onClick={() => setActiveTab(stat.tab)}
+                            className="flex items-baseline gap-1.5 group"
+                          >
+                            <span className="font-serif font-bold text-lg stat-number group-hover:text-[#C2410C] transition-colors" style={{ color: 'var(--color-ink)' }}>{stat.value}</span>
+                            <span className="text-xs uppercase tracking-wider group-hover:text-[#C2410C] transition-colors" style={{ color: 'var(--color-ink-light)' }}>{stat.label}</span>
+                            {i < 3 && <span className="text-neutral-300 ml-3">·</span>}
+                          </button>
+                        ))}
+                      </div>
+
+                      <p className="text-xs text-neutral-400 italic">Auto-generated from source articles. May contain inaccuracies.</p>
+                    </>
+                  ) : (
+                    <div className="text-center py-16 rounded-lg border" style={{ borderColor: 'var(--color-rule)', background: 'white' }}>
+                      <div className="text-3xl mb-3 opacity-30">&#9998;</div>
+                      <p className="text-neutral-600 mb-1">Analysis is being prepared</p>
+                      <p className="text-sm text-neutral-400">Check back soon for background, perspectives, and impact breakdown</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ===== Perspectives Tab ===== */}
+              {activeTab === 'perspectives' && (
+                <div className="space-y-5 reveal">
+                  <div className="mb-2">
+                    <h3 className="font-serif text-xl text-neutral-900 mb-1">Stakeholder Perspectives</h3>
+                    <p className="text-sm text-neutral-400">How different groups view this event</p>
+                  </div>
+                  {perspectives.length > 0 ? (
+                    perspectives.map((sp, i) => {
+                      const accent = stakeholderAccents[i % stakeholderAccents.length];
+                      return (
+                        <div key={sp.stakeholder_id || i} className={`border-l-4 ${accent.border} ${accent.bg} rounded-r-lg p-5 reveal reveal-delay-${Math.min(i + 1, 4)}`}>
+                          <h4 className={`font-semibold ${accent.text} mb-2 text-sm uppercase tracking-wide`}>{sp.stakeholder_name}</h4>
+                          <p className="text-neutral-700 text-[0.925rem] leading-relaxed mb-3">{sp.perspective_text}</p>
+                          {sp.key_arguments?.length > 0 && (
+                            <ul className="space-y-1.5 mt-3 pt-3 border-t border-neutral-200/50">
+                              {sp.key_arguments.map((arg, j) => (
+                                <li key={j} className="text-sm text-neutral-600 flex items-start gap-2">
+                                  <span className="text-neutral-300 mt-0.5 flex-shrink-0">&bull;</span>
+                                  <span>{arg}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : stakeholders.length > 0 ? (
+                    stakeholders.map((sh, i) => {
+                      const accent = stakeholderAccents[i % stakeholderAccents.length];
+                      return (
+                        <div key={sh.id} className={`border-l-4 ${accent.border} ${accent.bg} rounded-r-lg p-5`}>
+                          <h4 className={`font-semibold ${accent.text} mb-2 text-sm uppercase tracking-wide`}>{sh.stakeholder_name}</h4>
+                          {sh.perspective_summary && <p className="text-neutral-700 text-[0.925rem] leading-relaxed mb-3">{sh.perspective_summary}</p>}
+                          {sh.key_concerns?.length > 0 && (
+                            <ul className="space-y-1">
+                              {sh.key_concerns.map((c, j) => (
+                                <li key={j} className="text-sm text-neutral-600">&bull; {c}</li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="text-center py-16 rounded-lg border" style={{ borderColor: 'var(--color-rule)', background: 'white' }}>
+                      <p className="text-neutral-600">No perspectives generated yet</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-neutral-400 mt-4 italic">Generated from source articles, not editorial opinions</p>
+                </div>
+              )}
+
+              {/* ===== Deep Analysis Tab ===== */}
+              {activeTab === 'analysis' && (
+                <div className="space-y-10 reveal">
+                  {analysis ? (
+                    <>
+                      {analysis.background && (
+                        <div>
+                          <h3 className="font-serif text-xl text-neutral-900 mb-4">Background</h3>
+                          <p className="text-neutral-600 leading-[1.8]">{analysis.background}</p>
+                        </div>
                       )}
-                    </div>
 
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <button onClick={() => setActiveTab('perspectives')} className="border border-neutral-200 rounded-lg p-4 text-left hover:border-neutral-400 transition-colors bg-white">
-                        <div className="text-2xl font-serif font-bold text-neutral-900">{perspectiveCount}</div>
-                        <div className="text-xs text-neutral-500 mt-1">Perspectives</div>
-                      </button>
-                      <button onClick={() => setActiveTab('analysis')} className="border border-neutral-200 rounded-lg p-4 text-left hover:border-neutral-400 transition-colors bg-white">
-                        <div className="text-2xl font-serif font-bold text-neutral-900">{analysis.cause_chain?.length || 0}</div>
-                        <div className="text-xs text-neutral-500 mt-1">Root Causes</div>
-                      </button>
-                      <button onClick={() => setActiveTab('sources')} className="border border-neutral-200 rounded-lg p-4 text-left hover:border-neutral-400 transition-colors bg-white">
-                        <div className="text-2xl font-serif font-bold text-neutral-900">{sources.length}</div>
-                        <div className="text-xs text-neutral-500 mt-1">Sources</div>
-                      </button>
-                      <button onClick={() => setActiveTab('timeline')} className="border border-neutral-200 rounded-lg p-4 text-left hover:border-neutral-400 transition-colors bg-white">
-                        <div className="text-2xl font-serif font-bold text-neutral-900">{timeline.length}</div>
-                        <div className="text-xs text-neutral-500 mt-1">Timeline</div>
-                      </button>
-                    </div>
-
-                    <p className="text-xs text-neutral-400">Auto-generated from source articles. May contain inaccuracies.</p>
-                  </>
-                ) : (
-                  <div className="text-center py-12 border border-neutral-200 rounded-lg bg-white">
-                    <p className="text-neutral-600 mb-1">Analysis is being prepared</p>
-                    <p className="text-sm text-neutral-400">Check back soon for background, perspectives, and impact breakdown</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ===== Perspectives Tab ===== */}
-            {activeTab === 'perspectives' && (
-              <div className="space-y-4">
-                <h3 className="font-serif text-title text-neutral-900 mb-2">Stakeholder Perspectives</h3>
-                {perspectives.length > 0 ? (
-                  perspectives.map((sp, i) => {
-                    const accent = stakeholderAccents[i % stakeholderAccents.length];
-                    return (
-                      <div key={sp.stakeholder_id || i} className={`border-l-4 ${accent.border} bg-white border border-neutral-200 rounded-lg p-5`}>
-                        <h4 className={`font-semibold ${accent.text} mb-2`}>{sp.stakeholder_name}</h4>
-                        <p className="text-neutral-700 text-sm leading-relaxed mb-3">{sp.perspective_text}</p>
-                        {sp.key_arguments?.length > 0 && (
-                          <ul className="space-y-1">
-                            {sp.key_arguments.map((arg, j) => (
-                              <li key={j} className="text-sm text-neutral-600 flex items-start gap-2">
-                                <span className="text-neutral-300 mt-0.5">&bull;</span>
-                                <span>{arg}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : stakeholders.length > 0 ? (
-                  stakeholders.map((sh, i) => {
-                    const accent = stakeholderAccents[i % stakeholderAccents.length];
-                    return (
-                      <div key={sh.id} className={`border-l-4 ${accent.border} bg-white border border-neutral-200 rounded-lg p-5`}>
-                        <h4 className={`font-semibold ${accent.text} mb-2`}>{sh.stakeholder_name}</h4>
-                        {sh.perspective_summary && <p className="text-neutral-700 text-sm leading-relaxed mb-3">{sh.perspective_summary}</p>}
-                        {sh.key_concerns?.length > 0 && (
-                          <ul className="space-y-1">
-                            {sh.key_concerns.map((c, j) => (
-                              <li key={j} className="text-sm text-neutral-600">&bull; {c}</li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-12 border border-neutral-200 rounded-lg bg-white">
-                    <p className="text-neutral-600">No perspectives generated yet</p>
-                  </div>
-                )}
-                <p className="text-xs text-neutral-400 mt-3">Generated from source articles, not editorial opinions</p>
-              </div>
-            )}
-
-            {/* ===== Deep Analysis Tab ===== */}
-            {activeTab === 'analysis' && (
-              <div className="space-y-8">
-                {analysis ? (
-                  <>
-                    {analysis.background && (
-                      <div>
-                        <h3 className="font-serif text-title text-neutral-900 mb-3">Background</h3>
-                        <p className="text-neutral-700 leading-relaxed">{analysis.background}</p>
-                      </div>
-                    )}
-
-                    {analysis.cause_chain?.length > 0 && (
-                      <div>
-                        <h3 className="font-serif text-title text-neutral-900 mb-4">Cause Chain</h3>
-                        <div className="space-y-3">
-                          {analysis.cause_chain.map((item, i) => (
-                            <div key={i} className="flex items-start gap-4 bg-white border border-neutral-200 rounded-lg p-4">
-                              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-neutral-900 text-white text-sm flex items-center justify-center font-bold">{i + 1}</span>
-                              <div>
-                                <h4 className="font-semibold text-neutral-900">{item.cause}</h4>
-                                <p className="text-neutral-600 text-sm mt-1">{item.description}</p>
+                      {analysis.cause_chain?.length > 0 && (
+                        <div>
+                          <h3 className="font-serif text-xl text-neutral-900 mb-5">Cause Chain</h3>
+                          <div className="divide-y" style={{ borderColor: 'var(--color-rule)' }}>
+                            {analysis.cause_chain.map((item, i) => (
+                              <div key={i} className={`py-5 ${i === 0 ? 'pt-0' : ''}`}>
+                                <h4 className="font-semibold text-neutral-900 mb-1.5">{item.cause}</h4>
+                                <p className="text-neutral-600 text-sm leading-relaxed">{item.description}</p>
                               </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {analysis.impact_analysis?.length > 0 && (
+                        <div>
+                          <h3 className="font-serif text-xl text-neutral-900 mb-5">Impact Analysis</h3>
+                          <div className="grid md:grid-cols-2 gap-4">
+                            {analysis.impact_analysis.map((item, i) => (
+                              <div key={i} className="p-5 rounded-lg border bg-white" style={{ borderColor: 'var(--color-rule)' }}>
+                                <h4 className="font-semibold text-neutral-900 mb-2">{item.dimension}</h4>
+                                <p className="text-neutral-600 text-sm leading-relaxed mb-3">{item.impact}</p>
+                                {item.affected_groups?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {item.affected_groups.map((g, j) => (
+                                      <span key={j} className="text-xs px-2 py-0.5 rounded-md" style={{ background: '#F0ECE3', color: 'var(--color-ink-light)' }}>{g}</span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {analysis.disputed_claims?.length > 0 && (
+                        <div>
+                          <h3 className="font-serif text-xl text-neutral-900 mb-5">Disputed Claims</h3>
+                          {analysis.disputed_claims.map((item, i) => (
+                            <div key={i} className="bg-amber-50/80 border border-amber-200/60 rounded-lg p-5 mb-3">
+                              <p className="font-medium text-amber-900">{item.claim}</p>
+                              <p className="text-amber-700 text-sm mt-2">Disputed by: {item.disputed_by}</p>
+                              {item.evidence && <p className="text-amber-600 text-sm mt-1">Evidence: {item.evidence}</p>}
                             </div>
                           ))}
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {analysis.impact_analysis?.length > 0 && (
-                      <div>
-                        <h3 className="font-serif text-title text-neutral-900 mb-4">Impact Analysis</h3>
-                        <div className="grid md:grid-cols-2 gap-4">
-                          {analysis.impact_analysis.map((item, i) => (
-                            <div key={i} className="bg-white border border-neutral-200 rounded-lg p-4">
-                              <h4 className="font-semibold text-neutral-900 mb-2">{item.dimension}</h4>
-                              <p className="text-neutral-600 text-sm mb-2">{item.impact}</p>
-                              {item.affected_groups?.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                  {item.affected_groups.map((g, j) => (
-                                    <span key={j} className="text-xs bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-md">{g}</span>
-                                  ))}
+                      <p className="text-xs text-neutral-400 pt-6 border-t italic" style={{ borderColor: 'var(--color-rule)' }}>
+                        Auto-generated from source articles. May contain inaccuracies.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="text-center py-16 rounded-lg border" style={{ borderColor: 'var(--color-rule)', background: 'white' }}>
+                      <p className="text-neutral-600">Deep analysis is being prepared</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ===== Sources Tab ===== */}
+              {activeTab === 'sources' && (
+                <div className="space-y-3 reveal">
+                  <div className="mb-4">
+                    <h3 className="font-serif text-xl text-neutral-900 mb-1">Source Coverage</h3>
+                    <p className="text-sm text-neutral-400">{sources.length} articles from {Object.keys(sourcesByOutlet).length} outlets</p>
+                  </div>
+                  {sources.length > 0 ? (
+                    <>
+                      {sources.slice((sourcePage - 1) * SOURCES_PER_PAGE, sourcePage * SOURCES_PER_PAGE).map((sourceItem, index) => {
+                        const bias = biasLabel(sourceItem.source?.bias_label);
+                        return (
+                          <div
+                            key={sourceItem.id || index}
+                            className="p-4 rounded-lg border bg-white transition-all hover:border-neutral-300 hover:shadow-sm group"
+                            style={{ borderColor: 'var(--color-rule)' }}
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <h4 className="font-semibold text-neutral-900 text-sm">{sourceItem.source.name}</h4>
+                                  {bias && <span className={`text-[10px] ${bias.color} font-medium`}>{bias.text}</span>}
                                 </div>
-                              )}
+                                <p className="text-sm text-neutral-600 line-clamp-2 leading-relaxed">{sourceItem.article_title}</p>
+                              </div>
+                              <a
+                                href={sourceItem.article_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-shrink-0 text-xs font-medium px-3 py-1.5 rounded-md transition-colors opacity-60 group-hover:opacity-100"
+                                style={{ color: '#C2410C' }}
+                              >
+                                Read &rarr;
+                              </a>
                             </div>
-                          ))}
+                            <div className="mt-2 text-xs text-neutral-400">
+                              {new Date(sourceItem.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {/* Pagination */}
+                      {sources.length > SOURCES_PER_PAGE && (
+                        <div className="flex items-center justify-between pt-4 mt-2 border-t" style={{ borderColor: 'var(--color-rule)' }}>
+                          <span className="text-xs" style={{ color: 'var(--color-ink-light)' }}>
+                            {(sourcePage - 1) * SOURCES_PER_PAGE + 1}&ndash;{Math.min(sourcePage * SOURCES_PER_PAGE, sources.length)} of {sources.length}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setSourcePage(p => Math.max(1, p - 1))}
+                              disabled={sourcePage === 1}
+                              className="px-3 py-1.5 text-sm rounded-md border transition-colors disabled:opacity-30"
+                              style={{ borderColor: 'var(--color-rule)', color: 'var(--color-ink)' }}
+                            >
+                              Prev
+                            </button>
+                            <button
+                              onClick={() => setSourcePage(p => Math.min(Math.ceil(sources.length / SOURCES_PER_PAGE), p + 1))}
+                              disabled={sourcePage >= Math.ceil(sources.length / SOURCES_PER_PAGE)}
+                              className="px-3 py-1.5 text-sm rounded-md border transition-colors disabled:opacity-30"
+                              style={{ borderColor: 'var(--color-rule)', color: 'var(--color-ink)' }}
+                            >
+                              Next
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-16 rounded-lg border" style={{ borderColor: 'var(--color-rule)', background: 'white' }}>
+                      <p className="text-neutral-600">No sources yet</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
-                    {analysis.disputed_claims?.length > 0 && (
+              {/* ===== Timeline Tab ===== */}
+              {activeTab === 'timeline' && (
+                <div className="reveal">
+                  <div className="mb-6">
+                    <h3 className="font-serif text-xl text-neutral-900 mb-1">Event Timeline</h3>
+                    <p className="text-sm text-neutral-400">Key developments in chronological order</p>
+                  </div>
+                  {timeline.length > 0 ? (
+                    <div className="space-y-0">
+                      {timeline.map((item, index) => (
+                        <div key={index} className="relative pl-8 pb-8 last:pb-0" style={{ borderLeft: '2px solid var(--color-rule)' }}>
+                          <div
+                            className="absolute left-0 top-1.5 w-3 h-3 rounded-full border-2 transform -translate-x-[7px]"
+                            style={{ background: index === 0 ? '#C2410C' : 'var(--color-paper)', borderColor: index === 0 ? '#C2410C' : '#A8A29E' }}
+                          />
+                          <div className="p-4 rounded-lg border bg-white" style={{ borderColor: 'var(--color-rule)' }}>
+                            <span className="text-xs text-neutral-400 mb-1 block font-medium">{item.timestamp}</span>
+                            <h4 className="font-semibold text-neutral-900 mb-1">{item.title}</h4>
+                            <p className="text-neutral-600 text-sm leading-relaxed">{item.description}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-16 rounded-lg border" style={{ borderColor: 'var(--color-rule)', background: 'white' }}>
+                      <p className="text-neutral-600">Timeline data is being generated</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ===== Discussion Tab ===== */}
+              {activeTab === 'discussion' && (
+                <div className="space-y-6 reveal">
+                  {/* Stakeholder Declaration */}
+                  {(perspectives.length > 0 || stakeholders.length > 0) && (
+                    <StakeholderDeclare
+                      eventId={eventId}
+                      stakeholders={
+                        perspectives.length > 0
+                          ? perspectives.map(p => ({ stakeholder_id: p.stakeholder_id, stakeholder_name: p.stakeholder_name }))
+                          : stakeholders.map(s => ({ stakeholder_id: s.stakeholder_id, stakeholder_name: s.stakeholder_name }))
+                      }
+                    />
+                  )}
+
+                  {/* Thread list */}
+                  <div>
+                    <div className="flex items-center justify-between mb-5">
                       <div>
-                        <h3 className="font-serif text-title text-neutral-900 mb-4">Disputed Claims</h3>
-                        {analysis.disputed_claims.map((item, i) => (
-                          <div key={i} className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-3">
-                            <p className="font-medium text-amber-900">{item.claim}</p>
-                            <p className="text-amber-700 text-sm mt-1">Disputed by: {item.disputed_by}</p>
-                            {item.evidence && <p className="text-amber-600 text-sm mt-1">Evidence: {item.evidence}</p>}
+                        <h3 className="font-serif text-xl text-neutral-900 mb-1">Community Discussion</h3>
+                        <p className="text-sm" style={{ color: 'var(--color-ink-light)' }}>Share your perspective on this event</p>
+                      </div>
+                      <button
+                        onClick={() => router.push(`/events/${eventId}/threads/new`)}
+                        className="text-white px-4 py-2 rounded-md text-sm font-medium transition-all hover:opacity-90 btn-press"
+                        style={{ background: 'var(--color-accent)' }}
+                      >
+                        New Thread
+                      </button>
+                    </div>
+
+                    {threads.length > 0 ? (
+                      <div className="divide-y" style={{ borderColor: 'var(--color-rule)' }}>
+                        {threads.map((thread) => (
+                          <div
+                            key={thread.id}
+                            onClick={() => router.push(`/events/${eventId}/threads/${thread.id}`)}
+                            className="py-5 first:pt-0 cursor-pointer group"
+                          >
+                            <h4 className="font-semibold text-neutral-900 mb-1.5 group-hover:text-[#C2410C] transition-colors">{thread.title}</h4>
+                            <p className="text-neutral-600 text-sm line-clamp-2 mb-3 leading-relaxed">{thread.content}</p>
+                            <div className="flex items-center gap-4 text-xs text-neutral-400">
+                              <span className="font-medium text-neutral-500">{thread.persona_name}</span>
+                              <span>{thread.reply_count} replies</span>
+                              <span>{thread.like_count} likes</span>
+                              <span>{new Date(thread.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                            </div>
+                            {thread.tags?.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {thread.tags.map((tag, i) => (
+                                  <span key={i} className="text-xs px-2 py-0.5 rounded-md" style={{ background: '#F0ECE3', color: 'var(--color-ink-light)' }}>{tag}</span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
+                    ) : (
+                      <div className="text-center py-14 border rounded-lg" style={{ borderColor: 'var(--color-rule)' }}>
+                        <p className="text-neutral-500 mb-1">No threads yet</p>
+                        <p className="text-sm text-neutral-400">Be the first to start a discussion about this event</p>
+                      </div>
                     )}
-
-                    <p className="text-xs text-neutral-400 pt-4 border-t border-neutral-200">
-                      Auto-generated from source articles. May contain inaccuracies.
-                    </p>
-                  </>
-                ) : (
-                  <div className="text-center py-12 border border-neutral-200 rounded-lg bg-white">
-                    <p className="text-neutral-600">Deep analysis is being prepared</p>
                   </div>
-                )}
-              </div>
-            )}
-
-            {/* ===== Sources Tab ===== */}
-            {activeTab === 'sources' && (
-              <div className="space-y-3">
-                {sources.length > 0 ? (
-                  sources.map((sourceItem, index) => (
-                    <div key={sourceItem.id || index} className="bg-white border border-neutral-200 rounded-lg p-4 hover:border-neutral-400 transition-colors">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-semibold text-neutral-900 text-sm mb-1">{sourceItem.source.name}</h4>
-                          <p className="text-sm text-neutral-600 line-clamp-2">{sourceItem.article_title}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-neutral-400">{new Date(sourceItem.published_at).toLocaleDateString('en-US')}</span>
-                        <a href={sourceItem.article_url} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline">
-                          Read Original
-                        </a>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-12 border border-neutral-200 rounded-lg bg-white">
-                    <p className="text-neutral-600">No sources yet</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ===== Timeline Tab ===== */}
-            {activeTab === 'timeline' && (
-              <div className="space-y-0">
-                {timeline.length > 0 ? (
-                  timeline.map((item, index) => (
-                    <div key={index} className="relative pl-8 pb-6 border-l-2 border-neutral-200 last:pb-0">
-                      <div className="absolute left-0 top-1.5 w-3 h-3 rounded-full bg-neutral-400 border-2 border-neutral-50 transform -translate-x-[7px]"></div>
-                      <div className="bg-white border border-neutral-200 rounded-lg p-4">
-                        <span className="text-xs text-neutral-400 mb-1 block">{item.timestamp}</span>
-                        <h4 className="font-semibold text-neutral-900 mb-1">{item.title}</h4>
-                        <p className="text-neutral-600 text-sm">{item.description}</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-12 border border-neutral-200 rounded-lg bg-white">
-                    <p className="text-neutral-600">Timeline data is being generated</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-          </div>
-        </section>
-
-        {/* Stakeholder Declaration */}
-        {(perspectives.length > 0 || stakeholders.length > 0) && (
-          <section className="container mx-auto px-6 pb-4">
-            <div className="max-w-3xl">
-              <StakeholderDeclare
-                eventId={eventId}
-                stakeholders={
-                  perspectives.length > 0
-                    ? perspectives.map(p => ({ stakeholder_id: p.stakeholder_id, stakeholder_name: p.stakeholder_name }))
-                    : stakeholders.map(s => ({ stakeholder_id: s.stakeholder_id, stakeholder_name: s.stakeholder_name }))
-                }
-              />
-            </div>
-          </section>
-        )}
-
-        {/* Discussion */}
-        <section id="discussion" className="container mx-auto px-6 pb-12">
-          <div className="max-w-3xl">
-            {/* Community reminder */}
-            <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4">
-              <p className="text-sm text-neutral-600">
-                If you&apos;re directly affected by this event, claim your stakeholder identity above. Your first-hand perspective matters most here.
-              </p>
-            </div>
-
-            <div className="bg-white border border-neutral-200 rounded-lg overflow-hidden">
-              <div className="border-b border-neutral-200 px-5 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <h2 className="font-serif text-lg font-semibold text-neutral-900">Discussion</h2>
-                  <span className="text-xs text-neutral-400">{threads.length}</span>
                 </div>
-                <button
-                  onClick={() => router.push(`/events/${eventId}/threads/new`)}
-                  className="bg-neutral-900 text-white px-3 py-1.5 rounded-md text-sm hover:bg-neutral-800 transition-colors"
-                >
-                  New Thread
-                </button>
-              </div>
+              )}
+            </div>
 
-              <div className="p-5">
-                {threads.length > 0 ? (
-                  <div className="space-y-3">
-                    {threads.map((thread) => (
-                      <div
-                        key={thread.id}
-                        onClick={() => router.push(`/events/${eventId}/threads/${thread.id}`)}
-                        className="border border-neutral-200 rounded-lg p-4 hover:border-neutral-400 transition-colors cursor-pointer"
-                      >
-                        <h4 className="font-semibold text-neutral-900 mb-1.5 hover:text-accent">{thread.title}</h4>
-                        <p className="text-neutral-600 text-sm line-clamp-2 mb-3">{thread.content}</p>
-                        <div className="flex items-center gap-4 text-xs text-neutral-400">
-                          <span>{thread.persona_name}</span>
-                          <span>{thread.reply_count} replies</span>
-                          <span>{thread.like_count} likes</span>
-                          <span>{new Date(thread.created_at).toLocaleDateString('en-US')}</span>
-                        </div>
-                        {thread.tags?.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {thread.tags.map((tag, i) => (
-                              <span key={i} className="text-xs bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-md">{tag}</span>
-                            ))}
-                          </div>
-                        )}
+            {/* ── Sidebar (4 cols) — sticky on desktop ── */}
+            <aside className="lg:col-span-4">
+              <div className="lg:sticky lg:top-[120px] space-y-6">
+
+                {/* Event metadata card */}
+                <div className="rounded-lg border p-5 space-y-4" style={{ borderColor: 'var(--color-rule)', background: 'white' }}>
+                  <h4 className="text-xs text-neutral-400 uppercase tracking-wider font-medium">Event Details</h4>
+                  <dl className="space-y-3 text-sm">
+                    {event.occurred_at && (
+                      <div className="flex justify-between">
+                        <dt className="text-neutral-400">Occurred</dt>
+                        <dd className="text-neutral-900 font-medium">{new Date(event.occurred_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</dd>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-neutral-600 mb-1">No threads yet</p>
-                    <p className="text-sm text-neutral-400">Be the first to start a discussion about this event</p>
+                    )}
+                    <div className="flex justify-between">
+                      <dt className="text-neutral-400">First tracked</dt>
+                      <dd className="text-neutral-900 font-medium">{new Date(event.created_at!).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</dd>
+                    </div>
+                    {event.updated_at && (
+                      <div className="flex justify-between">
+                        <dt className="text-neutral-400">Last updated</dt>
+                        <dd className="text-neutral-900 font-medium">{timeAgo(event.updated_at)}</dd>
+                      </div>
+                    )}
+                    {(event.hot_score ?? 0) > 0 && (
+                      <div className="flex justify-between">
+                        <dt className="text-neutral-400">Heat score</dt>
+                        <dd className="font-bold stat-number" style={{ color: '#C2410C' }}>{event.hot_score?.toFixed(1)}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+
+                {/* Source breakdown card */}
+                {Object.keys(sourcesByOutlet).length > 0 && (
+                  <div className="rounded-lg border p-5" style={{ borderColor: 'var(--color-rule)', background: 'white' }}>
+                    <h4 className="text-xs text-neutral-400 uppercase tracking-wider font-medium mb-4">Coverage by Outlet</h4>
+                    <div className="space-y-2.5">
+                      {Object.entries(sourcesByOutlet)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 8)
+                        .map(([name, count]) => (
+                          <div key={name} className="flex items-center justify-between text-sm">
+                            <span className="text-neutral-700 truncate mr-3">{name}</span>
+                            <span className="text-neutral-400 flex-shrink-0 stat-number">{count}</span>
+                          </div>
+                        ))}
+                    </div>
+                    {Object.keys(sourcesByOutlet).length > 8 && (
+                      <button
+                        onClick={() => setActiveTab('sources')}
+                        className="text-xs mt-3 font-medium hover:underline"
+                        style={{ color: '#C2410C' }}
+                      >
+                        View all {Object.keys(sourcesByOutlet).length} outlets &rarr;
+                      </button>
+                    )}
                   </div>
                 )}
-              </div>
-            </div>
-          </div>
-        </section>
 
-        <footer className="border-t border-neutral-200 py-10 bg-white">
-          <div className="container mx-auto px-6 text-center text-xs text-neutral-400">
-            <p>&copy; 2026 Gaze &middot; See Every Perspective</p>
+
+              </div>
+            </aside>
+
+          </div>
+        </div>
+
+        {/* ── Footer ──────────────────────────────────────── */}
+        <footer className="relative grain" style={{ background: 'var(--color-warm-dark)' }}>
+          <div className="container mx-auto px-6 py-8">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex items-center gap-6">
+                <span className="font-serif text-xl font-bold text-white">Gaze</span>
+                <nav className="flex items-center gap-4 text-sm text-neutral-500">
+                  <a href="/stories" className="hover:text-white transition-colors">Stories</a>
+                  <span className="text-neutral-700">&middot;</span>
+                  <a href="/feedback" className="hover:text-white transition-colors">Feedback</a>
+                  <span className="text-neutral-700">&middot;</span>
+                  <a href="/auth/login" className="hover:text-white transition-colors">Sign In</a>
+                </nav>
+              </div>
+              <p className="font-serif italic text-sm text-neutral-600">We Gaze Upon the Same Moon</p>
+            </div>
+            <div className="mt-6 pt-4 border-t border-white/[0.06] text-xs text-neutral-700">
+              <p>&copy; 2026 Gaze</p>
+            </div>
           </div>
         </footer>
       </main>
