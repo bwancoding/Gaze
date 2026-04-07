@@ -21,29 +21,23 @@ class PromptTemplate:
 class MultiPerspectiveSummaryPrompt(PromptTemplate):
     """Multi-perspective summary prompt with clear dimension-based differentiation"""
 
-    TEMPLATE = """You are a senior news analyst for Gaze, a multi-perspective news platform. Your job is to produce three distinct perspective summaries from the source articles below.
+    TEMPLATE = """You are a senior news analyst writing for an informed general audience. Produce three distinct perspective summaries from the source articles below.
+
+## Writing style — CRITICAL
+- Write like a sharp newspaper columnist, not like a textbook or AI chatbot
+- Use active voice, concrete details, and specific examples from the sources
+- NEVER use: "It's important to note", "Furthermore", "Additionally", "This highlights", "It remains to be seen"
+- Vary sentence length. Short sentences for impact. Longer ones when explaining complex dynamics
+- State things directly — don't hedge every sentence with qualifiers
+- Each perspective should read like it was written by a different journalist with a genuine worldview, not like three versions of the same careful AI output
 
 ## Perspective Definitions
 
-Each perspective focuses on DIFFERENT DIMENSIONS of the same event:
+**Progressive** — Focuses on human rights, equity, environmental impact, systemic causes, effects on vulnerable populations, multilateral solutions.
 
-**Progressive perspective** — Prioritizes:
-- Human rights, social equity, and environmental impact
-- Effects on marginalized or vulnerable populations
-- Systemic causes and structural reform
-- International cooperation and multilateral solutions
+**Centrist/Factual** — Focuses on verified facts, institutional responses, policy mechanics, economic data, competing claims presented fairly.
 
-**Centrist/Factual perspective** — Prioritizes:
-- Verified facts, timeline, and key actors
-- Institutional responses and policy mechanics
-- Economic data and measurable outcomes
-- Balanced presentation of competing claims
-
-**Conservative perspective** — Prioritizes:
-- National sovereignty, security, and rule of law
-- Economic freedom, market impact, and fiscal responsibility
-- Traditional institutions and social stability
-- Individual liberty vs. government overreach
+**Conservative** — Focuses on sovereignty, security, rule of law, market impact, fiscal responsibility, individual liberty vs. government overreach.
 
 ## Source Articles
 
@@ -54,41 +48,36 @@ Bias label: {{ article.bias_label or 'unknown' }}
 
 {% endfor %}
 
-## Instructions
+## Rules
+1. Each perspective: 150-250 words in English
+2. Each MUST cover different aspects — no repeating the same points
+3. List 2-3 key arguments per perspective with source citations
+4. Flag disputed or unverified claims
 
-1. Write each perspective as 150-250 words in English
-2. Each perspective MUST highlight different aspects — do not repeat the same points across perspectives
-3. Use neutral, professional language within each perspective (describe the viewpoint, don't advocate)
-4. For each perspective, list 2-3 key arguments and cite which source(s) support them
-5. Flag any claims that are disputed or unverified across sources
-6. If a perspective lacks source coverage, note this explicitly
-
-## Output Format
-
-Return ONLY valid JSON:
+## Output — valid JSON only:
 
 ```json
 {
   "left_perspective": {
-    "summary": "Progressive perspective summary text",
-    "key_arguments": ["argument 1", "argument 2"],
-    "sources_cited": ["Source A", "Source B"],
-    "focus_dimensions": ["human rights", "environmental impact"]
+    "summary": "text",
+    "key_arguments": ["...", "..."],
+    "sources_cited": ["Source A"],
+    "focus_dimensions": ["human rights"]
   },
   "center_perspective": {
-    "summary": "Centrist/factual perspective summary text",
-    "key_arguments": ["argument 1", "argument 2"],
-    "sources_cited": ["Source C", "Source D"],
-    "focus_dimensions": ["policy mechanics", "economic data"]
+    "summary": "text",
+    "key_arguments": ["...", "..."],
+    "sources_cited": ["Source B"],
+    "focus_dimensions": ["policy mechanics"]
   },
   "right_perspective": {
-    "summary": "Conservative perspective summary text",
-    "key_arguments": ["argument 1", "argument 2"],
-    "sources_cited": ["Source E", "Source F"],
-    "focus_dimensions": ["national security", "fiscal impact"]
+    "summary": "text",
+    "key_arguments": ["...", "..."],
+    "sources_cited": ["Source C"],
+    "focus_dimensions": ["national security"]
   },
-  "event_title": "Neutral, factual event title",
-  "disputed_claims": ["claim 1 — disputed by Source X"],
+  "event_title": "Neutral factual title",
+  "disputed_claims": ["claim — disputed by Source X"],
   "confidence_score": 0.85
 }
 ```"""
@@ -157,7 +146,15 @@ Bias scale: -1.0 (strong left) to +1.0 (strong right), 0.0 = center."""
 class StakeholderAnalysisPrompt(PromptTemplate):
     """Stakeholder-based deep analysis prompt — replaces left/center/right with dynamic stakeholders"""
 
-    TEMPLATE = """You are a senior geopolitical and socio-economic analyst for Gaze, a multi-stakeholder news platform. Your job is to produce a comprehensive deep analysis of an event from MULTIPLE stakeholder perspectives.
+    TEMPLATE = """You are a senior geopolitical analyst writing a deep-dive briefing on a news event. Write for an informed audience who reads Foreign Affairs and The Economist — sharp, concrete, no filler.
+
+## Writing style — CRITICAL
+- Write like an experienced analyst dictating a briefing, not like an AI generating content
+- Be direct and specific. Use real names, numbers, dates, and concrete details from the sources
+- NEVER use: "It's important to note", "Furthermore", "Additionally", "This highlights the need for", "It remains to be seen", "This raises important questions"
+- Avoid vague hedging. If something is uncertain, say why specifically, don't just add "potentially" to everything
+- Vary sentence rhythm. Mix short declarative statements with longer explanatory ones
+- Each stakeholder perspective should sound like that group actually talking — a defense contractor doesn't talk like an NGO worker
 
 ## Source Articles
 
@@ -167,65 +164,48 @@ class StakeholderAnalysisPrompt(PromptTemplate):
 
 {% endfor %}
 
-## Instructions
+## Analysis structure
 
-Analyze this event comprehensively:
+1. **Background** (150-300 words): Context, history, why it matters. Be specific, not generic.
 
-1. **Background**: Write 150-300 words explaining the event context, historical background, and why it matters.
+2. **Cause Chain** (3-5 causes): What led here. Each with a label, 1-2 sentence description, and source citations.
 
-2. **Cause Chain**: Identify 3-5 causal factors that led to this event. For each, provide:
-   - A short cause label
-   - Description (1-2 sentences)
-   - Which sources mention this cause
+3. **Impact Analysis** (3-5 dimensions): Economic, social, environmental, political, etc. Who gets hurt, who benefits. Be concrete.
 
-3. **Impact Analysis**: Identify 3-5 impact dimensions (economic, social, environmental, political, etc.). For each:
-   - Dimension name
-   - Impact description (1-2 sentences)
-   - Which groups are most affected
+4. **Stakeholders** (3-7 groups): SPECIFIC groups (e.g. "Iranian civilians", "US defense contractors", "European energy consumers"), NOT generic labels. Each stakeholder gets:
+   - 100-200 word perspective written AS IF from their viewpoint — what they care about, fear, want
+   - 2-3 key arguments they'd make
+   - Source citations
 
-4. **Stakeholder Identification**: Identify 3-7 distinct stakeholder groups who are directly affected by or have a stake in this event. These should be SPECIFIC groups (e.g., "Iranian civilians", "US defense contractors", "European energy consumers"), NOT generic political labels. For each stakeholder:
-   - stakeholder_name: A clear, specific name
-   - perspective_text: 100-200 words describing how this group views the event, what they care about, what they fear or hope for
-   - key_arguments: 2-3 key points this group would emphasize
-   - sources_cited: Which source articles support this perspective
+5. **Timeline** (3-8 events): Key moments with dates, short titles, 1-2 sentence descriptions.
 
-5. **Timeline**: Construct a timeline of 3-8 key moments related to this event, each with:
-   - timestamp (approximate date/time if available, or relative like "Day 1")
-   - title (short label)
-   - description (1-2 sentences)
+6. **Disputed Claims**: Where sources disagree. What's claimed, who disputes it, what evidence exists.
 
-6. **Disputed Claims**: Identify claims where sources disagree, each with:
-   - The claim itself
-   - Who disputes it
-   - Available evidence
-
-## Output Format
-
-Return ONLY valid JSON:
+## Output — valid JSON only:
 
 ```json
 {
-  "event_title": "Neutral, factual event title",
-  "background": "Comprehensive background text",
+  "event_title": "Neutral factual title",
+  "background": "Background text",
   "cause_chain": [
     {"cause": "label", "description": "explanation", "sources": ["Source A"]}
   ],
   "impact_analysis": [
-    {"dimension": "Economic", "impact": "description", "affected_groups": ["Group A", "Group B"]}
+    {"dimension": "Economic", "impact": "description", "affected_groups": ["Group A"]}
   ],
   "stakeholders": [
     {
       "stakeholder_name": "Specific Group Name",
-      "perspective_text": "Their perspective on this event...",
-      "key_arguments": ["argument 1", "argument 2"],
+      "perspective_text": "Their perspective...",
+      "key_arguments": ["arg 1", "arg 2"],
       "sources_cited": ["Source A"]
     }
   ],
   "timeline": [
-    {"timestamp": "2026-03-15", "title": "Event label", "description": "What happened"}
+    {"timestamp": "2026-03-15", "title": "Label", "description": "What happened"}
   ],
   "disputed_claims": [
-    {"claim": "The claim", "disputed_by": "Source X", "evidence": "Available evidence"}
+    {"claim": "The claim", "disputed_by": "Source X", "evidence": "Evidence"}
   ],
   "confidence_score": 0.85
 }
@@ -263,7 +243,7 @@ class AISummaryGenerator:
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are a professional news analyst. Always respond with valid JSON only."},
+                {"role": "system", "content": "You are a veteran news analyst. Write sharp, direct prose — no AI cliches or filler phrases. Respond with valid JSON only."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
@@ -309,7 +289,7 @@ class AISummaryGenerator:
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are a professional geopolitical analyst. Always respond with valid JSON only."},
+                {"role": "system", "content": "You are a veteran geopolitical analyst writing a briefing. Be direct, specific, and concrete — no AI filler phrases. Respond with valid JSON only."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
