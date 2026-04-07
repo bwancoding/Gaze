@@ -392,7 +392,7 @@ async def get_event_analysis(
         import asyncio
         result = await asyncio.wait_for(
             generate_event_analysis(db, event_id, force=force),
-            timeout=45.0,
+            timeout=90.0,
         )
         return result
     except asyncio.TimeoutError:
