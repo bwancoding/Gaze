@@ -43,6 +43,11 @@ class EventUpdate(BaseModel):
     category: Optional[str] = None
     tags: Optional[List[str]] = None
     hot_score: Optional[float] = None
+    background: Optional[str] = None
+    cause_chain: Optional[List[dict]] = None
+    impact_analysis: Optional[List[dict]] = None
+    timeline_data: Optional[List[dict]] = None
+    stakeholder_perspectives: Optional[List[dict]] = None
 
 
 class EventResponse(EventBase):

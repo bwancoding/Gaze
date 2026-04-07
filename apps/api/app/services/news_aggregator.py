@@ -63,8 +63,13 @@ def title_similarity(t1: str, t2: str) -> float:
     if not words1 or not words2:
         return 0.0
     overlap = words1 & words2
-    # Use Jaccard-like but weighted toward shorter text
-    return len(overlap) / min(len(words1), len(words2))
+    # Use Jaccard index for balanced comparison; min-based scoring
+    # inflates scores when one title is very short (e.g. 3 words)
+    min_len = min(len(words1), len(words2))
+    if min_len <= 3:
+        # For short titles, use Jaccard to avoid inflation
+        return len(overlap) / len(words1 | words2)
+    return len(overlap) / min_len
 
 
 def classify_category(text: str) -> Optional[str]:
@@ -174,24 +179,45 @@ def topic_article_relevance(topic: Dict, article: TrendingArticle) -> float:
     return best_title_sim * 0.4 + keyword_overlap * 0.6
 
 
+def _get_article_category(article: TrendingArticle) -> Optional[str]:
+    """Classify an article's category from its title + summary"""
+    text = f"{article.title or ''} {article.summary or ''}"
+    return classify_category(text)
+
+
 def match_articles_to_topics(
     topics: List[Dict],
     articles: List[TrendingArticle],
-    threshold: float = 0.25,
+    threshold: float = 0.40,
 ) -> Dict[int, List[TrendingArticle]]:
     """
     Match articles to topic-events by relevance scoring.
+    Applies a cross-category penalty to prevent misclassification.
     Returns: {topic_index: [matched_articles]}
     """
     matches: Dict[int, List[TrendingArticle]] = {i: [] for i in range(len(topics))}
     unmatched: List[TrendingArticle] = []
 
+    # Pre-classify topic categories
+    topic_categories = []
+    for topic in topics:
+        all_titles = topic.get('all_titles', [topic['title']])
+        combined = ' '.join(all_titles + [topic.get('selftext', '')])
+        topic_categories.append(classify_category(combined))
+
     for article in articles:
         best_idx = -1
         best_score = 0.0
+        article_cat = _get_article_category(article)
 
         for i, topic in enumerate(topics):
             score = topic_article_relevance(topic, article)
+
+            # Cross-category penalty: halve score when categories don't match
+            topic_cat = topic_categories[i]
+            if topic_cat and article_cat and topic_cat != article_cat:
+                score *= 0.5
+
             if score > best_score:
                 best_score = score
                 best_idx = i
@@ -314,10 +340,11 @@ def event_article_relevance(event: TrendingEvent, article: TrendingArticle) -> f
     return t_sim * 0.3 + coverage * 0.7
 
 
-def second_pass_matching(db: Session, events: List[TrendingEvent], threshold: float = 0.20) -> int:
+def second_pass_matching(db: Session, events: List[TrendingEvent], threshold: float = 0.35) -> int:
     """
     Second pass: sweep all unlinked articles and try to match them to existing events
     using broader keyword matching (event keywords + linked article context).
+    Applies cross-category penalty and large-cluster penalty.
     """
     unlinked = db.query(TrendingArticle).filter(
         and_(
@@ -332,14 +359,25 @@ def second_pass_matching(db: Session, events: List[TrendingEvent], threshold: fl
     for article in unlinked:
         best_event = None
         best_score = 0.0
+        article_cat = _get_article_category(article)
 
         for event in events:
             score = event_article_relevance(event, article)
-            if score > best_score:
+
+            # Cross-category penalty
+            if event.category and article_cat and event.category != article_cat:
+                score *= 0.5
+
+            # Large cluster penalty: raise bar for events with 100+ articles
+            effective_threshold = threshold
+            if event.article_count and event.article_count >= 100:
+                effective_threshold += 0.10
+
+            if score > best_score and score >= effective_threshold:
                 best_score = score
                 best_event = event
 
-        if best_score >= threshold and best_event is not None:
+        if best_event is not None:
             article.event_id = best_event.id
             article.is_processed = True
             best_event.article_count += 1
