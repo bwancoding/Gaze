@@ -1,6 +1,3 @@
-import sys
-print(f"[BOOT] Python {sys.version} starting...", flush=True)
-
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,9 +7,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.core.limiter import limiter
 from app.core.database import engine, Base, SessionLocal
-print("[BOOT] Database engine created", flush=True)
 from app.routes import events, admin, stakeholders, stakeholder_verify, personas, comments, auth, trending, threads, users, notifications, feedback, analytics
-print("[BOOT] Routes imported", flush=True)
 import logging
 import os
 import traceback
@@ -30,76 +25,20 @@ import app.models.feedback  # noqa: F401
 import app.models.request_log  # noqa: F401
 import app.models.page_view  # noqa: F401
 import app.models.error_log  # noqa: F401
-print("[BOOT] Models imported, creating tables...", flush=True)
 Base.metadata.create_all(bind=engine)
-print("[BOOT] Tables created", flush=True)
-
-# Migrate: add new columns to existing tables
-def _run_migrations():
-    """Add missing columns to existing tables for incremental schema changes."""
-    from sqlalchemy import inspect, text
-    inspector = inspect(engine)
-
-    if 'events' not in inspector.get_table_names():
-        return
-
-    existing_columns = {col['name'] for col in inspector.get_columns('events')}
-    is_postgres = not str(engine.url).startswith("sqlite")
-
-    with engine.connect() as conn:
-        # Set statement timeout to prevent blocking on locks (PostgreSQL only)
-        if is_postgres:
-            conn.execute(text("SET statement_timeout = '5000'"))  # 5 seconds
-
-        if 'published_at' not in existing_columns:
-            conn.execute(text("ALTER TABLE events ADD COLUMN published_at TIMESTAMP"))
-            conn.commit()
-            logger.info("Migration: added 'published_at' column to events table")
-        if 'last_activity_at' not in existing_columns:
-            conn.execute(text("ALTER TABLE events ADD COLUMN last_activity_at TIMESTAMP"))
-            conn.commit()
-            logger.info("Migration: added 'last_activity_at' column to events table")
-
-        # Backfill (only rows with NULL, so fast if already done)
-        conn.execute(text("""
-            UPDATE events SET published_at = created_at
-            WHERE status = 'active' AND published_at IS NULL
-        """))
-        conn.execute(text("""
-            UPDATE events SET last_activity_at = COALESCE(updated_at, created_at)
-            WHERE status = 'active' AND last_activity_at IS NULL
-        """))
-        conn.commit()
-
-        # Widen hot_score - skip if already correct type
-        try:
-            conn.execute(text("ALTER TABLE events ALTER COLUMN hot_score TYPE DECIMAL(10,2)"))
-            conn.commit()
-            logger.info("Migration: widened hot_score to DECIMAL(10,2)")
-        except Exception:
-            conn.rollback()
-
-try:
-    _run_migrations()
-    print("[BOOT] Migrations done", flush=True)
-except Exception as e:
-    print(f"[BOOT] Migration warning (non-fatal): {e}", flush=True)
-    logger.warning(f"Migration warning (non-fatal): {e}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: start scheduler on startup, cleanup on shutdown"""
-    print("[BOOT] Lifespan startup begin", flush=True)
     from app.services.scheduler import init_scheduler, shutdown_scheduler
     init_scheduler()
-    print("[BOOT] Scheduler started, lifespan ready", flush=True)
     logger.info("Gaze API started with scheduler")
     yield
     shutdown_scheduler()
     logger.info("Gaze API shut down")
 
-print("[BOOT] Creating FastAPI app...", flush=True)
+
 app = FastAPI(
     title="Gaze API",
     description="Multi-perspective News Aggregation Platform API",
@@ -108,7 +47,6 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-print("[BOOT] App created, adding middleware...", flush=True)
 
 # CORS configuration
 ALLOWED_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")]
@@ -143,7 +81,7 @@ app.include_router(analytics.router, prefix="/api", tags=["Analytics"])
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
-print("[BOOT] Module loading complete, uvicorn should start now", flush=True)
+
 
 # Global exception handler - catch unhandled errors and log them
 @app.exception_handler(Exception)
