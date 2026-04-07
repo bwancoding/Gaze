@@ -3,7 +3,7 @@ Admin API Routes
 Management backend for event administration
 """
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status, Form
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy.orm import Session
 from typing import List, Optional
