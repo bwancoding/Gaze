@@ -34,48 +34,56 @@ print("[BOOT] Models imported, creating tables...", flush=True)
 Base.metadata.create_all(bind=engine)
 print("[BOOT] Tables created", flush=True)
 
-# Migrate: add new columns to existing tables (SQLite doesn't support ALTER TABLE via create_all)
+# Migrate: add new columns to existing tables
 def _run_migrations():
     """Add missing columns to existing tables for incremental schema changes."""
     from sqlalchemy import inspect, text
     inspector = inspect(engine)
 
-    # Events table: add published_at and last_activity_at if missing
-    if 'events' in inspector.get_table_names():
-        existing_columns = {col['name'] for col in inspector.get_columns('events')}
-        with engine.connect() as conn:
-            if 'published_at' not in existing_columns:
-                conn.execute(text("ALTER TABLE events ADD COLUMN published_at TIMESTAMP"))
-                conn.commit()
-                logger.info("Migration: added 'published_at' column to events table")
-            if 'last_activity_at' not in existing_columns:
-                conn.execute(text("ALTER TABLE events ADD COLUMN last_activity_at TIMESTAMP"))
-                conn.commit()
-                logger.info("Migration: added 'last_activity_at' column to events table")
-            # Backfill: set published_at and last_activity_at for existing active events
-            conn.execute(text("""
-                UPDATE events SET published_at = created_at
-                WHERE status = 'active' AND published_at IS NULL
-            """))
-            conn.execute(text("""
-                UPDATE events SET last_activity_at = COALESCE(updated_at, created_at)
-                WHERE status = 'active' AND last_activity_at IS NULL
-            """))
-            conn.commit()
+    if 'events' not in inspector.get_table_names():
+        return
 
-            # Widen hot_score from DECIMAL(5,2) to DECIMAL(10,2) for scores > 999
-            try:
-                conn.execute(text("ALTER TABLE events ALTER COLUMN hot_score TYPE DECIMAL(10,2)"))
-                conn.commit()
-                logger.info("Migration: widened hot_score to DECIMAL(10,2)")
-            except Exception:
-                conn.rollback()  # Already the right type or SQLite
+    existing_columns = {col['name'] for col in inspector.get_columns('events')}
+    is_postgres = not str(engine.url).startswith("sqlite")
+
+    with engine.connect() as conn:
+        # Set statement timeout to prevent blocking on locks (PostgreSQL only)
+        if is_postgres:
+            conn.execute(text("SET statement_timeout = '5000'"))  # 5 seconds
+
+        if 'published_at' not in existing_columns:
+            conn.execute(text("ALTER TABLE events ADD COLUMN published_at TIMESTAMP"))
+            conn.commit()
+            logger.info("Migration: added 'published_at' column to events table")
+        if 'last_activity_at' not in existing_columns:
+            conn.execute(text("ALTER TABLE events ADD COLUMN last_activity_at TIMESTAMP"))
+            conn.commit()
+            logger.info("Migration: added 'last_activity_at' column to events table")
+
+        # Backfill (only rows with NULL, so fast if already done)
+        conn.execute(text("""
+            UPDATE events SET published_at = created_at
+            WHERE status = 'active' AND published_at IS NULL
+        """))
+        conn.execute(text("""
+            UPDATE events SET last_activity_at = COALESCE(updated_at, created_at)
+            WHERE status = 'active' AND last_activity_at IS NULL
+        """))
+        conn.commit()
+
+        # Widen hot_score - skip if already correct type
+        try:
+            conn.execute(text("ALTER TABLE events ALTER COLUMN hot_score TYPE DECIMAL(10,2)"))
+            conn.commit()
+            logger.info("Migration: widened hot_score to DECIMAL(10,2)")
+        except Exception:
+            conn.rollback()
 
 try:
     _run_migrations()
     print("[BOOT] Migrations done", flush=True)
 except Exception as e:
-    print(f"[BOOT] Migration warning: {e}", flush=True)
+    print(f"[BOOT] Migration warning (non-fatal): {e}", flush=True)
     logger.warning(f"Migration warning (non-fatal): {e}")
 
 
