@@ -241,7 +241,7 @@ Return ONLY valid JSON:
 class AISummaryGenerator:
     """AI summary generator with caching support"""
 
-    def __init__(self, client, model: str = "qwen3.5-plus"):
+    def __init__(self, client, model: str = "deepseek-ai/DeepSeek-V3"):
         self.client = client
         self.model = model
         self.summary_prompt = MultiPerspectiveSummaryPrompt()

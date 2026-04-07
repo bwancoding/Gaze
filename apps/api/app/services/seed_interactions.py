@@ -61,14 +61,14 @@ VERIFIED_INDICES = {0, 2, 4, 7, 8, 14}
 
 
 def _get_ai_client():
-    """Create OpenAI-compatible client for DashScope."""
-    api_key = os.getenv("DASHSCOPE_API_KEY")
+    """Create OpenAI-compatible client for SiliconCloud."""
+    api_key = os.getenv("AI_API_KEY")
     if not api_key:
         return None
     from openai import AsyncOpenAI
     import httpx
     return AsyncOpenAI(
-        base_url=os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+        base_url=os.getenv("AI_BASE_URL", "https://api.siliconflow.cn/v1"),
         api_key=api_key,
         timeout=httpx.Timeout(30.0, connect=8.0),
         max_retries=1,
@@ -167,7 +167,7 @@ async def _generate_threads_ai(event: Event, thread_count: int = 4) -> List[Dict
 
     try:
         response = await client.chat.completions.create(
-            model="qwen3.5-plus",
+            model="deepseek-ai/DeepSeek-V3",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.85,
             response_format={"type": "json_object"},
@@ -198,7 +198,7 @@ async def _generate_comments_ai(
 
     try:
         response = await client.chat.completions.create(
-            model="qwen3.5-plus",
+            model="deepseek-ai/DeepSeek-V3",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.85,
             response_format={"type": "json_object"},
