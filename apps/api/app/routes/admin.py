@@ -178,10 +178,11 @@ async def admin_update_event(
 @router.delete("/events/{event_id}/analysis")
 async def admin_clear_event_analysis(
     event_id: str,
+    regenerate: bool = Query(True, description="Auto-regenerate analysis in background after clearing"),
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
-    """Clear all AI-generated analysis and stakeholders for an event."""
+    """Clear all AI-generated analysis and stakeholders for an event, then regenerate."""
     from app.models.stakeholders import EventStakeholder
     from app.models.event_analysis import EventAnalysis
 
@@ -208,11 +209,16 @@ async def admin_clear_event_analysis(
 
     db.commit()
 
+    # Auto-regenerate in background
+    if regenerate:
+        _schedule_analysis(_generate_analysis_background(event_id))
+
     return {
         "event_id": event_id,
         "stakeholders_deleted": es_deleted,
         "analysis_deleted": ea_deleted,
-        "message": "Analysis cleared. Will regenerate on next view.",
+        "regenerating": regenerate,
+        "message": "Analysis cleared and regeneration started in background." if regenerate else "Analysis cleared.",
     }
 
 

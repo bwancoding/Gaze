@@ -28,9 +28,12 @@ def _get_ai_client():
         return None
 
     from openai import AsyncOpenAI
+    import httpx
     return AsyncOpenAI(
         base_url=os.getenv("AI_BASE_URL", "https://api.siliconflow.cn/v1"),
         api_key=api_key,
+        timeout=httpx.Timeout(120.0, connect=10.0),
+        max_retries=1,
     )
 
 
