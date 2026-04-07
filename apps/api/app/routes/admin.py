@@ -175,6 +175,47 @@ async def admin_update_event(
     return event
 
 
+@router.delete("/events/{event_id}/analysis")
+async def admin_clear_event_analysis(
+    event_id: str,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Clear all AI-generated analysis and stakeholders for an event."""
+    from app.models.stakeholders import EventStakeholder
+    from app.models.event_analysis import EventAnalysis
+
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # Delete EventStakeholder records
+    es_deleted = db.query(EventStakeholder).filter(
+        EventStakeholder.event_id == event_id
+    ).delete(synchronize_session='fetch')
+
+    # Delete EventAnalysis cache
+    ea_deleted = db.query(EventAnalysis).filter(
+        EventAnalysis.event_id == event_id
+    ).delete(synchronize_session='fetch')
+
+    # Clear inline fields on Event
+    event.background = None
+    event.cause_chain = None
+    event.impact_analysis = None
+    event.timeline_data = None
+    event.stakeholder_perspectives = None
+
+    db.commit()
+
+    return {
+        "event_id": event_id,
+        "stakeholders_deleted": es_deleted,
+        "analysis_deleted": ea_deleted,
+        "message": "Analysis cleared. Will regenerate on next view.",
+    }
+
+
 @router.post("/events/{event_id}/archive")
 async def admin_archive_event(
     event_id: str,
@@ -183,10 +224,10 @@ async def admin_archive_event(
 ):
     """Archive event (admin)"""
     event = db.query(Event).filter(Event.id == event_id).first()
-    
+
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
-    
+
     event.status = 'archived'
     event.archived_at = datetime.utcnow()
     db.commit()
