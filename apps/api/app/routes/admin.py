@@ -276,7 +276,10 @@ async def admin_publish_event(
     # Auto-generate stakeholder analysis in the background
     background_tasks.add_task(_generate_analysis_background, str(event_id))
 
-    return {"message": "Event published, stakeholder analysis queued", "event_id": str(event_id)}
+    # Auto-seed threads/comments so the event isn't empty
+    background_tasks.add_task(_seed_interactions_background, str(event_id))
+
+    return {"message": "Event published, analysis + seed interactions queued", "event_id": str(event_id)}
 
 
 async def _generate_analysis_background(event_id: str):
@@ -291,6 +294,23 @@ async def _generate_analysis_background(event_id: str):
     except Exception as e:
         import traceback
         logger.error(f"[Auto-Analysis] Failed for event {event_id}: {e}\n{traceback.format_exc()}")
+    finally:
+        db.close()
+
+
+async def _seed_interactions_background(event_id: str):
+    """Background task: auto-seed threads/comments for a newly published event."""
+    from app.core.database import SessionLocal
+    from app.services.seed_interactions import seed_event_interactions
+
+    db = SessionLocal()
+    try:
+        result = await seed_event_interactions(db, event_id)
+        logger.info(f"[Auto-Seed] {result.get('status')} for event {event_id}: "
+                     f"{result.get('threads_created', 0)} threads, {result.get('comments_created', 0)} comments")
+    except Exception as e:
+        import traceback
+        logger.error(f"[Auto-Seed] Failed for event {event_id}: {e}\n{traceback.format_exc()}")
     finally:
         db.close()
 
@@ -441,9 +461,10 @@ async def admin_batch_promote(
 
     db.commit()
 
-    # Trigger AI analysis for all promoted events in background
+    # Trigger AI analysis + seed interactions for all promoted events in background
     for item in promoted:
         _schedule_analysis(_generate_analysis_background(item["event_id"]))
+        _schedule_analysis(_seed_interactions_background(item["event_id"]))
 
     return {
         "promoted": len(promoted),
@@ -479,9 +500,10 @@ async def admin_batch_publish(
 
     db.commit()
 
-    # Trigger AI analysis for all published events
+    # Trigger AI analysis + seed interactions for all published events
     for item in published:
         _schedule_analysis(_generate_analysis_background(item["event_id"]))
+        _schedule_analysis(_seed_interactions_background(item["event_id"]))
 
     return {
         "published": len(published),

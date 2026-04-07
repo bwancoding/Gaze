@@ -28,30 +28,31 @@ logger = logging.getLogger(__name__)
 
 SEED_USER_EMAIL_DOMAIN = "seed.wrhitw.local"
 
-# English internet-style display names
+# Realistic internet usernames — mix of styles people actually use
 SEED_DISPLAY_NAMES = [
-    # Platform-generated style
-    "MidEast Policy Watcher",
-    "Climate Data Analyst",
-    "Tech Industry Insider",
-    "Journalism Student",
-    "Ex-Diplomat Observer",
-    "Defense Policy Researcher",
-    "Econ PhD Candidate",
-    "Human Rights Advocate",
-    "Energy Sector Analyst",
-    "Foreign Affairs Buff",
-    # Internet nickname style
-    "NightOwlReader",
-    "GeopoliticsNerd",
-    "NewsJunkie42",
-    "GlobalWatcher",
-    "SkepticalAnalyst",
-    "CuriousCitizen",
-    "DataDrivenThinker",
-    "TheDevilsAdvocate",
-    "SilentMajority",
-    "ObjectiveLens",
+    # Real-name style (first name or nickname)
+    "Marcus T.",
+    "jenny_w",
+    "DaveFromTexas",
+    "priya.k",
+    "tomás",
+    "R. Chen",
+    "alex_not_AI",
+    "samira.h",
+    # Internet handle style
+    "coffeeandnews",
+    "throwaway_acct_37",
+    "quietreader99",
+    "burnt_toast",
+    "old_enough_to_know",
+    "just_passing_thru",
+    "can't_sleep_won't_sleep",
+    "404_opinion_not_found",
+    # Casual gaming/forum style
+    "xX_reader_Xx",
+    "lurker2reader",
+    "ctrl_alt_defeat",
+    "yikes_dot_com",
 ]
 
 AVATAR_COLORS = ["blue", "green", "red", "purple", "orange", "teal", "pink", "indigo"]
