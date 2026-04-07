@@ -20,14 +20,14 @@ SUMMARY_TTL_HOURS = int(os.getenv("SUMMARY_TTL_HOURS", "24"))
 
 
 def _get_ai_client():
-    """Create OpenAI-compatible client for DashScope."""
-    api_key = os.getenv("DASHSCOPE_API_KEY")
+    """Create OpenAI-compatible client for SiliconCloud."""
+    api_key = os.getenv("AI_API_KEY")
     if not api_key:
         return None
 
     from openai import AsyncOpenAI
     return AsyncOpenAI(
-        base_url=os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+        base_url=os.getenv("AI_BASE_URL", "https://api.siliconflow.cn/v1"),
         api_key=api_key,
     )
 
@@ -127,7 +127,7 @@ async def generate_and_cache_summary(
     # Get AI client
     client = _get_ai_client()
     if not client:
-        raise ValueError("DASHSCOPE_API_KEY not configured. Cannot generate AI summary.")
+        raise ValueError("AI_API_KEY not configured. Cannot generate AI summary.")
 
     # Gather articles
     articles = _gather_articles_for_event(db, event_id)
@@ -158,7 +158,7 @@ async def generate_and_cache_summary(
         existing.left_sources = json.dumps(left_sources) if left_sources else None
         existing.center_sources = json.dumps(center_sources) if center_sources else None
         existing.right_sources = json.dumps(right_sources) if right_sources else None
-        existing.model_name = "qwen3.5-plus"
+        existing.model_name = "deepseek-ai/DeepSeek-V3"
         existing.quality_score = result.get("confidence_score")
         existing.generated_at = now
         existing.expires_at = expires
@@ -172,7 +172,7 @@ async def generate_and_cache_summary(
             left_sources=json.dumps(left_sources) if left_sources else None,
             center_sources=json.dumps(center_sources) if center_sources else None,
             right_sources=json.dumps(right_sources) if right_sources else None,
-            model_name="qwen3.5-plus",
+            model_name="deepseek-ai/DeepSeek-V3",
             quality_score=result.get("confidence_score"),
             generated_at=now,
             expires_at=expires,

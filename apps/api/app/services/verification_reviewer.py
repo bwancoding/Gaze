@@ -60,14 +60,14 @@ Flag types: "too_short", "generic_text", "no_specifics", "persona_mismatch", "co
 
 
 def _get_ai_client():
-    """Create OpenAI-compatible client for DashScope."""
-    api_key = os.getenv("DASHSCOPE_API_KEY")
+    """Create OpenAI-compatible client for SiliconCloud."""
+    api_key = os.getenv("AI_API_KEY")
     if not api_key:
         return None
 
     from openai import AsyncOpenAI
     return AsyncOpenAI(
-        base_url=os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+        base_url=os.getenv("AI_BASE_URL", "https://api.siliconflow.cn/v1"),
         api_key=api_key,
     )
 
@@ -120,7 +120,7 @@ async def ai_review_application(
     else:
         try:
             response = await client.chat.completions.create(
-                model="qwen3.5-plus",
+                model="deepseek-ai/DeepSeek-V3",
                 messages=[
                     {"role": "system", "content": "You are a verification reviewer. Always respond with valid JSON only."},
                     {"role": "user", "content": prompt},

@@ -22,14 +22,14 @@ ANALYSIS_TTL_HOURS = int(os.getenv("ANALYSIS_TTL_HOURS", "24"))
 
 
 def _get_ai_client():
-    """Create OpenAI-compatible client for DashScope."""
-    api_key = os.getenv("DASHSCOPE_API_KEY")
+    """Create OpenAI-compatible client for SiliconCloud."""
+    api_key = os.getenv("AI_API_KEY")
     if not api_key:
         return None
 
     from openai import AsyncOpenAI
     return AsyncOpenAI(
-        base_url=os.getenv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+        base_url=os.getenv("AI_BASE_URL", "https://api.siliconflow.cn/v1"),
         api_key=api_key,
     )
 
@@ -137,7 +137,7 @@ async def generate_event_analysis(
 
     client = _get_ai_client()
     if not client:
-        raise ValueError("DASHSCOPE_API_KEY not configured")
+        raise ValueError("AI_API_KEY not configured")
 
     articles = _gather_articles_for_event(db, event_id)
     if not articles:
@@ -188,7 +188,7 @@ async def generate_event_analysis(
         existing.timeline = result.get("timeline", [])
         existing.stakeholder_perspectives = stakeholder_perspectives
         existing.disputed_claims = result.get("disputed_claims", [])
-        existing.model_name = "qwen3.5-plus"
+        existing.model_name = "deepseek-ai/DeepSeek-V3"
         existing.quality_score = result.get("confidence_score")
         existing.generated_at = now
         existing.expires_at = expires
@@ -202,7 +202,7 @@ async def generate_event_analysis(
             timeline=result.get("timeline", []),
             stakeholder_perspectives=stakeholder_perspectives,
             disputed_claims=result.get("disputed_claims", []),
-            model_name="qwen3.5-plus",
+            model_name="deepseek-ai/DeepSeek-V3",
             quality_score=result.get("confidence_score"),
             generated_at=now,
             expires_at=expires,
