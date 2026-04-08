@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { isAuthenticated, getAuthHeaders, fetchWithAuth } from '../lib/auth';
 import { API_BASE_URL } from '../lib/config';
+import StakeholderBadge from './StakeholderBadge';
 
 
 interface CommentFormProps {
@@ -25,6 +26,10 @@ export default function CommentForm({ eventId, threadId, onSuccess, parentId, on
   // Fetch user persona list
   const [personas, setPersonas] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [declaration, setDeclaration] = useState<{
+    stakeholder_name: string;
+    verification_level: 'verified' | 'declared';
+  } | null>(null);
 
   useEffect(() => {
     checkLoginAndFetchPersonas();
@@ -35,7 +40,7 @@ export default function CommentForm({ eventId, threadId, onSuccess, parentId, on
     setIsLoggedIn(authenticated);
     
     if (authenticated) {
-      await fetchPersonas();
+      await Promise.all([fetchPersonas(), fetchDeclaration()]);
     } else {
       setIsLoading(false);
     }
@@ -60,6 +65,20 @@ export default function CommentForm({ eventId, threadId, onSuccess, parentId, on
       setError('Failed to load personas. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchDeclaration = async () => {
+    try {
+      const response = await fetchWithAuth(
+        `${API_BASE_URL}/api/personas/my-declaration?event_id=${eventId}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setDeclaration(data.declaration);
+      }
+    } catch {
+      // Silent — not critical for commenting
     }
   };
 
@@ -182,6 +201,17 @@ export default function CommentForm({ eventId, threadId, onSuccess, parentId, on
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Stakeholder identity indicator */}
+      {declaration && (
+        <div className="flex items-center gap-2 text-xs px-1">
+          <span style={{ color: '#78716C' }}>Your stakeholder identity:</span>
+          <StakeholderBadge
+            stakeholderName={declaration.stakeholder_name}
+            level={declaration.verification_level}
+          />
         </div>
       )}
 

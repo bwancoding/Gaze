@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { isAuthenticated, fetchWithAuth } from '../lib/auth';
 import { API_BASE_URL } from '../lib/config';
+import StakeholderBadge from './StakeholderBadge';
 
 
 interface Comment {
@@ -389,20 +390,13 @@ function SingleComment({
               {comment.persona_name}
             </span>
             {comment.verification_level === 'verified' && comment.stakeholder_name && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200">
-                <svg className="w-2.5 h-2.5 mr-0.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
-                {comment.stakeholder_name}
-              </span>
+              <StakeholderBadge stakeholderName={comment.stakeholder_name} level="verified" compact={isNested} />
             )}
             {comment.verification_level === 'declared' && comment.stakeholder_name && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-stone-100 text-stone-500 border border-stone-200">
-                {comment.stakeholder_name}
-              </span>
+              <StakeholderBadge stakeholderName={comment.stakeholder_name} level="declared" compact={isNested} />
             )}
             {comment.is_verified && !comment.verification_level && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-200">
-                Verified
-              </span>
+              <StakeholderBadge stakeholderName="Verified" level="verified" compact={isNested} />
             )}
             {replyToName && (
               <span className="text-stone-400 text-xs">
