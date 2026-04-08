@@ -119,6 +119,47 @@ async def get_my_personas(
     }
 
 
+@router.get("/my-declaration")
+async def get_my_event_declaration(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_token),
+):
+    """Get current user's stakeholder declaration for a specific event."""
+    personas = db.query(UserPersona).filter(
+        UserPersona.user_id == current_user.id,
+        UserPersona.is_deleted == False,
+    ).all()
+
+    if not personas:
+        return {"declaration": None}
+
+    persona_ids = [p.id for p in personas]
+
+    result = (
+        db.query(EventStakeholderVerification, Stakeholder)
+        .join(Stakeholder, EventStakeholderVerification.stakeholder_id == Stakeholder.id)
+        .filter(
+            EventStakeholderVerification.user_persona_id.in_(persona_ids),
+            EventStakeholderVerification.event_id == event_id,
+            EventStakeholderVerification.status.in_(['approved', 'declared']),
+        )
+        .first()
+    )
+
+    if not result:
+        return {"declaration": None}
+
+    esv, stakeholder = result
+    return {
+        "declaration": {
+            "stakeholder_name": stakeholder.name,
+            "verification_level": "verified" if esv.status == "approved" else "declared",
+            "persona_id": str(esv.user_persona_id),
+        }
+    }
+
+
 @router.post("")
 @limiter.limit("10/minute")
 async def create_persona(
@@ -129,7 +170,7 @@ async def create_persona(
 ):
     """
     Create new persona
-    
+
     - **persona_name**: Name for the persona (e.g., "Iranian Civilian")
     - **avatar_color**: Optional color identifier
     """
