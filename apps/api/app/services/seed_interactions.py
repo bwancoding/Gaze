@@ -21,6 +21,7 @@ from app.models.comments import Comment
 from app.models.user_likes import UserLike
 # Import all models to ensure SQLAlchemy relationships resolve properly
 from app.models.stakeholders import Stakeholder, EventStakeholder  # noqa: F401
+from app.models.personas import EventStakeholderVerification
 from app.models.trending import TrendingEvent, TrendingArticle, TrendingSource  # noqa: F401
 from app.services.seed_prompts import SEED_THREAD_PROMPT, SEED_COMMENT_PROMPT
 
@@ -131,6 +132,72 @@ def ensure_seed_personas(db: Session, users: List[User]) -> List[UserPersona]:
 
     db.flush()
     return all_personas
+
+
+def _assign_stakeholder_identities(
+    db: Session, event_id: str, personas: List[UserPersona]
+) -> Dict[str, Dict]:
+    """Assign some seed personas as stakeholders for the event.
+    Returns {persona_id: {stakeholder_name, verification_level}}."""
+
+    # Get event stakeholders
+    event_stakeholders = (
+        db.query(EventStakeholder)
+        .join(Stakeholder, EventStakeholder.stakeholder_id == Stakeholder.id)
+        .filter(EventStakeholder.event_id == event_id)
+        .all()
+    )
+    if not event_stakeholders:
+        return {}
+
+    # Load stakeholder names
+    stakeholder_ids = [es.stakeholder_id for es in event_stakeholders]
+    stakeholders = db.query(Stakeholder).filter(Stakeholder.id.in_(stakeholder_ids)).all()
+    if not stakeholders:
+        return {}
+
+    # Pick ~30-40% of personas to be stakeholders
+    num_to_assign = max(2, len(personas) // 3)
+    chosen_personas = random.sample(personas, min(num_to_assign, len(personas)))
+
+    assignments = {}
+    for i, persona in enumerate(chosen_personas):
+        stakeholder = stakeholders[i % len(stakeholders)]
+
+        # Check if already exists
+        existing = db.query(EventStakeholderVerification).filter(
+            EventStakeholderVerification.user_persona_id == persona.id,
+            EventStakeholderVerification.event_id == event_id,
+        ).first()
+        if existing:
+            level = "verified" if existing.status == "approved" else "declared"
+            assignments[str(persona.id)] = {
+                "stakeholder_name": stakeholder.name,
+                "verification_level": level,
+            }
+            continue
+
+        # ~50% verified (approved), ~50% declared
+        status = "approved" if i % 2 == 0 else "declared"
+
+        verification = EventStakeholderVerification(
+            user_persona_id=persona.id,
+            event_id=event_id,
+            stakeholder_id=stakeholder.id,
+            application_text=f"I have direct experience related to {stakeholder.name}.",
+            proof_type="self_declaration",
+            status=status,
+        )
+        db.add(verification)
+
+        level = "verified" if status == "approved" else "declared"
+        assignments[str(persona.id)] = {
+            "stakeholder_name": stakeholder.name,
+            "verification_level": level,
+        }
+
+    db.flush()
+    return assignments
 
 
 def _event_already_seeded(db: Session, event_id: str) -> bool:
@@ -313,6 +380,10 @@ async def seed_event_interactions(
     users = ensure_seed_users(db)
     personas = ensure_seed_personas(db, users)
     user_persona_pairs = list(zip(users, personas))
+
+    # Assign stakeholder identities to some seed personas
+    stakeholder_assignments = _assign_stakeholder_identities(db, event_id, personas)
+    logger.info(f"Assigned {len(stakeholder_assignments)} stakeholder identities for event {event_id}")
 
     base_time = event.published_at or event.created_at or datetime.utcnow() - timedelta(days=2)
 
