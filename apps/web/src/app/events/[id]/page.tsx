@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '../../../components/Header';
 import StakeholderDeclare from '../../../components/StakeholderDeclare';
+import StakeholderVoices from '../../../components/StakeholderVoices';
 import { API_BASE_URL } from '../../../lib/config';
 
 
@@ -147,6 +148,7 @@ export default function EventDetailPage() {
   const [analysis, setAnalysis] = useState<EventAnalysis | null>(null);
   const [threads, setThreads] = useState<ThreadItem[]>([]);
   const [stakeholders, setStakeholders] = useState<StakeholderInfo[]>([]);
+  const [eventComments, setEventComments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
@@ -192,11 +194,21 @@ export default function EventDetailPage() {
     } catch {}
   };
 
+  const fetchEventComments = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/comments/event/${eventId}?limit=100`);
+      if (response.ok) {
+        const data = await response.json();
+        setEventComments(data.items || []);
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     if (eventId) {
       setIsLoading(true);
       setError(null);
-      Promise.all([fetchEvent(), fetchSources(), fetchThreads(), fetchStakeholders()])
+      Promise.all([fetchEvent(), fetchSources(), fetchThreads(), fetchStakeholders(), fetchEventComments()])
         .then(() => setIsLoading(false))
         .catch(() => { setIsLoading(false); setError('Failed to load event'); });
       fetchAnalysis();
@@ -671,6 +683,9 @@ export default function EventDetailPage() {
                       }
                     />
                   )}
+
+                  {/* Stakeholder Voices — grouped stakeholder comments */}
+                  <StakeholderVoices comments={eventComments} stakeholders={stakeholders} eventId={eventId} />
 
                   {/* Thread list */}
                   <div>
