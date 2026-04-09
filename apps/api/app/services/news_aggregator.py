@@ -712,6 +712,112 @@ def consolidate_existing_events(db: Session) -> Dict:
     return {"checked": len(candidates), "merged": merge_count}
 
 
+def consolidate_published_events(db: Session) -> Dict:
+    """
+    Pairwise-merge duplicate published events (Stories page).
+
+    Published events use the separate `Event` model (UUID pk, backed by
+    `event_sources` for articles + its own AI analysis tables). They are
+    created when admins promote a trending event, and currently nothing
+    prevents the same real-world story from being promoted twice.
+
+    Same 3-tier title matching as consolidate_existing_events. When a
+    pair matches the loser's EventSource rows are re-pointed to the
+    winner (dedup'd against the uq_event_source unique constraint) and
+    the loser is archived. Winner's AI analysis (timeline, cause chain,
+    etc.) is kept as-is; no re-generation.
+    """
+    # Local imports to avoid touching the main module-level import block
+    from app.models import Event, EventSource
+    from sqlalchemy import update as sql_update
+
+    candidates = db.query(Event).filter(
+        Event.status == 'active',
+    ).order_by(desc(Event.hot_score)).all()
+    if len(candidates) < 2:
+        return {"checked": len(candidates), "merged": 0}
+
+    fetcher = TrendingTopicsFetcher()
+    meta = {
+        str(e.id): (
+            fetcher._extract_entities(e.title or ''),
+            _title_token_set(e.title or ''),
+        )
+        for e in candidates
+    }
+
+    absorbed: Set[str] = set()
+    merge_count = 0
+
+    for i, winner in enumerate(candidates):
+        w_key = str(winner.id)
+        if w_key in absorbed:
+            continue
+        w_ents, w_tokens = meta[w_key]
+
+        for j in range(i + 1, len(candidates)):
+            loser = candidates[j]
+            l_key = str(loser.id)
+            if l_key in absorbed:
+                continue
+            l_ents, l_tokens = meta[l_key]
+
+            shared = w_ents & l_ents
+            title_jac = _jaccard(w_tokens, l_tokens)
+
+            tier = None
+            if len(shared) >= 2:
+                tier = 'strong'
+            elif len(shared) >= 1 and title_jac >= 0.25:
+                tier = 'moderate'
+            elif title_jac >= 0.6:
+                tier = 'near-dup'
+            else:
+                continue
+
+            logger.info(
+                f"Consolidate-published[{tier}]: merging event {l_key[:8]} "
+                f"'{(loser.title or '')[:50]}' into {w_key[:8]} "
+                f"'{(winner.title or '')[:50]}' "
+                f"(shared={len(shared)}, jac={title_jac:.2f})"
+            )
+
+            # Move loser's EventSource rows to winner, skipping rows whose
+            # source_id already exists on winner (uq_event_source).
+            winner_source_ids = {
+                row[0] for row in db.query(EventSource.source_id)
+                .filter(EventSource.event_id == winner.id).all()
+            }
+            loser_rows = db.query(EventSource).filter(
+                EventSource.event_id == loser.id
+            ).all()
+            for row in loser_rows:
+                if row.source_id in winner_source_ids:
+                    db.delete(row)
+                else:
+                    row.event_id = winner.id
+                    winner_source_ids.add(row.source_id)
+
+            # Archive loser (cascades leave AiSummary etc. intact on loser;
+            # those tables are user-facing only for active events).
+            loser.status = 'archived'
+            loser.archived_at = datetime.utcnow()
+
+            absorbed.add(l_key)
+            merge_count += 1
+
+            # Refresh winner source count
+            db.flush()
+            winner.source_count = db.query(EventSource).filter(
+                EventSource.event_id == winner.id
+            ).count()
+            winner.last_activity_at = datetime.utcnow()
+            # Freeze winner meta (no cascading)
+
+    db.commit()
+    return {"checked": len(candidates), "merged": merge_count}
+
+
 def cleanup_bad_merges(db: Session, event_ids: List[int]) -> Dict:
     """
     Archive a list of event ids that were wrongly merged into (e.g. spammy

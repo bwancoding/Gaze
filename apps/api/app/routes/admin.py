@@ -632,6 +632,25 @@ async def admin_consolidate_events(
         raise HTTPException(status_code=500, detail=f"Consolidate failed: {str(e)}")
 
 
+@router.post("/events/consolidate")
+async def admin_consolidate_published_events(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """
+    Pairwise-merge duplicate published events on the Stories page (the
+    `Event` model, not trending). EventSource rows move from loser to
+    winner (deduped on uq_event_source); loser is archived.
+    """
+    from app.services.news_aggregator import consolidate_published_events
+    try:
+        result = consolidate_published_events(db)
+        return {"status": "success", "consolidate": result}
+    except Exception as e:
+        logger.exception("Published consolidate failed")
+        raise HTTPException(status_code=500, detail=f"Consolidate failed: {str(e)}")
+
+
 @router.post("/trending/cleanup-bad-merges")
 async def admin_cleanup_bad_merges(
     payload: dict,
