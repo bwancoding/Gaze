@@ -621,8 +621,36 @@ def run_full_pipeline(db: Session, top_n: int = 40) -> Dict:
     return result
 
 
+def reclassify_events(db: Session) -> Dict:
+    """Reclassify all active events using the current classification logic"""
+    events = db.query(TrendingEvent).filter(
+        TrendingEvent.status.in_(['raw', 'promoted'])
+    ).all()
+    updated = 0
+    for event in events:
+        # Build text from title + keywords + article titles
+        texts = [event.title or '']
+        if event.keywords:
+            texts.extend(event.keywords)
+        articles = db.query(TrendingArticle.title).filter(
+            TrendingArticle.event_id == event.id
+        ).all()
+        texts.extend([a.title for a in articles if a.title])
+        combined = ' '.join(texts)
+        new_cat = classify_category(combined)
+        if new_cat != event.category:
+            old_cat = event.category
+            event.category = new_cat
+            updated += 1
+            logger.info(f"Reclassified event {event.id}: {old_cat} -> {new_cat} | {event.title[:60]}")
+    db.commit()
+    logger.info(f"Reclassified {updated}/{len(events)} events")
+    return {"total": len(events), "updated": updated}
+
+
 def run_heat_update(db: Session, top_n: int = 40) -> Dict:
-    """Recalculate heat scores and re-trim"""
+    """Recalculate heat scores, reclassify, and re-trim"""
+    reclass = reclassify_events(db)
     heat = calculate_all_heat_scores(db)
     trim = trim_to_top_n(db, top_n=top_n)
-    return {"heat": heat, "trim": trim}
+    return {"heat": heat, "trim": trim, "reclassified": reclass}
