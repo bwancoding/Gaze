@@ -395,32 +395,51 @@ def second_pass_matching(db: Session, events: List[TrendingEvent], threshold: fl
     return matched_count
 
 
-def trim_to_top_n(db: Session, top_n: int = 20) -> Dict:
-    """Keep top N raw events, archive the rest"""
-    top_events = (
-        db.query(TrendingEvent.id)
+def trim_to_top_n(db: Session, top_n: int = 40, min_per_category: int = 2) -> Dict:
+    """Keep top N raw events with per-category minimum retention"""
+    all_raw = (
+        db.query(TrendingEvent)
         .filter(TrendingEvent.status == 'raw')
         .order_by(desc(TrendingEvent.heat_score))
-        .limit(top_n)
         .all()
     )
-    top_ids = {e.id for e in top_events}
+    if not all_raw:
+        return {"kept": 0, "archived": 0}
 
-    archived_count = (
-        db.query(TrendingEvent)
-        .filter(
-            TrendingEvent.status == 'raw',
-            ~TrendingEvent.id.in_(top_ids) if top_ids else True
+    # Step 1: guarantee min_per_category per category
+    keep_ids = set()
+    category_counts: Dict[str, int] = {}
+    for event in all_raw:
+        cat = event.category or 'Uncategorized'
+        count = category_counts.get(cat, 0)
+        if count < min_per_category:
+            keep_ids.add(event.id)
+            category_counts[cat] = count + 1
+
+    # Step 2: fill remaining slots by global heat rank
+    for event in all_raw:
+        if len(keep_ids) >= top_n:
+            break
+        keep_ids.add(event.id)
+
+    # Step 3: archive the rest
+    archived_count = 0
+    if keep_ids:
+        archived_count = (
+            db.query(TrendingEvent)
+            .filter(
+                TrendingEvent.status == 'raw',
+                ~TrendingEvent.id.in_(keep_ids)
+            )
+            .update({"status": "archived"}, synchronize_session="fetch")
         )
-        .update({"status": "archived"}, synchronize_session="fetch")
-    )
     db.commit()
 
-    logger.info(f"Trim: kept {len(top_ids)}, archived {archived_count}")
-    return {"kept": len(top_ids), "archived": archived_count}
+    logger.info(f"Trim: kept {len(keep_ids)} ({len(category_counts)} categories), archived {archived_count}")
+    return {"kept": len(keep_ids), "archived": archived_count}
 
 
-def run_full_pipeline(db: Session, top_n: int = 20) -> Dict:
+def run_full_pipeline(db: Session, top_n: int = 40) -> Dict:
     """
     Topics-First Pipeline v3:
     1. Fetch trending topics from Reddit/HN
