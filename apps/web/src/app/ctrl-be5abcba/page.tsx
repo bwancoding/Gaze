@@ -377,6 +377,12 @@ export default function AdminDashboard() {
                 📊 Analytics
               </button>
               <button
+                onClick={() => router.push('/ctrl-be5abcba/feedback')}
+                className="bg-rose-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors"
+              >
+                💬 Feedback
+              </button>
+              <button
                 onClick={() => router.push('/')}
                 className="text-stone-600 hover:text-stone-900 text-sm"
               >
