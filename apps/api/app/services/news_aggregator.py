@@ -18,6 +18,7 @@ from collections import Counter
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
+from sqlalchemy.exc import IntegrityError
 
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -695,9 +696,20 @@ def run_full_pipeline(db: Session, top_n: int = 40) -> Dict:
     all_new_articles.extend(rss_articles)
 
     new_articles = deduplicate_articles(db, all_new_articles)
+    # Resilient insert: use per-row SAVEPOINTs so a duplicate URL slipping
+    # past dedup (race conditions, URL normalization edge cases) only drops
+    # that one row instead of crashing the whole pipeline run.
+    inserted_articles = []
     for article in new_articles:
-        db.add(article)
+        try:
+            with db.begin_nested():
+                db.add(article)
+        except IntegrityError:
+            logger.warning(f"Skipping duplicate article url={article.url[:80]}")
+        else:
+            inserted_articles.append(article)
     db.commit()
+    new_articles = inserted_articles
     result["new_articles"] = len(new_articles)
 
     # 5. For each topic: merge into an existing event if it's a continuation,
