@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '../../../components/Header';
 import StakeholderDeclare from '../../../components/StakeholderDeclare';
+import StakeholderBadge from '../../../components/StakeholderBadge';
 import StakeholderVoices from '../../../components/StakeholderVoices';
 import { API_BASE_URL } from '../../../lib/config';
 
@@ -60,6 +61,8 @@ interface ThreadItem {
   view_count: number;
   created_at: string;
   tags: string[];
+  stakeholder_name?: string;
+  verification_level?: string;
 }
 
 interface StakeholderInfo {
@@ -715,6 +718,13 @@ export default function EventDetailPage() {
                             <p className="text-neutral-600 text-sm line-clamp-2 mb-3 leading-relaxed">{thread.content}</p>
                             <div className="flex items-center gap-4 text-xs text-neutral-400">
                               <span className="font-medium text-neutral-500">{thread.persona_name}</span>
+                              {thread.stakeholder_name && thread.verification_level && (
+                                <StakeholderBadge
+                                  stakeholderName={thread.stakeholder_name}
+                                  verificationLevel={thread.verification_level}
+                                  compact
+                                />
+                              )}
                               <span>{thread.reply_count} replies</span>
                               <span>{thread.like_count} likes</span>
                               <span>{new Date(thread.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
