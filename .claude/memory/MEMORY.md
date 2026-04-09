@@ -1,0 +1,1 @@
+- [No AI flavor in copy](feedback_no_ai_flavor.md) - Western users hate AI-style writing; hide AI, sound human
