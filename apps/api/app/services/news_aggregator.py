@@ -453,6 +453,38 @@ def trim_to_top_n(db: Session, top_n: int = 40, min_per_category: int = 2) -> Di
     return {"kept": len(keep_ids), "archived": archived_count}
 
 
+def _select_diverse_topics(topics: List[Dict], top_n: int, min_per_source: int = 2) -> List[Dict]:
+    """
+    Select top_n topics ensuring each source (subreddit/HN) contributes
+    at least min_per_source topics, then fill remaining by global score.
+    """
+    if len(topics) <= top_n:
+        return topics
+
+    selected = []
+    selected_set = set()
+    source_counts: Dict[str, int] = {}
+
+    # Step 1: guarantee min_per_source from each source
+    # Topics are already sorted by score desc, so first ones per source are the best
+    for i, topic in enumerate(topics):
+        source = topic.get('source', 'Unknown')
+        count = source_counts.get(source, 0)
+        if count < min_per_source:
+            selected.append(topic)
+            selected_set.add(i)
+            source_counts[source] = count + 1
+
+    # Step 2: fill remaining slots by global score rank
+    for i, topic in enumerate(topics):
+        if len(selected) >= top_n:
+            break
+        if i not in selected_set:
+            selected.append(topic)
+
+    return selected
+
+
 def run_full_pipeline(db: Session, top_n: int = 40) -> Dict:
     """
     Topics-First Pipeline v3:
@@ -487,7 +519,8 @@ def run_full_pipeline(db: Session, top_n: int = 40) -> Dict:
     finally:
         _loop.close()
     result["topics"] = len(topics)
-    top_topics = topics[:top_n]
+    top_topics = _select_diverse_topics(topics, top_n)
+    logger.info(f"Selected {len(top_topics)} topics from {len(set(t.get('source','?') for t in top_topics))} sources")
 
     # 3. For each topic, search Google News + fetch RSS
     async def fetch_articles():
