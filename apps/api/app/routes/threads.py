@@ -68,12 +68,21 @@ async def list_threads(
     offset = (page - 1) * page_size
     threads = query.offset(offset).limit(page_size).all()
 
-    # Enrich with author info
+    # Enrich with author info + stakeholder identity
+    from app.routes.comments import get_stakeholder_info
     items = []
     for t in threads:
         data = t.to_dict()
         data["persona_name"] = t.user_persona.persona_name if t.user_persona else "Anonymous"
         data["avatar_color"] = t.user_persona.avatar_color if t.user_persona else "gray"
+        # Add stakeholder verification info
+        if t.user_persona_id:
+            info = get_stakeholder_info(db, str(t.user_persona_id), event_id)
+            data["stakeholder_name"] = info["stakeholder_name"]
+            data["verification_level"] = info["verification_level"]
+        else:
+            data["stakeholder_name"] = None
+            data["verification_level"] = None
         items.append(data)
 
     return {
@@ -102,6 +111,15 @@ async def get_thread(
     persona = db.query(UserPersona).filter(UserPersona.id == thread.user_persona_id).first() if thread.user_persona_id else None
     data["persona_name"] = persona.persona_name if persona else "Anonymous"
     data["avatar_color"] = persona.avatar_color if persona else "gray"
+    # Add stakeholder verification info
+    if thread.user_persona_id:
+        from app.routes.comments import get_stakeholder_info
+        info = get_stakeholder_info(db, str(thread.user_persona_id), str(thread.event_id))
+        data["stakeholder_name"] = info["stakeholder_name"]
+        data["verification_level"] = info["verification_level"]
+    else:
+        data["stakeholder_name"] = None
+        data["verification_level"] = None
 
     return data
 
