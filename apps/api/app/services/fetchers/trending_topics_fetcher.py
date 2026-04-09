@@ -360,24 +360,37 @@ class TrendingTopicsFetcher:
         known_entities = {
             # Countries & Regions
             'iran', 'iranian', 'iraq', 'iraqi', 'israel', 'israeli', 'gaza',
-            'palestine', 'palestinian', 'ukraine', 'ukrainian', 'russia', 'russian',
-            'china', 'chinese', 'taiwan', 'cuba', 'cuban', 'korea', 'korean',
-            'japan', 'japanese', 'india', 'indian', 'brazil', 'mexico',
-            'syria', 'syrian', 'yemen', 'afghanistan', 'pakistan',
+            'palestine', 'palestinian', 'palestinians', 'ukraine', 'ukrainian',
+            'russia', 'russian', 'china', 'chinese', 'taiwan', 'cuba', 'cuban',
+            'korea', 'korean', 'japan', 'japanese', 'india', 'indian',
+            'brazil', 'mexico', 'syria', 'syrian', 'yemen', 'afghanistan',
+            'pakistan', 'lebanon', 'lebanese', 'bahamas', 'venezuela',
+            'venezuelan', 'philippines', 'philippine', 'turkey', 'turkish',
+            'saudi', 'qatar', 'egypt', 'egyptian', 'poland', 'polish',
+            'germany', 'german', 'france', 'french', 'italy', 'italian',
+            'britain', 'british', 'canada', 'canadian', 'australia',
             # Key locations
-            'hormuz', 'crimea', 'arctic', 'sahara',
+            'hormuz', 'crimea', 'arctic', 'sahara', 'beirut', 'tehran',
+            'jerusalem', 'damascus', 'kyiv', 'moscow', 'beijing', 'tokyo',
+            'hawaii', 'maui', 'alaska', 'texas', 'florida', 'california',
             # People
             'trump', 'trumps', 'biden', 'putin', 'obama', 'zelensky',
-            'modi', 'macron', 'pope', 'musk', 'netanyahu',
+            'modi', 'macron', 'pope', 'musk', 'netanyahu', 'khamenei',
+            'bondi', 'heuermann', 'mangione',
             # Organizations
             'nato', 'fbi', 'cia', 'dhs', 'ice', 'fda', 'pentagon', 'kremlin',
-            'congress', 'senate',
-            # Tech
+            'congress', 'senate', 'scotus', 'doj', 'doge', 'epa', 'hhs',
+            'hamas', 'hezbollah', 'houthi', 'houthis', 'taliban', 'isis',
+            'un', 'who', 'imf', 'opec',
+            # Tech / Science
             'openai', 'chatgpt', 'google', 'apple', 'meta', 'microsoft',
-            'tesla', 'spacex', 'nvidia',
+            'tesla', 'spacex', 'nvidia', 'nasa', 'artemis', 'mars', 'moon',
+            'lunar', 'rocket', 'astronaut', 'satellite',
             # Topics (high-signal)
-            'climate', 'earthquake', 'hurricane', 'pandemic', 'vaccine',
-            'nuclear', 'missile', 'sanctions', 'tariff',
+            'climate', 'earthquake', 'hurricane', 'tornado', 'wildfire',
+            'pandemic', 'vaccine', 'nuclear', 'missile', 'sanctions',
+            'tariff', 'ceasefire', 'hostage', 'airstrike', 'shutdown',
+            'recession', 'inflation',
         }
 
         # Normalize variants to canonical form
