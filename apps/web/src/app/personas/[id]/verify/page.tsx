@@ -353,7 +353,7 @@ export default function VerifyForEvent() {
                 {stakeholders && stakeholders.length > 0 ? (
                   stakeholders.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.name} - {s.description}
+                      {s.name}{s.description ? ` – ${s.description}` : ''}
                     </option>
                   ))
                 ) : null}
