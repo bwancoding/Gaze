@@ -599,6 +599,126 @@ async def merge_topic_into_event(
     db.commit()
 
 
+def _event_entity_and_text(event: TrendingEvent, fetcher: TrendingTopicsFetcher) -> tuple:
+    """Build the (entities, combined_text) tuple used for event-event matching."""
+    texts = [event.title or '']
+    if event.keywords:
+        texts.append(' '.join(event.keywords))
+    if event.articles:
+        texts.extend([a.title or '' for a in event.articles[:15]])
+    combined = ' '.join(texts)
+    return fetcher._extract_entities(combined), combined
+
+
+def consolidate_existing_events(db: Session) -> Dict:
+    """
+    Pairwise merge already-persisted raw/promoted events that should be the
+    same story. Uses the same entity+keyword rules as find_matching_event
+    so behaviour is consistent with the live pipeline path.
+
+    For each merged pair: newer event's articles get re-pointed to the
+    older (winner) event, timeline_data is concatenated, and the loser
+    is archived. The winner is the one with higher heat_score (tiebreak
+    by earlier created_at so long-running stories absorb new duplicates).
+    """
+    candidates = db.query(TrendingEvent).filter(
+        TrendingEvent.status.in_(['raw', 'promoted']),
+    ).order_by(desc(TrendingEvent.heat_score)).all()
+
+    if len(candidates) < 2:
+        return {"checked": len(candidates), "merged": 0}
+
+    fetcher = TrendingTopicsFetcher()
+    # Precompute entities+text for each event
+    meta = {e.id: _event_entity_and_text(e, fetcher) for e in candidates}
+
+    # Track which events have been absorbed
+    absorbed: Set[int] = set()
+    merge_count = 0
+
+    for i, winner in enumerate(candidates):
+        if winner.id in absorbed:
+            continue
+        w_ents, w_text = meta[winner.id]
+
+        for j in range(i + 1, len(candidates)):
+            loser = candidates[j]
+            if loser.id in absorbed:
+                continue
+            l_ents, l_text = meta[loser.id]
+
+            shared = w_ents & l_ents
+            word_sim = title_similarity(w_text, l_text)
+
+            if len(shared) >= 2:
+                pass  # strong
+            elif len(shared) >= 1 and word_sim >= 0.25:
+                pass  # moderate
+            else:
+                continue
+
+            # Merge loser into winner
+            logger.info(
+                f"Consolidate: merging event {loser.id} '{(loser.title or '')[:50]}' "
+                f"into {winner.id} '{(winner.title or '')[:50]}' "
+                f"(shared={len(shared)}, sim={word_sim:.2f})"
+            )
+
+            # Re-point loser's articles to winner
+            for art in loser.articles:
+                art.event_id = winner.id
+
+            # Concatenate timelines (loser entries first chronologically if older)
+            winner_tl = list(winner.timeline_data or [])
+            loser_tl = list(loser.timeline_data or [])
+            combined_tl = winner_tl + loser_tl
+            # Sort by timestamp if present, keep original order otherwise
+            def _ts(entry):
+                return entry.get('timestamp', '') if isinstance(entry, dict) else ''
+            combined_tl.sort(key=_ts)
+            winner.timeline_data = combined_tl
+            flag_modified(winner, 'timeline_data')
+
+            # Archive loser
+            loser.status = 'archived'
+            absorbed.add(loser.id)
+            merge_count += 1
+
+            # Refresh winner's derived fields
+            db.flush()
+            db.refresh(winner)
+            winner.article_count = len(winner.articles)
+            winner.media_count = len(set(a.source_id for a in winner.articles))
+            winner.last_updated = datetime.utcnow()
+
+            # Winner's entity/text set grows with absorbed loser; update cache
+            new_ents, new_text = _event_entity_and_text(winner, fetcher)
+            meta[winner.id] = (new_ents, new_text)
+            w_ents, w_text = new_ents, new_text
+
+    db.commit()
+    return {"checked": len(candidates), "merged": merge_count}
+
+
+def cleanup_bad_merges(db: Session, event_ids: List[int]) -> Dict:
+    """
+    Archive a list of event ids that were wrongly merged into (e.g. spammy
+    container events that absorbed unrelated stories via the removed
+    text-only matching tier). Orphaned articles stay linked to the archived
+    event; next pipeline run will re-fetch fresh ones on their real topics.
+    """
+    if not event_ids:
+        return {"archived": 0}
+    events = db.query(TrendingEvent).filter(TrendingEvent.id.in_(event_ids)).all()
+    archived = 0
+    for e in events:
+        logger.info(f"cleanup_bad_merges: archiving event {e.id} '{(e.title or '')[:60]}'")
+        e.status = 'archived'
+        archived += 1
+    db.commit()
+    return {"archived": archived, "event_ids": [e.id for e in events]}
+
+
 def _select_diverse_topics(topics: List[Dict], top_n: int, min_per_source: int = 2) -> List[Dict]:
     """
     Select top_n topics ensuring each source (subreddit/HN) contributes

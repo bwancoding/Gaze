@@ -612,6 +612,48 @@ async def admin_backfill_categories(
     return {"categories": cat_result, "heat_recalc": heat_result}
 
 
+@router.post("/trending/consolidate")
+async def admin_consolidate_events(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """
+    Pairwise-merge already-existing raw/promoted events that should be the
+    same story (same rules as live pipeline continuation detection).
+    Losers are archived; winners absorb articles and concatenate timelines.
+    """
+    from app.services.news_aggregator import consolidate_existing_events, run_heat_update
+    try:
+        result = consolidate_existing_events(db)
+        heat = run_heat_update(db)
+        return {"status": "success", "consolidate": result, "heat_recalc": heat}
+    except Exception as e:
+        logger.exception("Consolidate failed")
+        raise HTTPException(status_code=500, detail=f"Consolidate failed: {str(e)}")
+
+
+@router.post("/trending/cleanup-bad-merges")
+async def admin_cleanup_bad_merges(
+    payload: dict,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """
+    Archive a list of events wrongly absorbed via the (now-removed)
+    text-only matching tier. Body: {"event_ids": [32, 1605, ...]}
+    """
+    from app.services.news_aggregator import cleanup_bad_merges
+    event_ids = payload.get("event_ids") or []
+    if not isinstance(event_ids, list) or not all(isinstance(i, int) for i in event_ids):
+        raise HTTPException(status_code=400, detail="event_ids must be a list of ints")
+    try:
+        result = cleanup_bad_merges(db, event_ids)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        logger.exception("cleanup-bad-merges failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/events/auto-archive")
 async def admin_trigger_auto_archive(
     db: Session = Depends(get_db),
