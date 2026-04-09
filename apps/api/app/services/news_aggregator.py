@@ -599,27 +599,34 @@ async def merge_topic_into_event(
     db.commit()
 
 
-def _event_entity_and_text(event: TrendingEvent, fetcher: TrendingTopicsFetcher) -> tuple:
-    """Build the (entities, combined_text) tuple used for event-event matching."""
-    texts = [event.title or '']
-    if event.keywords:
-        texts.append(' '.join(event.keywords))
-    if event.articles:
-        texts.extend([a.title or '' for a in event.articles[:15]])
-    combined = ' '.join(texts)
-    return fetcher._extract_entities(combined), combined
+def _title_token_set(title: str) -> Set[str]:
+    """Stopword-filtered token set from a single title (for Jaccard)."""
+    return set(clean_words(title or ''))
+
+
+def _jaccard(a: Set[str], b: Set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
 
 
 def consolidate_existing_events(db: Session) -> Dict:
     """
     Pairwise merge already-persisted raw/promoted events that should be the
-    same story. Uses the same entity+keyword rules as find_matching_event
-    so behaviour is consistent with the live pipeline path.
+    same story.
 
-    For each merged pair: newer event's articles get re-pointed to the
-    older (winner) event, timeline_data is concatenated, and the loser
-    is archived. The winner is the one with higher heat_score (tiebreak
-    by earlier created_at so long-running stories absorb new duplicates).
+    Matching is done purely on event.title (not article titles) to keep
+    signals stable: previously, absorbing a loser into a winner grew the
+    winner's text+entity set from its articles, which snowballed into
+    cross-topic pollution (one HN "C++ ocamlc" event absorbed 50 unrelated
+    stories). Here the winner's title-based meta is FROZEN for the whole
+    pass so no cascading.
+
+    Three match tiers:
+    - Strong: 2+ shared curated entities in titles
+    - Moderate: 1+ shared curated entity AND title jaccard >= 0.25
+    - Near-duplicate: title jaccard >= 0.6 (catches "Ketamine Queen Jasveen
+      Sangha jailed..." appearing twice even when no curated entity hits)
     """
     candidates = db.query(TrendingEvent).filter(
         TrendingEvent.status.in_(['raw', 'promoted']),
@@ -629,50 +636,59 @@ def consolidate_existing_events(db: Session) -> Dict:
         return {"checked": len(candidates), "merged": 0}
 
     fetcher = TrendingTopicsFetcher()
-    # Precompute entities+text for each event
-    meta = {e.id: _event_entity_and_text(e, fetcher) for e in candidates}
+    # Precompute title-based entities + token sets for each event ONCE.
+    # These are intentionally not mutated during the merge loop.
+    meta = {
+        e.id: (
+            fetcher._extract_entities(e.title or ''),
+            _title_token_set(e.title or ''),
+        )
+        for e in candidates
+    }
 
-    # Track which events have been absorbed
     absorbed: Set[int] = set()
     merge_count = 0
 
     for i, winner in enumerate(candidates):
         if winner.id in absorbed:
             continue
-        w_ents, w_text = meta[winner.id]
+        w_ents, w_tokens = meta[winner.id]
 
         for j in range(i + 1, len(candidates)):
             loser = candidates[j]
             if loser.id in absorbed:
                 continue
-            l_ents, l_text = meta[loser.id]
+            l_ents, l_tokens = meta[loser.id]
 
             shared = w_ents & l_ents
-            word_sim = title_similarity(w_text, l_text)
+            title_jac = _jaccard(w_tokens, l_tokens)
 
+            tier = None
             if len(shared) >= 2:
-                pass  # strong
-            elif len(shared) >= 1 and word_sim >= 0.25:
-                pass  # moderate
+                tier = 'strong'
+            elif len(shared) >= 1 and title_jac >= 0.25:
+                tier = 'moderate'
+            elif title_jac >= 0.6:
+                tier = 'near-dup'
             else:
                 continue
 
-            # Merge loser into winner
             logger.info(
-                f"Consolidate: merging event {loser.id} '{(loser.title or '')[:50]}' "
-                f"into {winner.id} '{(winner.title or '')[:50]}' "
-                f"(shared={len(shared)}, sim={word_sim:.2f})"
+                f"Consolidate[{tier}]: merging event {loser.id} "
+                f"'{(loser.title or '')[:50]}' into {winner.id} "
+                f"'{(winner.title or '')[:50]}' "
+                f"(shared={len(shared)}, jac={title_jac:.2f})"
             )
 
             # Re-point loser's articles to winner
             for art in loser.articles:
                 art.event_id = winner.id
 
-            # Concatenate timelines (loser entries first chronologically if older)
+            # Concatenate and sort timelines by timestamp
             winner_tl = list(winner.timeline_data or [])
             loser_tl = list(loser.timeline_data or [])
             combined_tl = winner_tl + loser_tl
-            # Sort by timestamp if present, keep original order otherwise
+
             def _ts(entry):
                 return entry.get('timestamp', '') if isinstance(entry, dict) else ''
             combined_tl.sort(key=_ts)
@@ -684,17 +700,13 @@ def consolidate_existing_events(db: Session) -> Dict:
             absorbed.add(loser.id)
             merge_count += 1
 
-            # Refresh winner's derived fields
             db.flush()
             db.refresh(winner)
             winner.article_count = len(winner.articles)
             winner.media_count = len(set(a.source_id for a in winner.articles))
             winner.last_updated = datetime.utcnow()
-
-            # Winner's entity/text set grows with absorbed loser; update cache
-            new_ents, new_text = _event_entity_and_text(winner, fetcher)
-            meta[winner.id] = (new_ents, new_text)
-            w_ents, w_text = new_ents, new_text
+            # NOTE: deliberately do NOT update meta[winner.id] — keep match
+            # signal frozen to title to prevent cross-topic cascading.
 
     db.commit()
     return {"checked": len(candidates), "merged": merge_count}
