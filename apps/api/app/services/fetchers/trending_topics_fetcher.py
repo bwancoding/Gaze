@@ -25,6 +25,8 @@ class TrendingTopicsFetcher:
 
     REDDIT_BASE = "https://www.reddit.com"
     HN_API = "https://hacker-news.firebaseio.com/v0"
+    BSKY_API = "https://public.api.bsky.app/xrpc"
+    BSKY_WHATS_HOT_FEED = "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot"
 
     # Subreddits covering news, science, entertainment, sports, business
     NEWS_SUBREDDITS = [
@@ -160,14 +162,99 @@ class TrendingTopicsFetcher:
 
         return topics
 
+    async def fetch_bluesky_trending(self, limit: int = 100) -> List[Dict]:
+        """Fetch trending posts from Bluesky's What's Hot feed.
+
+        Prefers posts with external link embeds (news shares) over pure text
+        posts, which tend to be personal/meme content.
+        """
+        topics = []
+        session = await self._get_session()
+        await self._rate_limit()
+
+        url = f"{self.BSKY_API}/app.bsky.feed.getFeed?feed={self.BSKY_WHATS_HOT_FEED}&limit={limit}"
+        try:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    logger.warning(f"Bluesky: HTTP {resp.status}")
+                    return []
+                data = await resp.json()
+        except Exception as e:
+            logger.error(f"Bluesky error: {e}")
+            return []
+
+        for item in data.get('feed', []):
+            post = item.get('post', {})
+            record = post.get('record', {})
+            text = (record.get('text', '') or '').strip()
+
+            like_count = post.get('likeCount', 0)
+            repost_count = post.get('repostCount', 0)
+            reply_count = post.get('replyCount', 0)
+            # Engagement score: likes + reposts weighted higher + replies
+            score = like_count + repost_count * 2 + reply_count
+
+            # Filter: require meaningful engagement
+            if score < 100:
+                continue
+
+            # Prefer posts with external link embeds (news shares)
+            embed = post.get('embed') or {}
+            external = embed.get('external') or {}
+            external_title = (external.get('title') or '').strip()
+            external_desc = (external.get('description') or '').strip()
+            external_uri = external.get('uri') or ''
+
+            # Build title: prefer external link title, fall back to post text
+            if external_title:
+                title = external_title[:200]
+                selftext = f"{external_desc} {text}".strip()[:500]
+                link_url = external_uri
+            else:
+                # Skip pure text posts that are too short or clearly conversational
+                if len(text) < 30:
+                    continue
+                title = text.split('\n')[0][:200]
+                selftext = text[:500]
+                # Build bsky.app URL
+                author_handle = post.get('author', {}).get('handle', '')
+                post_uri = post.get('uri', '')
+                post_id = post_uri.split('/')[-1] if post_uri else ''
+                link_url = (
+                    f"https://bsky.app/profile/{author_handle}/post/{post_id}"
+                    if author_handle and post_id else ''
+                )
+
+            # Parse created_at
+            created_raw = record.get('createdAt', '')
+            try:
+                created_at = datetime.fromisoformat(created_raw.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                created_at = datetime.utcnow()
+
+            topics.append({
+                'title': title,
+                'source': 'Bluesky',
+                'source_id': 111,
+                'score': score,
+                'comments': reply_count,
+                'url': link_url,
+                'selftext': selftext,
+                'created_at': created_at,
+            })
+
+        logger.info(f"Bluesky: {len(topics)} topics")
+        return topics
+
     async def fetch_all_trending(self) -> List[Dict]:
         """Fetch trending topics from all platforms"""
-        reddit_topics, hn_topics = await asyncio.gather(
+        reddit_topics, hn_topics, bsky_topics = await asyncio.gather(
             self.fetch_reddit_trending(),
             self.fetch_hn_trending(),
+            self.fetch_bluesky_trending(),
         )
 
-        all_topics = reddit_topics + hn_topics
+        all_topics = reddit_topics + hn_topics + bsky_topics
         logger.info(f"Total raw topics: {len(all_topics)}")
 
         # Deduplicate similar topics

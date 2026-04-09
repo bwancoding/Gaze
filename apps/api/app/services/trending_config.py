@@ -219,7 +219,11 @@ REDDIT_SOURCES = [
 HN_SOURCE = {"id": 105, "name": "Hacker News", "stance": "center", "region": "international",
              "priority": "P1", "enabled": True}
 
-ALL_SOURCES = RSS_SOURCES + REDDIT_SOURCES + [HN_SOURCE]
+# Bluesky source (source_id 111)
+BLUESKY_SOURCE = {"id": 111, "name": "Bluesky", "stance": "center", "region": "international",
+                  "priority": "P1", "enabled": True}
+
+ALL_SOURCES = RSS_SOURCES + REDDIT_SOURCES + [HN_SOURCE, BLUESKY_SOURCE]
 
 
 def get_sources_by_priority(priority: str = "P0") -> List[Dict]:
