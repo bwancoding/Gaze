@@ -267,58 +267,81 @@ class TrendingTopicsFetcher:
 
     def _merge_similar_topics(self, topics: List[Dict]) -> List[Dict]:
         """
-        Merge topics about the same story using two strategies:
-        1. Title word overlap (>0.4)
-        2. Shared key entities — if two topics share 2+ key entities, they're likely the same story
-           (e.g. "Iran threatens Hormuz" + "Iran warns infrastructure attack" both have Iran+Trump)
+        Cluster topics about the same story using Union-Find for transitive merging.
+
+        Two topics belong to the same cluster if ANY of:
+        - Title word overlap > 0.35
+        - They share at least 1 high-value named entity (country/person/org)
+
+        Transitive: if A~B and B~C, then {A,B,C} all merge into one cluster.
+        This aggressively collapses all related topics (e.g. all Iran-related
+        posts) into a single super-topic for broader Google News search.
         """
         if not topics:
             return []
 
-        # Extract entities for each topic
+        n = len(topics)
         topic_entities = [self._extract_entities(t['title']) for t in topics]
 
-        merged = []
-        used = set()
+        # Union-Find with path compression
+        parent = list(range(n))
 
-        for i, t1 in enumerate(topics):
-            if i in used:
-                continue
-            group = [t1]
-            for j, t2 in enumerate(topics[i + 1:], start=i + 1):
-                if j in used:
+        def find(x: int) -> int:
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(x: int, y: int):
+            px, py = find(x), find(y)
+            if px != py:
+                parent[px] = py
+
+        # Pairwise similarity check. Rules are conservative on single-entity
+        # matches to avoid over-merging unrelated stories that share only a
+        # common figure like "trump".
+        for i in range(n):
+            for j in range(i + 1, n):
+                if find(i) == find(j):
                     continue
-
-                # Strategy 1: title word overlap
-                word_sim = self._title_similarity(t1['title'], t2['title'])
-                if word_sim > 0.4:
-                    group.append(t2)
-                    used.add(j)
-                    continue
-
-                # Strategy 2: shared key entities
                 shared_entities = topic_entities[i] & topic_entities[j]
-                # 2+ shared entities → definitely same story
+                word_sim = self._title_similarity(topics[i]['title'], topics[j]['title'])
+
+                # Strong signal: 2+ shared curated entities
                 if len(shared_entities) >= 2:
-                    group.append(t2)
-                    used.add(j)
+                    union(i, j)
                     continue
-                # 1 shared entity + some word overlap → likely same story
-                if len(shared_entities) >= 1 and word_sim >= 0.2:
-                    group.append(t2)
-                    used.add(j)
+                # Moderate: 1 shared entity + some word overlap
+                if len(shared_entities) >= 1 and word_sim >= 0.15:
+                    union(i, j)
                     continue
+                # Text-only: high word overlap (no entity signal)
+                if word_sim > 0.35:
+                    union(i, j)
 
-            used.add(i)
+        # Collect clusters
+        clusters: Dict[int, List[int]] = {}
+        for i in range(n):
+            root = find(i)
+            clusters.setdefault(root, []).append(i)
 
-            # Merge group: keep highest-scored title, combine all data
-            best = max(group, key=lambda x: x['score'])
+        # Build merged topics
+        merged = []
+        for indices in clusters.values():
+            group = [topics[i] for i in indices]
+            best = dict(max(group, key=lambda x: x['score']))
             best['sources'] = list(set(t['source'] for t in group))
             best['total_score'] = sum(t['score'] for t in group)
-            best['total_comments'] = sum(t['comments'] for t in group)
-            best['related_urls'] = [t['url'] for t in group]
-            # Combine all titles as extra keywords for better article matching
+            best['total_comments'] = sum(t.get('comments', 0) for t in group)
+            best['related_urls'] = [t.get('url', '') for t in group]
             best['all_titles'] = [t['title'] for t in group]
+            best['cluster_size'] = len(group)
+            # Aggregate shared entities across the cluster — used for Google
+            # News query building to search broader topic coverage.
+            all_entities: set = set()
+            for i in indices:
+                all_entities |= topic_entities[i]
+            best['cluster_entities'] = sorted(all_entities)
             merged.append(best)
 
         return merged

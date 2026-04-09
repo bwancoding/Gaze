@@ -188,23 +188,46 @@ class GoogleNewsFetcher:
     def build_search_query(self, topic: Dict) -> str:
         """
         Build an effective search query from a topic.
-        Extract key terms, avoid overly long queries.
-        """
-        title = topic.get('title', '')
 
-        # Extract the most important 4-6 words from the title
+        For merged super-topics (cluster_size > 1), use shared entities +
+        the most common distinctive words across all titles — this yields
+        broader coverage than any single title.
+
+        For single-post topics, extract key terms from the title.
+        """
         stop = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
                 'of', 'with', 'by', 'from', 'is', 'are', 'was', 'were', 'has', 'have',
                 'its', 'it', 'this', 'that', 'as', 'be', 'will', 'would', 'says', 'said',
                 'not', 'can', 'could', 'how', 'what', 'who', 'which', 'new', 'after',
                 'been', 'being', 'into', 'over', 'than', 'about', 'just', 'also'}
 
+        cluster_size = topic.get('cluster_size', 1)
+        cluster_entities = topic.get('cluster_entities', [])
+
+        if cluster_size > 1 and cluster_entities:
+            # Super-topic: use shared entities as primary query
+            # Plus the top distinctive word from the best title
+            from collections import Counter
+            all_titles = topic.get('all_titles', [topic.get('title', '')])
+            word_counter: Counter = Counter()
+            for t in all_titles:
+                words = re.sub(r'[^a-zA-Z0-9\s]', ' ', t).split()
+                word_counter.update(
+                    w.lower() for w in words
+                    if w.lower() not in stop and len(w) > 3
+                )
+            # Take most common words that aren't entities (already included)
+            entity_set = set(cluster_entities)
+            extra_words = [w for w, _ in word_counter.most_common(10) if w not in entity_set][:2]
+            # Cap entities to 3 most salient to avoid overly specific query
+            query_terms = cluster_entities[:3] + extra_words
+            return ' '.join(query_terms)
+
+        # Single-post topic: extract key terms from title
+        title = topic.get('title', '')
         words = re.sub(r'[^a-zA-Z0-9\s]', ' ', title).split()
         key_words = [w for w in words if w.lower() not in stop and len(w) > 2]
-
-        # Take top 5 key words for the query
-        query = ' '.join(key_words[:5])
-        return query
+        return ' '.join(key_words[:5])
 
     async def search_topics(self, topics: List[Dict], max_per_topic: int = 30) -> Dict[int, List[TrendingArticle]]:
         """
