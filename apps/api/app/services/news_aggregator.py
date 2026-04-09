@@ -607,7 +607,7 @@ def run_full_pipeline(db: Session, top_n: int = 40) -> Dict:
     return result
 
 
-def run_heat_update(db: Session, top_n: int = 20) -> Dict:
+def run_heat_update(db: Session, top_n: int = 40) -> Dict:
     """Recalculate heat scores and re-trim"""
     heat = calculate_all_heat_scores(db)
     trim = trim_to_top_n(db, top_n=top_n)
