@@ -9,21 +9,21 @@ HEAT_TIME_DECAY_LAMBDA: float = float(os.getenv("HEAT_TIME_DECAY_LAMBDA", "0.1")
 HEAT_COMMENT_WEIGHT: float = float(os.getenv("HEAT_COMMENT_WEIGHT", "5.0"))
 HEAT_SHARE_WEIGHT: float = float(os.getenv("HEAT_SHARE_WEIGHT", "3.0"))
 
-# Category weights: boost global-impact topics, reduce niche/entertainment
+# Category weights: equal weight — let user interest and heat naturally rank topics
 CATEGORY_WEIGHTS: Dict[str, float] = {
-    "Geopolitics": 1.4,
-    "Politics": 1.3,
-    "Environment": 1.3,
-    "Economy": 1.2,
-    "Health": 1.2,
-    "Science": 1.1,
+    "Geopolitics": 1.0,
+    "Politics": 1.0,
+    "Environment": 1.0,
+    "Economy": 1.0,
+    "Health": 1.0,
+    "Science": 1.0,
     "Technology": 1.0,
     "Society": 1.0,
-    "Culture": 0.8,
-    "Entertainment": 0.7,
-    "Sports": 0.7,
+    "Culture": 1.0,
+    "Entertainment": 1.0,
+    "Sports": 1.0,
 }
-CATEGORY_DEFAULT_WEIGHT: float = 0.9  # uncategorized events get a slight penalty
+CATEGORY_DEFAULT_WEIGHT: float = 1.0
 
 # Region diversity: events covered by sources from multiple regions get a bonus
 REGION_DIVERSITY_BONUS: Dict[int, float] = {
@@ -85,18 +85,31 @@ CATEGORY_KEYWORDS: Dict[str, List[str]] = {
     "Science": ["nasa", "discovery", "species", "genome", "physics", "cern", "telescope",
                 "mars", "moon", "asteroid", "fossil", "evolution", "particle", "experiment",
                 "observatory", "exoplanet", "biology", "chemistry"],
+    "Culture": ["fashion", "art", "book", "novel", "bestseller", "exhibit", "exhibition",
+                "architecture", "design", "food", "restaurant", "travel", "tourism",
+                "museum", "digitizing", "gallery", "sculpture", "painting", "literature",
+                "photography", "heritage", "tradition", "festival", "cuisine"],
     "Society": ["rights", "inequality", "migration", "refugee", "poverty", "education",
                 "housing", "jury", "verdict", "lawsuit", "court", "ban", "social media",
                 "children", "youth", "privacy", "discrimination", "community", "library",
-                "museum", "digitizing", "population", "immigration", "foreign resident",
+                "population", "immigration", "foreign resident",
                 "instagram", "youtube", "designed to addict"],
     "Entertainment": ["movie", "film", "oscar", "grammy", "celebrity", "album", "concert",
                       "netflix", "box office", "tv show", "series", "award",
-                      "music", "singer", "actor", "director"],
+                      "music", "singer", "actor", "director",
+                      "streaming", "disney", "hbo", "anime", "video game", "gaming",
+                      "esports", "trailer", "sequel", "remake", "broadway", "festival",
+                      "billboard", "spotify", "tiktok", "viral", "premiere", "soundtrack",
+                      "emmy", "golden globe", "bafta", "cannes", "sundance",
+                      "podcast", "standup", "comedian", "reality tv", "k-pop", "idol"],
     "Sports": ["olympic", "world cup", "championship", "tournament", "league", "soccer",
                "football", "basketball", "tennis", "golf", "race",
                "athlete", "nba", "nfl", "mlb", "f1", "formula",
-               "tiger woods", "rollover crash"],
+               "tiger woods", "rollover crash",
+               "premier league", "champions league", "super bowl", "playoffs", "draft",
+               "transfer", "injury", "coach", "stadium", "fifa", "ufc", "mma", "boxing",
+               "cricket", "rugby", "baseball", "hockey", "nhl", "la liga", "bundesliga",
+               "serie a", "world series", "grand slam", "marathon", "triathlon"],
 }
 
 # Clustering configuration
@@ -169,9 +182,18 @@ RSS_SOURCES: List[Dict] = [
      "url": "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", "priority": "P2", "enabled": True},
     {"id": 28, "name": "NHK World", "stance": "center", "region": "asia",
      "url": "https://www3.nhk.or.jp/rss/news/cat0.xml", "priority": "P2", "enabled": True},
+    # Entertainment & Sports sources
+    {"id": 29, "name": "ESPN", "stance": "center", "region": "us",
+     "url": "https://www.espn.com/espn/rss/news", "priority": "P1", "enabled": True},
+    {"id": 30, "name": "Variety", "stance": "center", "region": "us",
+     "url": "https://variety.com/feed/", "priority": "P1", "enabled": True},
+    {"id": 31, "name": "BBC Sport", "stance": "center-left", "region": "uk",
+     "url": "https://feeds.bbci.co.uk/sport/rss.xml", "priority": "P1", "enabled": True},
+    {"id": 32, "name": "BBC Culture", "stance": "center-left", "region": "uk",
+     "url": "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml", "priority": "P1", "enabled": True},
 ]
 
-# Reddit sources (source_id 101-104)
+# Reddit sources (source_id 101+)
 REDDIT_SOURCES = [
     {"id": 101, "name": "Reddit r/all", "stance": "center", "region": "international",
      "subreddit": "all", "priority": "P1", "enabled": True},
@@ -181,6 +203,16 @@ REDDIT_SOURCES = [
      "subreddit": "news", "priority": "P1", "enabled": True},
     {"id": 104, "name": "Reddit r/technology", "stance": "center", "region": "international",
      "subreddit": "technology", "priority": "P1", "enabled": True},
+    {"id": 106, "name": "Reddit r/entertainment", "stance": "center", "region": "international",
+     "subreddit": "entertainment", "priority": "P1", "enabled": True},
+    {"id": 107, "name": "Reddit r/movies", "stance": "center", "region": "international",
+     "subreddit": "movies", "priority": "P1", "enabled": True},
+    {"id": 108, "name": "Reddit r/sports", "stance": "center", "region": "international",
+     "subreddit": "sports", "priority": "P1", "enabled": True},
+    {"id": 109, "name": "Reddit r/science", "stance": "center", "region": "international",
+     "subreddit": "science", "priority": "P1", "enabled": True},
+    {"id": 110, "name": "Reddit r/business", "stance": "center", "region": "international",
+     "subreddit": "business", "priority": "P1", "enabled": True},
 ]
 
 # Hacker News source (source_id 105)
