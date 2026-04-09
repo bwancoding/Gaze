@@ -721,7 +721,7 @@ export default function EventDetailPage() {
                               {thread.stakeholder_name && thread.verification_level && (
                                 <StakeholderBadge
                                   stakeholderName={thread.stakeholder_name}
-                                  verificationLevel={thread.verification_level}
+                                  level={thread.verification_level as 'verified' | 'declared'}
                                   compact
                                 />
                               )}
