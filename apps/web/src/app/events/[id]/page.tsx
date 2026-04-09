@@ -415,7 +415,8 @@ export default function EventDetailPage() {
                           { label: 'Root Causes', value: analysis.cause_chain?.length || 0, tab: 'analysis' as TabKey },
                           { label: 'Sources', value: sources.length, tab: 'sources' as TabKey },
                           { label: 'Timeline Events', value: timeline.length, tab: 'timeline' as TabKey },
-                        ].map((stat, i) => (
+                          { label: 'Discussions', value: threads.length, tab: 'discussion' as TabKey },
+                        ].map((stat, i, arr) => (
                           <button
                             key={stat.label}
                             onClick={() => setActiveTab(stat.tab)}
@@ -423,12 +424,62 @@ export default function EventDetailPage() {
                           >
                             <span className="font-serif font-bold text-lg stat-number group-hover:text-[#C2410C] transition-colors" style={{ color: 'var(--color-ink)' }}>{stat.value}</span>
                             <span className="text-xs uppercase tracking-wider group-hover:text-[#C2410C] transition-colors" style={{ color: 'var(--color-ink-light)' }}>{stat.label}</span>
-                            {i < 3 && <span className="text-neutral-300 ml-3">·</span>}
+                            {i < arr.length - 1 && <span className="text-neutral-300 ml-3">·</span>}
                           </button>
                         ))}
                       </div>
 
                       <p className="text-xs text-neutral-400 italic">Auto-generated from source articles. May contain inaccuracies.</p>
+
+                      {/* Discussion preview — guide users to participate */}
+                      {threads.length > 0 && (() => {
+                        const previewThreads = [...threads]
+                          .sort((a, b) => {
+                            const aHas = a.stakeholder_name ? 1 : 0;
+                            const bHas = b.stakeholder_name ? 1 : 0;
+                            if (bHas !== aHas) return bHas - aHas;
+                            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                          })
+                          .slice(0, 3);
+                        return (
+                          <div className="pt-2">
+                            <div className="flex items-center justify-between mb-4">
+                              <h3 className="font-serif text-xl text-neutral-900">Join the Discussion</h3>
+                              <button
+                                onClick={() => setActiveTab('discussion')}
+                                className="text-sm font-medium hover:underline"
+                                style={{ color: 'var(--color-accent)' }}
+                              >
+                                View all {threads.length} threads &rarr;
+                              </button>
+                            </div>
+                            <div className="space-y-3">
+                              {previewThreads.map((thread) => (
+                                <div
+                                  key={thread.id}
+                                  onClick={() => router.push(`/events/${eventId}/threads/${thread.id}`)}
+                                  className="border rounded-lg p-4 cursor-pointer group hover:border-[#C2410C]/30 transition-colors"
+                                  style={{ borderColor: 'var(--color-rule)', background: 'white' }}
+                                >
+                                  <h4 className="font-semibold text-neutral-900 mb-2 group-hover:text-[#C2410C] transition-colors text-sm">{thread.title}</h4>
+                                  <div className="flex items-center gap-3 text-xs text-neutral-400">
+                                    <span className="font-medium text-neutral-500">{thread.persona_name}</span>
+                                    {thread.stakeholder_name && thread.verification_level && (
+                                      <StakeholderBadge
+                                        stakeholderName={thread.stakeholder_name}
+                                        level={thread.verification_level as 'verified' | 'declared'}
+                                        compact
+                                      />
+                                    )}
+                                    <span>{thread.reply_count} replies</span>
+                                    <span>{thread.like_count} likes</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </>
                   ) : (
                     <div className="text-center py-16 rounded-lg border" style={{ borderColor: 'var(--color-rule)', background: 'white' }}>
