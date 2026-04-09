@@ -216,12 +216,12 @@ REDDIT_SOURCES = [
 ]
 
 # Hacker News source (source_id 105)
-HN_SOURCE = {"id": 105, "name": "Hacker News", "stance": "center", "region": "international",
-             "priority": "P1", "enabled": True}
+HN_SOURCE = {"id": 105, "name": "Hacker News", "url": "https://news.ycombinator.com/",
+             "stance": "center", "region": "international", "priority": "P1", "enabled": True}
 
 # Bluesky source (source_id 111)
-BLUESKY_SOURCE = {"id": 111, "name": "Bluesky", "stance": "center", "region": "international",
-                  "priority": "P1", "enabled": True}
+BLUESKY_SOURCE = {"id": 111, "name": "Bluesky", "url": "https://bsky.app/",
+                  "stance": "center", "region": "international", "priority": "P1", "enabled": True}
 
 ALL_SOURCES = RSS_SOURCES + REDDIT_SOURCES + [HN_SOURCE, BLUESKY_SOURCE]
 
