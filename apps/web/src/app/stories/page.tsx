@@ -19,7 +19,7 @@ interface Event {
   last_activity_at?: string;
 }
 
-const CATEGORIES = ['Environment', 'Economy', 'Technology', 'Politics', 'Geopolitics', 'Society', 'Health', 'Science'];
+const CATEGORIES = ['Environment', 'Economy', 'Technology', 'Politics', 'Geopolitics', 'Society', 'Health', 'Science', 'Culture', 'Entertainment'];
 
 const getCatClass = (cat?: string): string => {
   const map: Record<string, string> = {
@@ -31,6 +31,7 @@ const getCatClass = (cat?: string): string => {
     'Society': 'cat-society',
     'Health': 'cat-health',
     'Science': 'cat-science',
+    'Culture': 'cat-culture',
     'Entertainment': 'cat-entertainment',
   };
   return (cat && map[cat]) || 'bg-neutral-100 text-neutral-700';
@@ -295,9 +296,11 @@ export default function StoriesPage() {
               <div className="w-1 flex-shrink-0 rounded-full" style={{ background: 'var(--color-accent)' }} />
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(leadEvent.category)}`}>
-                    {leadEvent.category}
-                  </span>
+                  {leadEvent.category && (
+                    <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(leadEvent.category)}`}>
+                      {leadEvent.category}
+                    </span>
+                  )}
                   {mounted && leadEvent.last_activity_at && (
                     <span className="text-xs" style={{ color: 'var(--color-ink-light)' }} suppressHydrationWarning>
                       {formatTimeAgo(leadEvent.last_activity_at)}
@@ -334,9 +337,11 @@ export default function StoriesPage() {
                 style={{ borderColor: 'var(--color-rule)' }}
               >
                 <div className="flex items-center gap-2 mb-1.5">
-                  <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(event.category)}`}>
-                    {event.category}
-                  </span>
+                  {event.category && (
+                    <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(event.category)}`}>
+                      {event.category}
+                    </span>
+                  )}
                   {mounted && event.last_activity_at && (
                     <span className="text-xs" style={{ color: 'var(--color-ink-light)' }} suppressHydrationWarning>
                       {formatTimeAgo(event.last_activity_at)}

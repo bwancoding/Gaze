@@ -36,6 +36,7 @@ const getCatClass = (cat?: string): string => {
     'Geopolitics': 'cat-geopolitics',
     'Health': 'cat-health',
     'Science': 'cat-science',
+    'Culture': 'cat-culture',
     'Society': 'cat-society',
   };
   return (cat && map[cat]) || 'bg-neutral-100 text-neutral-700';
