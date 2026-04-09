@@ -26,11 +26,16 @@ class TrendingTopicsFetcher:
     REDDIT_BASE = "https://www.reddit.com"
     HN_API = "https://hacker-news.firebaseio.com/v0"
 
-    # Subreddits focused on news (not memes/entertainment)
+    # Subreddits covering news, science, entertainment, sports, business
     NEWS_SUBREDDITS = [
         ("worldnews", 102),
         ("news", 103),
         ("technology", 104),
+        ("entertainment", 106),
+        ("movies", 107),
+        ("sports", 108),
+        ("science", 109),
+        ("business", 110),
     ]
 
     def __init__(self, timeout: int = 30):
