@@ -189,6 +189,7 @@ const getCatClass = (cat?: string): string => {
     'Geopolitics': 'cat-geopolitics',
     'Health': 'cat-health',
     'Science': 'cat-science',
+    'Culture': 'cat-culture',
     'Society': 'cat-society',
   };
   return (cat && map[cat]) || 'bg-neutral-100 text-neutral-700';
@@ -343,9 +344,11 @@ export default function Home() {
                     <div className="w-1 flex-shrink-0 rounded-full" style={{ background: 'var(--color-accent)' }} />
                     <div className="flex-1 py-2">
                       <div className="flex items-center gap-3 mb-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(leadStory.category)}`}>
-                          {leadStory.category}
-                        </span>
+                        {leadStory.category && (
+                          <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(leadStory.category)}`}>
+                            {leadStory.category}
+                          </span>
+                        )}
                         {mounted && leadStory.last_updated && (
                           <span className="text-xs" style={{ color: 'var(--color-ink-light)' }} suppressHydrationWarning>
                             {formatTimeAgo(leadStory.last_updated)}
@@ -392,9 +395,11 @@ export default function Home() {
                           </span>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1.5">
-                              <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(t.category)}`}>
-                                {t.category}
-                              </span>
+                              {t.category && (
+                                <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(t.category)}`}>
+                                  {t.category}
+                                </span>
+                              )}
                               {mounted && t.last_updated && (
                                 <span className="text-xs" style={{ color: 'var(--color-ink-light)' }} suppressHydrationWarning>
                                   {formatTimeAgo(t.last_updated)}
@@ -450,9 +455,11 @@ export default function Home() {
                         >
                           {t.rank}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-sm font-medium flex-shrink-0 ${getCatClass(t.category)}`}>
-                          {t.category}
-                        </span>
+                        {t.category && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded-sm font-medium flex-shrink-0 ${getCatClass(t.category)}`}>
+                            {t.category}
+                          </span>
+                        )}
                         <h3
                           className="font-serif text-sm flex-1 min-w-0 truncate group-hover:opacity-75 transition-opacity"
                           style={{ color: 'var(--color-ink)' }}
