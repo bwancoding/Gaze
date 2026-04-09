@@ -74,11 +74,25 @@ def title_similarity(t1: str, t2: str) -> float:
 
 def classify_category(text: str) -> Optional[str]:
     text_lower = text.lower()
-    scores: Dict[str, int] = {}
+    # Use word-boundary matching for single words to avoid substring false positives
+    # e.g. "ai" matching "said", "git" matching "digital"
+    words = set(re.findall(r'\b[a-z0-9+#/.]+\b', text_lower))
+    scores: Dict[str, float] = {}
     for category, keywords in CATEGORY_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in text_lower)
-        if score > 0:
-            scores[category] = score
+        matches = 0
+        for kw in keywords:
+            if ' ' in kw:
+                # Multi-word phrases: substring match is fine
+                if kw in text_lower:
+                    matches += 1
+            else:
+                # Single words: require word boundary match
+                if kw in words:
+                    matches += 1
+        if matches > 0:
+            # Normalize by keyword count to prevent categories with more keywords
+            # (e.g. Technology: 80+) from dominating over smaller categories
+            scores[category] = matches / len(keywords)
     if not scores:
         return None
     return max(scores, key=scores.get)
