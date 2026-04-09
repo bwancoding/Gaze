@@ -16,6 +16,15 @@ interface TrendingArticle {
   source_name?: string;
 }
 
+interface TimelineEntry {
+  timestamp: string;
+  title: string;
+  summary?: string;
+  article_count?: number;
+  sources?: string[];
+  top_article_url?: string;
+}
+
 interface TrendingEventDetail {
   id: number;
   title: string;
@@ -28,6 +37,7 @@ interface TrendingEventDetail {
   sources: string[];
   created_at?: string;
   last_updated?: string;
+  timeline_data?: TimelineEntry[];
   articles: TrendingArticle[];
 }
 
@@ -152,6 +162,62 @@ export default function TrendingEventPage() {
                 </div>
               )}
             </div>
+
+            {/* Timeline of stage developments */}
+            {event.timeline_data && event.timeline_data.length > 0 && (
+              <div className="mb-10">
+                <h2 className="text-xl font-semibold text-stone-900 mb-4">
+                  Story Timeline ({event.timeline_data.length} updates)
+                </h2>
+                <div className="relative">
+                  <div className="absolute left-3 top-2 bottom-2 w-px bg-stone-200" aria-hidden />
+                  <ol className="space-y-4">
+                    {[...event.timeline_data]
+                      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                      .map((entry, idx) => (
+                        <li key={`${entry.timestamp}-${idx}`} className="relative pl-10">
+                          <div className="absolute left-2 top-2 w-2.5 h-2.5 rounded-full bg-orange-500 ring-4 ring-orange-50" />
+                          <div className="bg-white rounded-lg border border-stone-200 p-4">
+                            <div className="flex items-center gap-3 text-xs text-stone-400 mb-1">
+                              <span>{formatDate(entry.timestamp)}</span>
+                              {typeof entry.article_count === 'number' && (
+                                <span>· {entry.article_count} articles</span>
+                              )}
+                            </div>
+                            <h3 className="font-semibold text-stone-900 mb-1">
+                              {entry.title}
+                            </h3>
+                            {entry.summary && (
+                              <p className="text-sm text-stone-600 leading-relaxed">
+                                {entry.summary}
+                              </p>
+                            )}
+                            {entry.sources && entry.sources.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {entry.sources.map(src => (
+                                  <span key={src} className="text-xs text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
+                                    {src}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            {entry.top_article_url && (
+                              <a
+                                href={entry.top_article_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs font-medium text-orange-600 hover:text-orange-700 mt-2"
+                              >
+                                Top article →
+                              </a>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                  </ol>
+                </div>
+              </div>
+            )}
 
             {/* Articles */}
             <div>

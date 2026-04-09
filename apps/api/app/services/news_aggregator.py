@@ -19,6 +19,8 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_
 
+from sqlalchemy.orm.attributes import flag_modified
+
 from app.models.trending import TrendingArticle, TrendingEvent, TrendingSource
 from app.services.trending_config import (
     RSS_SOURCES, REDDIT_SOURCES, HN_SOURCE, ALL_SOURCES,
@@ -28,6 +30,7 @@ from app.services.fetchers.rss_fetcher import RSSFetcher
 from app.services.fetchers.trending_topics_fetcher import TrendingTopicsFetcher
 from app.services.fetchers.google_news_fetcher import GoogleNewsFetcher
 from app.services.heat_calculator import calculate_all_heat_scores
+from app.services.timeline_summarizer import summarize_batch
 
 logger = logging.getLogger(__name__)
 
@@ -409,8 +412,19 @@ def second_pass_matching(db: Session, events: List[TrendingEvent], threshold: fl
     return matched_count
 
 
-def trim_to_top_n(db: Session, top_n: int = 40, min_per_category: int = 2) -> Dict:
-    """Keep top N raw events with per-category minimum retention"""
+def trim_to_top_n(
+    db: Session,
+    top_n: int = 40,
+    min_per_category: int = 2,
+    inactive_days: int = 2,
+) -> Dict:
+    """Keep top N raw events with per-category minimum retention.
+
+    Events that fall outside top_n are only archived if they also haven't been
+    updated in `inactive_days` days. This protects actively-merged long-running
+    stories that temporarily drop out of top_n but are still getting new
+    articles.
+    """
     all_raw = (
         db.query(TrendingEvent)
         .filter(TrendingEvent.status == 'raw')
@@ -436,21 +450,149 @@ def trim_to_top_n(db: Session, top_n: int = 40, min_per_category: int = 2) -> Di
             break
         keep_ids.add(event.id)
 
-    # Step 3: archive the rest
+    # Step 3: archive only events that are BOTH outside keep set AND inactive
+    inactive_cutoff = datetime.utcnow() - timedelta(days=inactive_days)
+    to_archive_ids = [
+        e.id for e in all_raw
+        if e.id not in keep_ids
+        and (e.last_updated or e.created_at or datetime.utcnow()) < inactive_cutoff
+    ]
     archived_count = 0
-    if keep_ids:
+    if to_archive_ids:
         archived_count = (
             db.query(TrendingEvent)
-            .filter(
-                TrendingEvent.status == 'raw',
-                ~TrendingEvent.id.in_(keep_ids)
-            )
+            .filter(TrendingEvent.id.in_(to_archive_ids))
             .update({"status": "archived"}, synchronize_session="fetch")
         )
     db.commit()
 
-    logger.info(f"Trim: kept {len(keep_ids)} ({len(category_counts)} categories), archived {archived_count}")
-    return {"kept": len(keep_ids), "archived": archived_count}
+    protected_active = len(all_raw) - len(keep_ids) - archived_count
+    logger.info(
+        f"Trim: kept {len(keep_ids)} ({len(category_counts)} cats), "
+        f"archived {archived_count}, protected {protected_active} active-out-of-topN"
+    )
+    return {
+        "kept": len(keep_ids),
+        "archived": archived_count,
+        "protected_active": protected_active,
+    }
+
+
+def find_matching_event(
+    db: Session,
+    topic: Dict,
+    recency_days: int = 7,
+) -> Optional[TrendingEvent]:
+    """
+    Find an existing raw/promoted event that this topic is a continuation of.
+
+    Uses shared curated entities (from TrendingTopicsFetcher._extract_entities)
+    and keyword overlap. Returns the best-scoring match or None.
+    """
+    cutoff = datetime.utcnow() - timedelta(days=recency_days)
+    candidates = db.query(TrendingEvent).filter(
+        TrendingEvent.status.in_(['raw', 'promoted']),
+        TrendingEvent.last_updated >= cutoff,
+    ).all()
+    if not candidates:
+        return None
+
+    # Use the fetcher's curated-entity extractor so detection rules match
+    # exactly what the topic clustering step uses.
+    fetcher = TrendingTopicsFetcher()
+
+    # Build the topic's entity set from all its titles (cluster_entities is
+    # already computed in the fetcher, prefer it when available).
+    topic_entities = set(topic.get('cluster_entities') or [])
+    if not topic_entities:
+        for t in topic.get('all_titles', [topic.get('title', '')]):
+            topic_entities |= fetcher._extract_entities(t)
+
+    topic_titles = topic.get('all_titles', [topic.get('title', '')])
+    topic_text = ' '.join(topic_titles)
+
+    best_event = None
+    best_score = 0.0
+    for event in candidates:
+        # Build the event's entity + word set from its title, keywords, and
+        # a sample of linked article titles.
+        event_texts = [event.title or '']
+        if event.keywords:
+            event_texts.append(' '.join(event.keywords))
+        if event.articles:
+            event_texts.extend([a.title or '' for a in event.articles[:15]])
+        event_text = ' '.join(event_texts)
+
+        event_entities = fetcher._extract_entities(event_text)
+        shared = topic_entities & event_entities
+        word_sim = title_similarity(topic_text, event_text)
+
+        match_score = 0.0
+        if len(shared) >= 2:
+            match_score = 1.0 + len(shared) * 0.1 + word_sim  # strong
+        elif len(shared) >= 1 and word_sim >= 0.15:
+            match_score = 0.6 + word_sim  # moderate
+        elif word_sim >= 0.35:
+            match_score = 0.3 + word_sim  # text-only
+        else:
+            continue
+
+        if match_score > best_score:
+            best_score = match_score
+            best_event = event
+
+    return best_event
+
+
+async def merge_topic_into_event(
+    db: Session,
+    event: TrendingEvent,
+    topic: Dict,
+    new_articles: List[TrendingArticle],
+) -> None:
+    """
+    Merge a new topic cluster + its articles into an existing event.
+
+    - Links new articles to event.id
+    - Appends one LLM-summarized timeline entry covering the new batch
+    - Refreshes last_updated, article_count, media_count
+    - Revives archived events back to 'raw' (should be rare given recency filter)
+    """
+    # Link articles
+    for article in new_articles:
+        if article.event_id != event.id:
+            article.event_id = event.id
+            article.is_processed = True
+
+    # Revive if somehow archived
+    if event.status == 'archived':
+        event.status = 'raw'
+
+    # Build new timeline entry (await LLM)
+    try:
+        entry = await summarize_batch(
+            event.title or topic.get('title', ''),
+            new_articles,
+            is_initial=False,
+        )
+    except Exception as e:
+        logger.warning(f"merge_topic_into_event: summarize failed for event {event.id}: {e}")
+        from app.services.timeline_summarizer import _fallback_entry
+        entry = _fallback_entry(event.title or '', new_articles)
+
+    existing_timeline = list(event.timeline_data or [])
+    existing_timeline.append(entry)
+    event.timeline_data = existing_timeline
+    flag_modified(event, 'timeline_data')
+
+    # Refresh counts
+    event.last_updated = datetime.utcnow()
+    db.flush()
+    db.refresh(event)
+    if event.articles:
+        event.article_count = len(event.articles)
+        event.media_count = len(set(a.source_id for a in event.articles))
+    db.commit()
 
 
 def _select_diverse_topics(topics: List[Dict], top_n: int, min_per_source: int = 2) -> List[Dict]:
@@ -558,66 +700,105 @@ def run_full_pipeline(db: Session, top_n: int = 40) -> Dict:
     db.commit()
     result["new_articles"] = len(new_articles)
 
-    # 5. Create events: link Google News articles directly to their topics
-    events = []
-    for i, topic in enumerate(top_topics):
-        gn_arts = topic_gn_articles.get(i, [])
-        gn_urls = {a.url for a in gn_arts}
+    # 5. For each topic: merge into an existing event if it's a continuation,
+    #    otherwise create a new event.
+    async def build_events():
+        events: List[TrendingEvent] = []
+        merged_count = 0
+        created_count = 0
+        for i, topic in enumerate(top_topics):
+            gn_arts = topic_gn_articles.get(i, [])
+            gn_urls = {a.url for a in gn_arts}
+            stored_articles = []
+            if gn_urls:
+                stored_articles = db.query(TrendingArticle).filter(
+                    TrendingArticle.url.in_(gn_urls)
+                ).all()
 
-        # Find stored versions by URL
-        stored_articles = []
-        if gn_urls:
-            stored_articles = db.query(TrendingArticle).filter(
-                TrendingArticle.url.in_(gn_urls)
-            ).all()
+            # Continuation detection: is this topic an extension of an
+            # existing event we saw recently?
+            existing = find_matching_event(db, topic)
+            if existing is not None:
+                await merge_topic_into_event(db, existing, topic, stored_articles)
+                events.append(existing)
+                merged_count += 1
+                logger.info(
+                    f"Merged topic '{topic['title'][:50]}' into event {existing.id} "
+                    f"'{(existing.title or '')[:50]}' (+{len(stored_articles)} articles)"
+                )
+                continue
 
-        all_sources_names = list(set(
-            [topic.get('source', '')] +
-            topic.get('sources', []) +
-            [get_source_name(a.source_id) for a in stored_articles]
-        ))
-        all_sources_names = [s for s in all_sources_names if s]
+            # New event path
+            all_sources_names = list(set(
+                [topic.get('source', '')] +
+                topic.get('sources', []) +
+                [get_source_name(a.source_id) for a in stored_articles]
+            ))
+            all_sources_names = [s for s in all_sources_names if s]
 
-        texts = [topic['title'], topic.get('selftext', '')]
-        for t in topic.get('all_titles', []):
-            texts.append(t)
-        texts.extend([a.title or '' for a in stored_articles])
-        combined_text = ' '.join(texts)
+            texts = [topic['title'], topic.get('selftext', '')]
+            for t in topic.get('all_titles', []):
+                texts.append(t)
+            texts.extend([a.title or '' for a in stored_articles])
+            combined_text = ' '.join(texts)
 
-        keywords = extract_keywords(combined_text, CLUSTER_TOP_KEYWORDS)
-        category = classify_category(combined_text)
+            keywords = extract_keywords(combined_text, CLUSTER_TOP_KEYWORDS)
+            category = classify_category(combined_text)
 
-        topic_heat = (
-            topic.get('total_score', topic.get('score', 0)) * 0.1 +
-            topic.get('total_comments', topic.get('comments', 0)) * 0.5 +
-            len(stored_articles) * 10 +
-            len(all_sources_names) * 5
-        )
+            topic_heat = (
+                topic.get('total_score', topic.get('score', 0)) * 0.1 +
+                topic.get('total_comments', topic.get('comments', 0)) * 0.5 +
+                len(stored_articles) * 10 +
+                len(all_sources_names) * 5
+            )
 
-        event = TrendingEvent(
-            title=topic['title'],
-            summary=topic.get('selftext', '')[:2000] or (
-                stored_articles[0].summary if stored_articles else ''
-            ),
-            keywords=keywords,
-            category=category,
-            source_id=topic.get('source_id', 102),
-            article_count=len(stored_articles) + 1,
-            media_count=len(all_sources_names),
-            heat_score=topic_heat,
-            status='raw',
-        )
-        db.add(event)
-        db.flush()
+            event = TrendingEvent(
+                title=topic['title'],
+                summary=topic.get('selftext', '')[:2000] or (
+                    stored_articles[0].summary if stored_articles else ''
+                ),
+                keywords=keywords,
+                category=category,
+                source_id=topic.get('source_id', 102),
+                article_count=len(stored_articles) + 1,
+                media_count=len(all_sources_names),
+                heat_score=topic_heat,
+                status='raw',
+                timeline_data=[],
+            )
+            db.add(event)
+            db.flush()
 
-        for article in stored_articles:
-            article.event_id = event.id
-            article.is_processed = True
+            for article in stored_articles:
+                article.event_id = event.id
+                article.is_processed = True
 
-        events.append(event)
+            # Seed initial timeline entry for new events
+            try:
+                entry = await summarize_batch(
+                    event.title or '', stored_articles, is_initial=True,
+                )
+            except Exception as e:
+                logger.warning(f"initial timeline summarize failed: {e}")
+                from app.services.timeline_summarizer import _fallback_entry
+                entry = _fallback_entry(event.title or '', stored_articles)
+            event.timeline_data = [entry]
+            flag_modified(event, 'timeline_data')
 
-    db.commit()
-    result["events_created"] = len(events)
+            events.append(event)
+            created_count += 1
+
+        db.commit()
+        return events, merged_count, created_count
+
+    _loop3 = asyncio.new_event_loop()
+    try:
+        events, merged_count, created_count = _loop3.run_until_complete(build_events())
+    finally:
+        _loop3.close()
+
+    result["events_created"] = created_count
+    result["events_merged"] = merged_count
 
     # 6. Second pass: match remaining RSS articles to events
     second_pass_count = second_pass_matching(db, events)

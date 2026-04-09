@@ -28,6 +28,38 @@ import app.models.error_log  # noqa: F401
 Base.metadata.create_all(bind=engine)
 
 
+def _auto_migrate():
+    """Auto-apply lightweight additive schema migrations at startup.
+
+    We use this instead of alembic for tiny additive changes so fresh deploys
+    on Railway (PostgreSQL) and local dev (SQLite) both pick them up without
+    manual steps. Each migration must be idempotent.
+    """
+    from sqlalchemy import text
+    from app.core.database import DATABASE_URL
+    is_sqlite = DATABASE_URL.startswith("sqlite")
+    try:
+        with engine.begin() as conn:
+            if is_sqlite:
+                cols = conn.execute(text("PRAGMA table_info(trending_events)")).fetchall()
+                col_names = {row[1] for row in cols}
+                if "timeline_data" not in col_names:
+                    conn.execute(text(
+                        "ALTER TABLE trending_events ADD COLUMN timeline_data TEXT DEFAULT '[]'"
+                    ))
+                    logger.info("Auto-migrate: added trending_events.timeline_data (sqlite)")
+            else:
+                conn.execute(text(
+                    "ALTER TABLE trending_events ADD COLUMN IF NOT EXISTS timeline_data JSONB DEFAULT '[]'::jsonb"
+                ))
+                logger.info("Auto-migrate: ensured trending_events.timeline_data (postgres)")
+    except Exception as e:
+        logger.error(f"Auto-migrate failed (non-fatal): {e}")
+
+
+_auto_migrate()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan: start scheduler on startup, cleanup on shutdown"""

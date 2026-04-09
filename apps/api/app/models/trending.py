@@ -60,6 +60,10 @@ class TrendingEvent(Base):
     media_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Chronological list of "stage development" entries. Each entry is built
+    # each time the pipeline merges a new batch of articles into this event.
+    # Entry shape: {timestamp, title, summary, article_count, sources, top_article_url}
+    timeline_data = Column(JSONColumn, default=list)
 
     source = relationship("TrendingSource", back_populates="events")
     articles = relationship("TrendingArticle", back_populates="event", cascade="all, delete-orphan")
@@ -90,6 +94,7 @@ class TrendingEvent(Base):
             )) if self.articles else [],
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "last_updated": self.last_updated.isoformat() if self.last_updated else None,
+            "timeline_data": self.timeline_data or [],
         }
 
 

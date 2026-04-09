@@ -97,8 +97,11 @@ class HeatCalculator:
                 for article in event.articles
             )
 
-        # Time decay for the event itself
-        event_time_decay = self.calculate_time_decay(event.created_at, reference_time)
+        # Time decay for the event itself — use last_updated so long-running
+        # stories that keep getting merged with new articles don't decay.
+        # Fall back to created_at for events that have never been updated.
+        reference_at = event.last_updated or event.created_at
+        event_time_decay = self.calculate_time_decay(reference_at, reference_time)
 
         # Base score from article/media counts (even if no articles are linked)
         # This ensures topic-seeded events with engagement data still get scores
