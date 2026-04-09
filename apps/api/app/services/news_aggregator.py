@@ -528,13 +528,16 @@ def find_matching_event(
         shared = topic_entities & event_entities
         word_sim = title_similarity(topic_text, event_text)
 
+        # Require at least one shared curated entity. The prior "text-only"
+        # tier (word_sim >= 0.35 with no shared entities) caused false
+        # merges — e.g. "Megyn Kelly: Trump could drop a nuke" was merged
+        # into a stale "Deploytarot.com tarot card reading" event via
+        # coincidental token overlap.
         match_score = 0.0
         if len(shared) >= 2:
             match_score = 1.0 + len(shared) * 0.1 + word_sim  # strong
-        elif len(shared) >= 1 and word_sim >= 0.15:
-            match_score = 0.6 + word_sim  # moderate
-        elif word_sim >= 0.35:
-            match_score = 0.3 + word_sim  # text-only
+        elif len(shared) >= 1 and word_sim >= 0.25:
+            match_score = 0.6 + word_sim  # moderate: shared entity + real overlap
         else:
             continue
 
