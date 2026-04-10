@@ -78,13 +78,22 @@ export default function StoriesPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Hard cap: Stories page shows top 41 active events by heat.
+  // Page 1 = 21 items (lead + 20 in grid). Page 2 = 20 items (grid only, no lead).
+  const PAGE_SIZE_P1 = 21;
+  const PAGE_SIZE_P2 = 20;
+  const MAX_EVENTS = 41;
+
   const fetchEvents = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
+      // Always fetch the full 41-event window in one request, then slice client-side.
+      // This keeps pagination purely presentational and avoids double-counting when
+      // the filter/sort changes heat ordering.
       const params = new URLSearchParams({
-        page: String(page),
-        page_size: '50',
+        page: '1',
+        page_size: String(MAX_EVENTS),
         sort_by: sortBy,
       });
       if (selectedCategory) params.append('category', selectedCategory);
@@ -93,9 +102,13 @@ export default function StoriesPage() {
       const response = await fetch(`${API_BASE_URL}/api/events?${params}`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      setEvents(data.items || []);
-      setTotalPages(data.total_pages || Math.ceil((data.total || 0) / 50) || 1);
-      setTotalCount(data.total || 0);
+      const items: Event[] = (data.items || []).slice(0, MAX_EVENTS);
+      setEvents(items);
+      // Compute totalPages from the capped count
+      const count = items.length;
+      const pages = count <= PAGE_SIZE_P1 ? 1 : 2;
+      setTotalPages(pages);
+      setTotalCount(count);
       if (data.category_counts) setCategoryCounts(data.category_counts);
     } catch (err) {
       console.error('Failed to fetch events:', err);
@@ -104,14 +117,18 @@ export default function StoriesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [sortBy, selectedCategory, debouncedSearch, page]);
+  }, [sortBy, selectedCategory, debouncedSearch]);
 
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
 
-  const leadEvent = events[0];
-  const restEvents = events.slice(1);
+  // Slice into page 1 (lead + 20) vs page 2 (next 20, no lead)
+  const pageItems = page === 1
+    ? events.slice(0, PAGE_SIZE_P1)
+    : events.slice(PAGE_SIZE_P1, PAGE_SIZE_P1 + PAGE_SIZE_P2);
+  const leadEvent = page === 1 ? pageItems[0] : undefined;
+  const restEvents = page === 1 ? pageItems.slice(1) : pageItems;
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-paper)' }}>
@@ -264,7 +281,7 @@ export default function StoriesPage() {
             ))}
           </div>
         </section>
-      ) : events.length === 0 ? (
+      ) : pageItems.length === 0 ? (
         <section className="container mx-auto px-6 py-20 text-center">
           <h3 className="font-serif text-lg mb-2" style={{ color: 'var(--color-ink)' }}>No stories found</h3>
           <p className="text-sm mb-4" style={{ color: 'var(--color-ink-light)' }}>

@@ -37,13 +37,16 @@ def job_fetch_and_pipeline():
 
 
 def job_update_heat():
-    """Scheduled task: Update heat scores (every 1 hour)"""
+    """Scheduled task: Update heat scores (every 1 hour) + trim active Events to cap"""
     from app.services.news_aggregator import run_heat_update
+    from app.services.event_lifecycle import trim_active_events_to_cap
     db = _get_db()
     try:
         logger.info("Scheduled: updating heat scores")
         result = run_heat_update(db)
         logger.info(f"Scheduled: heat update complete - {result}")
+        trim_result = trim_active_events_to_cap(db)
+        logger.info(f"Scheduled: post-heat trim - {trim_result}")
     except Exception as e:
         logger.error(f"Scheduled: heat update error - {e}")
     finally:

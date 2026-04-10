@@ -307,7 +307,14 @@ async def admin_publish_event(
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
-    """Publish a candidate event (candidate → active). Auto-triggers AI stakeholder analysis."""
+    """Publish a candidate event (candidate → active). Auto-triggers AI stakeholder analysis.
+
+    If the event's hot_score wouldn't make the top MAX_ACTIVE_EVENTS cap,
+    the event is archived immediately and no analysis is generated. This
+    prevents wasted LLM calls on events that would just get trimmed anyway.
+    """
+    from app.services.event_lifecycle import MAX_ACTIVE_EVENTS, trim_active_events_to_cap
+
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -315,10 +322,31 @@ async def admin_publish_event(
     if event.status not in ('candidate', 'archived'):
         raise HTTPException(status_code=400, detail=f"Cannot publish event with status '{event.status}'")
 
+    # Pre-check: would this event rank in the top MAX_ACTIVE_EVENTS by heat?
+    event_heat = event.hot_score or 0
+    higher_ranked = (
+        db.query(Event)
+        .filter(Event.status == 'active', Event.hot_score > event_heat)
+        .count()
+    )
+    if higher_ranked >= MAX_ACTIVE_EVENTS:
+        # Would rank > MAX_ACTIVE_EVENTS — archive without generating analysis
+        event.status = 'archived'
+        event.archived_at = datetime.utcnow()
+        db.commit()
+        return {
+            "message": f"Event archived: rank would be >{MAX_ACTIVE_EVENTS} (heat={event_heat:.0f})",
+            "event_id": str(event_id),
+            "archived": True,
+        }
+
     event.status = 'active'
     event.published_at = datetime.utcnow()
     event.last_activity_at = datetime.utcnow()
     db.commit()
+
+    # Enforce cap (in case this push bumps a colder one out)
+    trim_active_events_to_cap(db)
 
     # Auto-generate stakeholder analysis in the background
     background_tasks.add_task(_generate_analysis_background, str(event_id))
@@ -787,6 +815,21 @@ async def admin_trigger_auto_archive(
         return {"status": "success", "result": result}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Auto-archive failed: {str(e)}")
+
+
+@router.post("/events/trim")
+async def admin_trim_active_events(
+    cap: int = 41,
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Enforce hard cap on active events: archive anything beyond top `cap` by hot_score."""
+    from app.services.event_lifecycle import trim_active_events_to_cap
+    try:
+        result = trim_active_events_to_cap(db, cap=cap)
+        return {"status": "success", "result": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Trim failed: {str(e)}")
 
 
 @router.get("/stats")

@@ -18,9 +18,36 @@ from app.models import Event
 logger = logging.getLogger(__name__)
 
 # Configuration constants
-MAX_ACTIVE_EVENTS = 50
+MAX_ACTIVE_EVENTS = 41  # Stories page shows top 41 by heat (page 1: 21 = lead+20, page 2: 20)
 INACTIVITY_DAYS = 3
 HARD_EXPIRY_DAYS = 7
+
+
+def trim_active_events_to_cap(db: Session, cap: int = MAX_ACTIVE_EVENTS) -> dict:
+    """Archive any active events beyond the top `cap` by hot_score.
+
+    Called after heat updates and publish operations to enforce the hard cap
+    on the Stories page. Lowest-heat events lose first.
+    """
+    now = datetime.now(timezone.utc)
+    active = (
+        db.query(Event)
+        .filter(Event.status == 'active')
+        .order_by(Event.hot_score.desc().nullslast(), Event.last_activity_at.desc().nullslast())
+        .all()
+    )
+    if len(active) <= cap:
+        return {"active_before": len(active), "archived": 0, "active_after": len(active)}
+
+    archived = 0
+    for event in active[cap:]:
+        event.status = 'archived'
+        event.archived_at = now
+        archived += 1
+        logger.info(f"Trim: archived '{(event.title or '')[:50]}' (heat={event.hot_score or 0:.0f}, rank>{cap})")
+
+    db.commit()
+    return {"active_before": len(active), "archived": archived, "active_after": cap}
 
 
 def auto_archive_events(db: Session) -> dict:
@@ -71,16 +98,16 @@ def auto_archive_events(db: Session) -> dict:
         else:
             still_active.append(event)
 
-    # Rule 3: Overflow cap — if more than 50 still active, archive least active
+    # Rule 3: Overflow cap — if more than MAX_ACTIVE_EVENTS still active,
+    # keep the top `cap` by hot_score and archive the cold tail.
     if len(still_active) > MAX_ACTIVE_EVENTS:
-        # Sort by last_activity_at ascending (least active first)
-        still_active.sort(key=lambda e: (e.last_activity_at or e.created_at or now))
-        overflow = still_active[:len(still_active) - MAX_ACTIVE_EVENTS]
+        still_active.sort(key=lambda e: (e.hot_score or 0), reverse=True)
+        overflow = still_active[MAX_ACTIVE_EVENTS:]
         for event in overflow:
             event.status = 'archived'
             event.archived_at = now
             archived_overflow += 1
-            logger.info(f"Auto-archived event '{event.title[:50]}' (reason: overflow)")
+            logger.info(f"Auto-archived event '{event.title[:50]}' (reason: overflow, heat={event.hot_score or 0:.0f})")
 
     db.commit()
 
