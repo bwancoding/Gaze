@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
+import CategoryBadge from '../../components/CategoryBadge';
 import { API_BASE_URL } from '../../lib/config';
 
 
@@ -20,23 +21,6 @@ interface Event {
 }
 
 const CATEGORIES = ['Environment', 'Economy', 'Technology', 'Politics', 'Geopolitics', 'Society', 'Health', 'Science', 'Culture', 'Entertainment', 'Sports'];
-
-const getCatClass = (cat?: string): string => {
-  const map: Record<string, string> = {
-    'Environment': 'cat-environment',
-    'Economy': 'cat-economy',
-    'Technology': 'cat-technology',
-    'Politics': 'cat-politics',
-    'Geopolitics': 'cat-geopolitics',
-    'Society': 'cat-society',
-    'Health': 'cat-health',
-    'Science': 'cat-science',
-    'Culture': 'cat-culture',
-    'Entertainment': 'cat-entertainment',
-    'Sports': 'cat-sports',
-  };
-  return (cat && map[cat]) || 'bg-neutral-100 text-neutral-700';
-};
 
 /* ── Time ago helper ───────────────────────────────── */
 function formatTimeAgo(dateStr?: string): string {
@@ -244,9 +228,9 @@ export default function StoriesPage() {
           <div className="flex items-center gap-2 text-sm">
             <span style={{ color: 'var(--color-ink-light)' }}>Showing:</span>
             {selectedCategory && (
-              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-sm ${getCatClass(selectedCategory)} text-xs font-medium`}>
-                {selectedCategory}
-                <button onClick={() => setSelectedCategory(null)} className="ml-1 hover:opacity-70">&times;</button>
+              <span className="inline-flex items-center gap-1">
+                <CategoryBadge category={selectedCategory} />
+                <button onClick={() => setSelectedCategory(null)} className="hover:opacity-70 text-xs" style={{ color: 'var(--color-ink-light)' }}>&times;</button>
               </span>
             )}
             {debouncedSearch && (
@@ -314,11 +298,7 @@ export default function StoriesPage() {
               <div className="w-1 flex-shrink-0 rounded-full" style={{ background: 'var(--color-accent)' }} />
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  {leadEvent.category && (
-                    <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(leadEvent.category)}`}>
-                      {leadEvent.category}
-                    </span>
-                  )}
+                  <CategoryBadge category={leadEvent.category} size="md" />
                   {mounted && leadEvent.last_activity_at && (
                     <span className="text-xs" style={{ color: 'var(--color-ink-light)' }} suppressHydrationWarning>
                       {formatTimeAgo(leadEvent.last_activity_at)}
@@ -355,11 +335,7 @@ export default function StoriesPage() {
                 style={{ borderColor: 'var(--color-rule)' }}
               >
                 <div className="flex items-center gap-2 mb-1.5">
-                  {event.category && (
-                    <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(event.category)}`}>
-                      {event.category}
-                    </span>
-                  )}
+                  <CategoryBadge category={event.category} />
                   {mounted && event.last_activity_at && (
                     <span className="text-xs" style={{ color: 'var(--color-ink-light)' }} suppressHydrationWarning>
                       {formatTimeAgo(event.last_activity_at)}
