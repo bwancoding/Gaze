@@ -407,6 +407,72 @@ async def admin_generate_analysis(
     return {"message": "Analysis generation started in background", "event_id": event_id}
 
 
+@router.post("/events/backfill-analysis")
+async def admin_backfill_analysis(
+    limit: int = Query(10, ge=1, le=50, description="Max events to retry per call"),
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Find active events without a completed analysis and retry them synchronously.
+
+    Picks events where EventAnalysis is missing, status='failed', or stuck in
+    'pending' for more than 10 minutes. Skips rows that have exceeded the max
+    attempt count so permanently-broken events don't hammer the LLM forever.
+    """
+    from datetime import timedelta
+    from sqlalchemy import or_, and_
+    from app.models.event_analysis import EventAnalysis
+    from app.services.event_analysis_service import generate_event_analysis
+
+    cutoff_pending = datetime.utcnow() - timedelta(minutes=10)
+    max_attempts = 5
+
+    events = (
+        db.query(Event)
+        .outerjoin(EventAnalysis, EventAnalysis.event_id == Event.id)
+        .filter(Event.status == 'active')
+        .filter(or_(
+            EventAnalysis.id == None,  # noqa: E711
+            EventAnalysis.status == 'failed',
+            and_(
+                EventAnalysis.status == 'pending',
+                or_(
+                    EventAnalysis.last_attempt_at == None,  # noqa: E711
+                    EventAnalysis.last_attempt_at < cutoff_pending,
+                ),
+            ),
+        ))
+        .filter(or_(
+            EventAnalysis.attempt_count == None,  # noqa: E711
+            EventAnalysis.attempt_count < max_attempts,
+        ))
+        .order_by(Event.last_activity_at.desc().nullslast())
+        .limit(limit)
+        .all()
+    )
+
+    succeeded = 0
+    failed = 0
+    errors: List[dict] = []
+    for event in events:
+        try:
+            await generate_event_analysis(db, str(event.id), force=True)
+            succeeded += 1
+            logger.info(f"[Backfill] Generated analysis for event {event.id}")
+        except Exception as e:
+            failed += 1
+            errors.append({"event_id": str(event.id), "error": str(e)[:200]})
+            logger.error(f"[Backfill] Failed for event {event.id}: {e}")
+
+    return {
+        "status": "success",
+        "candidates": len(events),
+        "succeeded": succeeded,
+        "failed": failed,
+        "errors": errors,
+    }
+
+
 @router.post("/trending/{trending_id}/promote")
 async def admin_promote_trending(
     trending_id: int,
