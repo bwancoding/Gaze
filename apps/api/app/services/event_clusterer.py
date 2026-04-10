@@ -188,16 +188,29 @@ class EventClusterer:
     def classify_category(self, text: str, title: str = "") -> Optional[str]:
         text_lower = text.lower()
         title_lower = title.lower() if title else ""
+        # Word-boundary matching for single words (avoid "ai" matching "said")
+        words = set(re.findall(r'\b[a-z0-9+#/.]+\b', text_lower))
+        title_words = set(re.findall(r'\b[a-z0-9+#/.]+\b', title_lower)) if title_lower else set()
         scores: Dict[str, float] = {}
         for category, keywords in CATEGORY_KEYWORDS.items():
             score = 0.0
             for kw in keywords:
-                if kw in title_lower:
-                    score += 3.0  # Title matches count 3x
-                elif kw in text_lower:
-                    score += 1.0
+                if ' ' in kw:
+                    # Multi-word: substring match
+                    if kw in title_lower:
+                        score += 3.0
+                    elif kw in text_lower:
+                        score += 1.0
+                else:
+                    # Single word: word boundary match
+                    if kw in title_words:
+                        score += 3.0
+                    elif kw in words:
+                        score += 1.0
             if score > 0:
-                scores[category] = score
+                # Normalize by keyword count so categories with 80+ keywords
+                # (Technology) don't dominate over smaller ones (Culture: ~25)
+                scores[category] = score / len(keywords)
         if not scores:
             return None
         return max(scores, key=scores.get)
