@@ -286,7 +286,7 @@ export default function EventDetailPage() {
             <div className="max-w-4xl">
               {/* Category + meta */}
               <div className="flex items-center gap-3 mb-5">
-                <CategoryBadge category={event.category} size="md" />
+                <CategoryBadge category={event.category} size="md" tone="light" />
                 <span className="text-xs text-neutral-400">{timeAgo(event.occurred_at || event.created_at)}</span>
               </div>
 

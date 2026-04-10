@@ -101,50 +101,86 @@ const Icon = {
   ),
 };
 
-const CATEGORY_META: Record<string, { icon: React.FC<IconProps>; className: string }> = {
-  'Politics': { icon: Icon.Politics, className: 'cat-politics' },
-  'Economy': { icon: Icon.Economy, className: 'cat-economy' },
-  'Technology': { icon: Icon.Technology, className: 'cat-technology' },
-  'Environment': { icon: Icon.Environment, className: 'cat-environment' },
-  'Geopolitics': { icon: Icon.Geopolitics, className: 'cat-geopolitics' },
-  'Society': { icon: Icon.Society, className: 'cat-society' },
-  'Health': { icon: Icon.Health, className: 'cat-health' },
-  'Science': { icon: Icon.Science, className: 'cat-science' },
-  'Culture': { icon: Icon.Culture, className: 'cat-culture' },
-  'Entertainment': { icon: Icon.Entertainment, className: 'cat-entertainment' },
-  'Sports': { icon: Icon.Sports, className: 'cat-sports' },
-  'War & Conflict': { icon: Icon.Conflict, className: 'cat-conflict' },
+/**
+ * Editorial palette — hand-picked accent colors for each category.
+ * These only drive the icon stroke; the label itself stays in ink color
+ * so categories don't read as generic tailwind pastel chips.
+ */
+const CATEGORY_META: Record<string, { icon: React.FC<IconProps>; accent: string }> = {
+  'Politics':      { icon: Icon.Politics,      accent: '#B45309' }, // burnt amber
+  'Economy':       { icon: Icon.Economy,       accent: '#15803D' }, // forest green
+  'Technology':    { icon: Icon.Technology,    accent: '#6D28D9' }, // deep violet
+  'Environment':   { icon: Icon.Environment,   accent: '#166534' }, // moss green
+  'Geopolitics':   { icon: Icon.Geopolitics,   accent: '#C2410C' }, // terracotta
+  'Society':       { icon: Icon.Society,       accent: '#0F766E' }, // teal
+  'Health':        { icon: Icon.Health,        accent: '#BE185D' }, // rose
+  'Science':       { icon: Icon.Science,       accent: '#1E40AF' }, // ink blue
+  'Culture':       { icon: Icon.Culture,       accent: '#9F1239' }, // wine
+  'Entertainment': { icon: Icon.Entertainment, accent: '#7C3AED' }, // plum
+  'Sports':        { icon: Icon.Sports,        accent: '#CA8A04' }, // mustard
+  'War & Conflict':{ icon: Icon.Conflict,      accent: '#991B1B' }, // oxblood
 };
 
 type Size = 'sm' | 'md';
+type Tone = 'dark' | 'light';
 
 export default function CategoryBadge({
   category,
   size = 'sm',
+  tone = 'dark',
   className = '',
 }: {
   category?: string | null;
   size?: Size;
+  tone?: Tone;
   className?: string;
 }) {
   if (!category) return null;
   const meta = CATEGORY_META[category];
+  const iconSize = size === 'md' ? 'w-4 h-4' : 'w-3.5 h-3.5';
+  const textSize = size === 'md' ? 'text-[11px]' : 'text-[10px]';
+  const labelColor = tone === 'light' ? 'rgba(255,255,255,0.85)' : 'var(--color-ink)';
+  const fallbackColor = tone === 'light' ? 'rgba(255,255,255,0.6)' : 'var(--color-ink-light)';
+
   if (!meta) {
     return (
-      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm text-xs font-medium bg-neutral-100 text-neutral-700 ${className}`}>
+      <span
+        className={`inline-flex items-center gap-1.5 ${textSize} font-semibold uppercase ${className}`}
+        style={{ letterSpacing: '0.1em', color: fallbackColor }}
+      >
         {category}
       </span>
     );
   }
   const IconComp = meta.icon;
-  const iconSize = size === 'md' ? 'w-3.5 h-3.5' : 'w-3 h-3';
-  const padding = size === 'md' ? 'px-2.5 py-1' : 'px-2 py-0.5';
+  // On dark backgrounds the saturated ink-accents (burnt amber, wine, ink blue)
+  // get muddy — brighten them by mixing with white.
+  const iconColor = tone === 'light' ? brighten(meta.accent) : meta.accent;
   return (
     <span
-      className={`inline-flex items-center gap-1.5 ${padding} rounded-sm text-xs font-medium ${meta.className} ${className}`}
+      className={`inline-flex items-center gap-1.5 ${textSize} font-semibold uppercase ${className}`}
+      style={{ letterSpacing: '0.1em', color: labelColor }}
     >
-      <IconComp className={iconSize} />
-      {category}
+      <span style={{ color: iconColor, display: 'inline-flex' }}>
+        <IconComp className={iconSize} />
+      </span>
+      <span>{category}</span>
     </span>
   );
+}
+
+/** Lighten a hex color toward white for use on dark backgrounds. */
+function brighten(hex: string): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const mix = (c: number) => Math.round(c + (255 - c) * 0.55);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+
+// Export for consumers that want just the accent color (e.g. dark headers)
+export function getCategoryAccent(category?: string | null): string | undefined {
+  if (!category) return undefined;
+  return CATEGORY_META[category]?.accent;
 }
