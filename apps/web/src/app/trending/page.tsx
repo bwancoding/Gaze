@@ -206,7 +206,7 @@ export default function TrendingPage() {
                         No. 1
                       </span>
                       <span className="w-px h-3" style={{ background: 'rgba(255,255,255,0.2)' }} />
-                      <CategoryBadge category={leadStory.category} size="md" />
+                      <CategoryBadge category={leadStory.category} size="md" tone="light" />
                       {mounted && leadStory.last_updated && (
                         <>
                           <span className="w-px h-3" style={{ background: 'rgba(255,255,255,0.2)' }} />
