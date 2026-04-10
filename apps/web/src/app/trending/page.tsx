@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '../../components/Header';
+import CategoryBadge from '../../components/CategoryBadge';
 import { API_BASE_URL } from '../../lib/config';
 
 
@@ -24,23 +25,6 @@ interface TrendingEvent {
 }
 
 const CATEGORIES = ['All', 'Politics', 'Economy', 'Technology', 'War & Conflict', 'Environment'];
-
-const getCatClass = (cat?: string): string => {
-  const map: Record<string, string> = {
-    'Environment': 'cat-environment',
-    'Economy': 'cat-economy',
-    'Technology': 'cat-technology',
-    'Politics': 'cat-politics',
-    'War & Conflict': 'cat-conflict',
-    'Entertainment': 'cat-entertainment',
-    'Geopolitics': 'cat-geopolitics',
-    'Health': 'cat-health',
-    'Science': 'cat-science',
-    'Culture': 'cat-culture',
-    'Society': 'cat-society',
-  };
-  return (cat && map[cat]) || 'bg-neutral-100 text-neutral-700';
-};
 
 function formatTimeAgo(dateStr?: string): string {
   if (!dateStr) return '';
@@ -222,9 +206,7 @@ export default function TrendingPage() {
                         No. 1
                       </span>
                       <span className="w-px h-3" style={{ background: 'rgba(255,255,255,0.2)' }} />
-                      <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(leadStory.category)}`}>
-                        {leadStory.category}
-                      </span>
+                      <CategoryBadge category={leadStory.category} size="md" />
                       {mounted && leadStory.last_updated && (
                         <>
                           <span className="w-px h-3" style={{ background: 'rgba(255,255,255,0.2)' }} />
@@ -276,9 +258,7 @@ export default function TrendingPage() {
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1.5">
-                            <span className={`text-xs px-2 py-0.5 rounded-sm font-medium ${getCatClass(t.category)}`}>
-                              {t.category}
-                            </span>
+                            <CategoryBadge category={t.category} />
                             {mounted && t.last_updated && (
                               <span className="text-xs" style={{ color: 'var(--color-ink-light)' }} suppressHydrationWarning>
                                 {formatTimeAgo(t.last_updated)}
@@ -335,9 +315,7 @@ export default function TrendingPage() {
                         >
                           {t.rank}
                         </span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-sm font-medium flex-shrink-0 ${getCatClass(t.category)}`}>
-                          {t.category}
-                        </span>
+                        <CategoryBadge category={t.category} className="flex-shrink-0" />
                         <h3
                           className="font-serif text-sm flex-1 min-w-0 truncate group-hover:opacity-75 transition-opacity"
                           style={{ color: 'var(--color-ink)' }}

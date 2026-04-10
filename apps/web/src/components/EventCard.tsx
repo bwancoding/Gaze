@@ -1,5 +1,6 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import CategoryBadge from './CategoryBadge';
 
 interface EventCardProps {
   id: string;
@@ -11,24 +12,6 @@ interface EventCardProps {
   hotScore?: number;
   occurredAt?: string;
 }
-
-const getCatClass = (cat?: string): string => {
-  const map: Record<string, string> = {
-    'Environment': 'cat-environment',
-    'Economy': 'cat-economy',
-    'Technology': 'cat-technology',
-    'Politics': 'cat-politics',
-    'War & Conflict': 'cat-conflict',
-    'Geopolitics': 'cat-geopolitics',
-    'Health': 'cat-health',
-    'Science': 'cat-science',
-    'Entertainment': 'cat-entertainment',
-    'Culture': 'cat-culture',
-    'Society': 'cat-society',
-    'Sports': 'cat-sports',
-  };
-  return (cat && map[cat]) || 'bg-neutral-100 text-neutral-700';
-};
 
 export default function EventCard({
   id,
@@ -66,11 +49,8 @@ export default function EventCard({
             {title}
           </h2>
 
-          {category && (
-            <span className={`inline-block text-xs px-2 py-0.5 rounded-md font-medium ${getCatClass(category)}`}>
-              {category}
-            </span>
-          )}
+          <CategoryBadge category={category} />
+
         </div>
 
         {/* Hot Score */}

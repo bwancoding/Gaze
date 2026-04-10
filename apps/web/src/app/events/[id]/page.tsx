@@ -6,6 +6,7 @@ import Header from '../../../components/Header';
 import StakeholderDeclare from '../../../components/StakeholderDeclare';
 import StakeholderBadge from '../../../components/StakeholderBadge';
 import StakeholderVoices from '../../../components/StakeholderVoices';
+import CategoryBadge from '../../../components/CategoryBadge';
 import { API_BASE_URL } from '../../../lib/config';
 
 
@@ -76,24 +77,6 @@ interface StakeholderInfo {
 }
 
 /* ── Helpers ── */
-
-const getCatClass = (cat?: string): string => {
-  const map: Record<string, string> = {
-    'Environment': 'cat-environment',
-    'Economy': 'cat-economy',
-    'Technology': 'cat-technology',
-    'Politics': 'cat-politics',
-    'War & Conflict': 'cat-conflict',
-    'Geopolitics': 'cat-geopolitics',
-    'Health': 'cat-health',
-    'Science': 'cat-science',
-    'Entertainment': 'cat-entertainment',
-    'Culture': 'cat-culture',
-    'Society': 'cat-society',
-    'Sports': 'cat-sports',
-  };
-  return (cat && map[cat]) || 'bg-neutral-100 text-neutral-700';
-};
 
 const stakeholderAccents = [
   { border: 'border-l-[#C2410C]', text: 'text-[#C2410C]', bg: 'bg-orange-50/50' },
@@ -303,9 +286,7 @@ export default function EventDetailPage() {
             <div className="max-w-4xl">
               {/* Category + meta */}
               <div className="flex items-center gap-3 mb-5">
-                <span className={`text-xs px-2.5 py-1 rounded font-medium ${getCatClass(event.category)}`}>
-                  {event.category}
-                </span>
+                <CategoryBadge category={event.category} size="md" />
                 <span className="text-xs text-neutral-400">{timeAgo(event.occurred_at || event.created_at)}</span>
               </div>
 
