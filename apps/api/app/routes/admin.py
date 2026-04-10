@@ -678,6 +678,42 @@ async def admin_backfill_categories(
     return {"categories": cat_result, "heat_recalc": heat_result}
 
 
+@router.post("/recategorize-events")
+async def admin_recategorize_events(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Re-classify category for ALL active published Events using the corrected
+    normalize-by-keyword-count algorithm. Also recategorizes trending events."""
+    from app.services.news_aggregator import classify_category as classify_na
+
+    # Published Events
+    active_events = db.query(Event).filter(Event.status == 'active').all()
+    event_updated = 0
+    for event in active_events:
+        text = f"{event.title or ''} {event.summary or ''} {' '.join(event.tags or [])}"
+        new_cat = classify_na(text)
+        if new_cat and new_cat != event.category:
+            event.category = new_cat
+            event_updated += 1
+
+    # Trending Events (all, not just uncategorized)
+    trending_all = db.query(TrendingEvent).all()
+    trending_updated = 0
+    for te in trending_all:
+        text = f"{te.title or ''} {te.summary or ''} {' '.join(te.keywords or [])}"
+        new_cat = classify_na(text)
+        if new_cat and new_cat != te.category:
+            te.category = new_cat
+            trending_updated += 1
+
+    db.commit()
+    return {
+        "events": {"total": len(active_events), "updated": event_updated},
+        "trending": {"total": len(trending_all), "updated": trending_updated},
+    }
+
+
 @router.post("/trending/consolidate")
 async def admin_consolidate_events(
     db: Session = Depends(get_db),
