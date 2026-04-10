@@ -19,7 +19,7 @@ interface Event {
   last_activity_at?: string;
 }
 
-const CATEGORIES = ['Environment', 'Economy', 'Technology', 'Politics', 'Geopolitics', 'Society', 'Health', 'Science', 'Culture', 'Entertainment'];
+const CATEGORIES = ['Environment', 'Economy', 'Technology', 'Politics', 'Geopolitics', 'Society', 'Health', 'Science', 'Culture', 'Entertainment', 'Sports'];
 
 const getCatClass = (cat?: string): string => {
   const map: Record<string, string> = {
@@ -33,6 +33,7 @@ const getCatClass = (cat?: string): string => {
     'Science': 'cat-science',
     'Culture': 'cat-culture',
     'Entertainment': 'cat-entertainment',
+    'Sports': 'cat-sports',
   };
   return (cat && map[cat]) || 'bg-neutral-100 text-neutral-700';
 };
