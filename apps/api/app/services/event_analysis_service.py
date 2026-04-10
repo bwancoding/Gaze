@@ -105,7 +105,9 @@ def _gather_articles_for_event(db: Session, event_id: str) -> List[Dict]:
     """Collect articles with source info for an event.
 
     First checks event_sources table, then falls back to trending_articles
-    via the event's trending_origin_id link.
+    linked by trending_origin_id OR by matching trending events with the
+    same title (handles pipeline-created events where trending_origin_id
+    was never set).
     """
     results = (
         db.query(EventSource, Source)
@@ -123,27 +125,46 @@ def _gather_articles_for_event(db: Session, event_id: str) -> List[Dict]:
             "published_at": es.published_at.isoformat() if es.published_at else "",
         })
 
-    # Fallback: get articles from trending_articles via trending_origin_id
+    # Fallback: gather from trending_articles via title match + trending_origin_id.
+    # Mirrors the source lookup strategy in routes/events.py:282-305.
     if not articles:
         event = db.query(Event).filter(Event.id == event_id).first()
-        if event and event.trending_origin_id:
-            from app.models.trending import TrendingArticle, TrendingSource
-            trending_results = (
-                db.query(TrendingArticle, TrendingSource)
-                .outerjoin(TrendingSource, TrendingArticle.source_id == TrendingSource.id)
-                .filter(TrendingArticle.event_id == event.trending_origin_id)
-                .limit(30)  # Cap to avoid overly long prompts
-                .all()
-            )
-            for ta, ts in trending_results:
-                articles.append({
-                    "source_name": ts.name if ts else "Unknown",
-                    "title": ta.title or "",
-                    "content": ta.content or ta.summary or "",
-                    "published_at": ta.published_at.isoformat() if ta.published_at else "",
-                })
-            if articles:
-                logger.info(f"Using {len(articles)} trending articles for event {event_id} (origin={event.trending_origin_id})")
+        if event:
+            from app.models.trending import TrendingArticle, TrendingSource, TrendingEvent
+
+            matching_te_ids: List[int] = []
+            if event.title:
+                matching_te_ids = [
+                    te.id for te in db.query(TrendingEvent.id).filter(
+                        TrendingEvent.title.ilike(f"%{event.title[:60]}%")
+                    ).all()
+                ]
+            if event.trending_origin_id and event.trending_origin_id not in matching_te_ids:
+                matching_te_ids.append(event.trending_origin_id)
+
+            if matching_te_ids:
+                trending_results = (
+                    db.query(TrendingArticle, TrendingSource)
+                    .outerjoin(TrendingSource, TrendingArticle.source_id == TrendingSource.id)
+                    .filter(TrendingArticle.event_id.in_(matching_te_ids))
+                    .order_by(TrendingArticle.published_at.desc())
+                    .limit(30)  # Cap to avoid overly long prompts
+                    .all()
+                )
+                seen_urls = set()
+                for ta, ts in trending_results:
+                    if ta.url and ta.url in seen_urls:
+                        continue
+                    if ta.url:
+                        seen_urls.add(ta.url)
+                    articles.append({
+                        "source_name": ts.name if ts else "Unknown",
+                        "title": ta.title or "",
+                        "content": ta.content or ta.summary or "",
+                        "published_at": ta.published_at.isoformat() if ta.published_at else "",
+                    })
+                if articles:
+                    logger.info(f"Using {len(articles)} trending articles for event {event_id} via {len(matching_te_ids)} matching TEs")
 
     return articles
 
