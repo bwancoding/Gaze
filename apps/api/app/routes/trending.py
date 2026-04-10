@@ -38,7 +38,7 @@ def _verify_admin(credentials: HTTPBasicCredentials = Depends(_security)):
 @limiter.limit("60/minute")
 def get_trending(
     request: Request,
-    limit: int = Query(20, ge=1, le=50),
+    limit: int = Query(20, ge=1, le=200),
     category: Optional[str] = Query(None),
     time_window: Optional[int] = Query(None, description="Time window in hours"),
     published_only: bool = Query(False, description="Only return trending events that have been published"),

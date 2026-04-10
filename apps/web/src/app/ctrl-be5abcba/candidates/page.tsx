@@ -76,7 +76,7 @@ export default function CandidateReviewPage() {
     try {
       const [candidatesRes, trendingRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/admin/candidates`, { headers: getAuthHeaders() }),
-        fetch(`${API_BASE_URL}/api/trending?page_size=50`, { headers: getAuthHeaders() }),
+        fetch(`${API_BASE_URL}/api/trending?limit=100`, { headers: getAuthHeaders() }),
       ]);
 
       if (candidatesRes.ok) {
@@ -85,7 +85,11 @@ export default function CandidateReviewPage() {
       }
       if (trendingRes.ok) {
         const data = await trendingRes.json();
-        const items = (data.items || data.events || []).filter((t: TrendingEvent) => t.status === 'raw');
+        // Only show unpromoted items — promoted ones are already surfaced
+        // on the Stories page and don't need another review action here.
+        const items = (data.items || data.events || []).filter(
+          (t: TrendingEvent) => t.status === 'raw'
+        );
         setTrendingEvents(items);
       }
     } catch (err) {
