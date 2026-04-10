@@ -33,6 +33,12 @@ class EventAnalysis(Base):
     generated_at = Column(DateTime, server_default=func.now())
     expires_at = Column(DateTime)
 
+    # Generation lifecycle tracking (pending / done / failed)
+    status = Column(String(20), default='pending')
+    last_attempt_at = Column(DateTime)
+    attempt_count = Column(Integer, default=0)
+    error_message = Column(Text)
+
     def to_dict(self):
         return {
             "id": str(self.id),
@@ -46,4 +52,6 @@ class EventAnalysis(Base):
             "model_name": self.model_name,
             "quality_score": float(self.quality_score) if self.quality_score else None,
             "generated_at": self.generated_at.isoformat() if self.generated_at else None,
+            "status": self.status,
+            "attempt_count": self.attempt_count or 0,
         }

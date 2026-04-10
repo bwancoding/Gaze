@@ -38,13 +38,67 @@ def _get_ai_client():
 
 
 def get_cached_analysis(db: Session, event_id: str) -> Optional[Dict[str, Any]]:
-    """Get cached analysis if exists and not expired."""
+    """Get cached analysis if exists, complete, and not expired.
+
+    Rows in 'pending' or 'failed' state are not considered cached hits —
+    they indicate an in-progress or previously failed attempt.
+    """
     analysis = db.query(EventAnalysis).filter(EventAnalysis.event_id == event_id).first()
     if not analysis:
         return None
     if analysis.expires_at and datetime.utcnow() > analysis.expires_at:
         return None
+    # Backward compat: pre-migration rows have status=NULL; treat as done if body exists
+    is_complete = analysis.status == 'done' or (analysis.status is None and analysis.background)
+    if not is_complete:
+        return None
     return analysis.to_dict()
+
+
+def _mark_analysis_pending(db: Session, event_id: str) -> None:
+    """Mark analysis row as in-progress before LLM call. Commits separately so
+    the pending state survives a later rollback."""
+    try:
+        existing = db.query(EventAnalysis).filter(EventAnalysis.event_id == event_id).first()
+        now = datetime.utcnow()
+        if existing:
+            existing.status = 'pending'
+            existing.last_attempt_at = now
+            existing.attempt_count = (existing.attempt_count or 0) + 1
+            existing.error_message = None
+        else:
+            db.add(EventAnalysis(
+                event_id=event_id,
+                status='pending',
+                last_attempt_at=now,
+                attempt_count=1,
+            ))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"Could not mark analysis pending for {event_id}: {e}")
+
+
+def _mark_analysis_failed(db: Session, event_id: str, error: str) -> None:
+    """Record a failed attempt. Uses a fresh transaction after caller rollback."""
+    try:
+        existing = db.query(EventAnalysis).filter(EventAnalysis.event_id == event_id).first()
+        if existing:
+            existing.status = 'failed'
+            existing.error_message = (error or '')[:1000]
+            existing.last_attempt_at = datetime.utcnow()
+        else:
+            db.add(EventAnalysis(
+                event_id=event_id,
+                status='failed',
+                error_message=(error or '')[:1000],
+                last_attempt_at=datetime.utcnow(),
+                attempt_count=1,
+            ))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        logger.warning(f"Could not mark analysis failed for {event_id}: {e}")
 
 
 def _gather_articles_for_event(db: Session, event_id: str) -> List[Dict]:
@@ -144,12 +198,22 @@ async def generate_event_analysis(
 
     articles = _gather_articles_for_event(db, event_id)
     if not articles:
+        _mark_analysis_failed(db, event_id, "No articles found for event")
         raise ValueError(f"No articles found for event {event_id}")
+
+    # Mark as pending BEFORE the long LLM call so a process restart mid-call
+    # leaves a visible "stuck pending" row for the backfill job to retry.
+    _mark_analysis_pending(db, event_id)
 
     logger.info(f"Generating stakeholder analysis for event {event_id} with {len(articles)} articles")
 
-    generator = AISummaryGenerator(client)
-    result = await generator.generate_stakeholder_analysis(articles)
+    try:
+        generator = AISummaryGenerator(client)
+        result = await generator.generate_stakeholder_analysis(articles)
+    except Exception as e:
+        db.rollback()
+        _mark_analysis_failed(db, event_id, f"{type(e).__name__}: {e}")
+        raise
 
     now = datetime.utcnow()
     expires = now + timedelta(hours=ANALYSIS_TTL_HOURS)
@@ -195,6 +259,8 @@ async def generate_event_analysis(
         existing.quality_score = result.get("confidence_score")
         existing.generated_at = now
         existing.expires_at = expires
+        existing.status = 'done'
+        existing.error_message = None
         analysis = existing
     else:
         analysis = EventAnalysis(
@@ -209,6 +275,7 @@ async def generate_event_analysis(
             quality_score=result.get("confidence_score"),
             generated_at=now,
             expires_at=expires,
+            status='done',
         )
         db.add(analysis)
 
@@ -226,6 +293,7 @@ async def generate_event_analysis(
     except Exception as e:
         db.rollback()
         logger.error(f"Failed to commit analysis for event {event_id}: {e}")
+        _mark_analysis_failed(db, event_id, f"commit failed: {e}")
         raise
 
     logger.info(f"Stakeholder analysis cached for event {event_id}, {len(stakeholder_perspectives)} stakeholders identified")

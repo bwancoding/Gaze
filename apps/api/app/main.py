@@ -48,11 +48,34 @@ def _auto_migrate():
                         "ALTER TABLE trending_events ADD COLUMN timeline_data TEXT DEFAULT '[]'"
                     ))
                     logger.info("Auto-migrate: added trending_events.timeline_data (sqlite)")
+
+                ea_cols = conn.execute(text("PRAGMA table_info(event_analyses)")).fetchall()
+                ea_col_names = {row[1] for row in ea_cols}
+                if "status" not in ea_col_names:
+                    conn.execute(text("ALTER TABLE event_analyses ADD COLUMN status VARCHAR(20)"))
+                if "last_attempt_at" not in ea_col_names:
+                    conn.execute(text("ALTER TABLE event_analyses ADD COLUMN last_attempt_at TIMESTAMP"))
+                if "attempt_count" not in ea_col_names:
+                    conn.execute(text("ALTER TABLE event_analyses ADD COLUMN attempt_count INTEGER DEFAULT 0"))
+                if "error_message" not in ea_col_names:
+                    conn.execute(text("ALTER TABLE event_analyses ADD COLUMN error_message TEXT"))
+                conn.execute(text(
+                    "UPDATE event_analyses SET status = 'done' WHERE status IS NULL AND background IS NOT NULL"
+                ))
             else:
                 conn.execute(text(
                     "ALTER TABLE trending_events ADD COLUMN IF NOT EXISTS timeline_data JSONB DEFAULT '[]'::jsonb"
                 ))
                 logger.info("Auto-migrate: ensured trending_events.timeline_data (postgres)")
+
+                conn.execute(text("ALTER TABLE event_analyses ADD COLUMN IF NOT EXISTS status VARCHAR(20)"))
+                conn.execute(text("ALTER TABLE event_analyses ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP"))
+                conn.execute(text("ALTER TABLE event_analyses ADD COLUMN IF NOT EXISTS attempt_count INTEGER DEFAULT 0"))
+                conn.execute(text("ALTER TABLE event_analyses ADD COLUMN IF NOT EXISTS error_message TEXT"))
+                conn.execute(text(
+                    "UPDATE event_analyses SET status = 'done' WHERE status IS NULL AND background IS NOT NULL"
+                ))
+                logger.info("Auto-migrate: ensured event_analyses status/attempt columns (postgres)")
     except Exception as e:
         logger.error(f"Auto-migrate failed (non-fatal): {e}")
 

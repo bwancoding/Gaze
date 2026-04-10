@@ -78,6 +78,70 @@ def job_auto_archive():
         db.close()
 
 
+def job_backfill_analysis():
+    """Scheduled task: retry missing/failed event analyses (every 20 minutes).
+
+    Picks up events whose analysis never completed — e.g. because a Railway
+    redeploy killed the in-flight BackgroundTask, or the LLM call timed out.
+    Runs up to 5 per tick serially so one slow event doesn't starve others.
+    """
+    import asyncio
+    from datetime import datetime, timedelta
+    from sqlalchemy import or_, and_
+    from app.models import Event
+    from app.models.event_analysis import EventAnalysis
+    from app.services.event_analysis_service import generate_event_analysis
+
+    db = _get_db()
+    try:
+        cutoff_pending = datetime.utcnow() - timedelta(minutes=15)
+        max_attempts = 5
+
+        events = (
+            db.query(Event)
+            .outerjoin(EventAnalysis, EventAnalysis.event_id == Event.id)
+            .filter(Event.status == 'active')
+            .filter(or_(
+                EventAnalysis.id == None,  # noqa: E711
+                EventAnalysis.status == 'failed',
+                and_(
+                    EventAnalysis.status == 'pending',
+                    or_(
+                        EventAnalysis.last_attempt_at == None,  # noqa: E711
+                        EventAnalysis.last_attempt_at < cutoff_pending,
+                    ),
+                ),
+            ))
+            .filter(or_(
+                EventAnalysis.attempt_count == None,  # noqa: E711
+                EventAnalysis.attempt_count < max_attempts,
+            ))
+            .order_by(Event.last_activity_at.desc().nullslast())
+            .limit(5)
+            .all()
+        )
+
+        if not events:
+            return
+
+        event_ids = [str(e.id) for e in events]
+        logger.info(f"Scheduled: backfilling analysis for {len(event_ids)} events")
+
+        async def _run_all():
+            for eid in event_ids:
+                try:
+                    await generate_event_analysis(db, eid, force=True)
+                    logger.info(f"Scheduled backfill: generated analysis for {eid}")
+                except Exception as e:
+                    logger.error(f"Scheduled backfill: failed for {eid}: {e}")
+
+        asyncio.run(_run_all())
+    except Exception as e:
+        logger.error(f"Scheduled: backfill-analysis error - {e}")
+    finally:
+        db.close()
+
+
 def job_cleanup_logs():
     """Scheduled task: Prune old request_logs, page_views, and error_logs"""
     db = _get_db()
@@ -153,8 +217,17 @@ def init_scheduler():
         replace_existing=True,
     )
 
+    # Every 20 minutes: retry missing/failed event analyses
+    scheduler.add_job(
+        job_backfill_analysis,
+        trigger=IntervalTrigger(minutes=20),
+        id="analysis_backfill",
+        name="Backfill missing/failed event analyses",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("Scheduler started with 5 jobs: fetch(4h), heat(1h), cluster(6h), auto-archive(1h), log-cleanup(24h)")
+    logger.info("Scheduler started with 6 jobs: fetch(4h), heat(1h), cluster(6h), auto-archive(1h), log-cleanup(24h), analysis-backfill(20m)")
 
 
 def shutdown_scheduler():
