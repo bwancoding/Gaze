@@ -162,12 +162,31 @@ class TrendingTopicsFetcher:
 
         return topics
 
+    # Hosts that are clearly social/personal rather than news
+    BSKY_BLOCKED_LINK_HOSTS = {
+        'bsky.app', 'bsky.social', 'twitter.com', 'x.com', 't.co',
+        'instagram.com', 'tiktok.com', 'youtube.com', 'youtu.be',
+        'imgur.com', 'i.redd.it', 'giphy.com', 'tenor.com',
+    }
+
+    # First-person / personal markers — if a post's text leads with these,
+    # it's almost always a personal anecdote, not news.
+    BSKY_PERSONAL_PREFIXES = (
+        'i got', 'i just', 'i am', "i'm", 'i was', 'i saw', 'i had',
+        'my ', 'we are', "we're", 'we got', 'good night', 'good morning',
+        'just saying', 'so i', 'so...', 'so.....',
+    )
+
     async def fetch_bluesky_trending(self, limit: int = 100) -> List[Dict]:
         """Fetch trending posts from Bluesky's What's Hot feed.
 
-        Prefers posts with external link embeds (news shares) over pure text
-        posts, which tend to be personal/meme content.
+        Strict filter: ONLY accept posts that share an external link to a
+        real news domain. Pure text posts from Bluesky are almost always
+        personal content (dog photos, good-night posts, hot takes) that
+        shouldn't become events in a news aggregator.
         """
+        from urllib.parse import urlparse
+
         topics = []
         session = await self._get_session()
         await self._rate_limit()
@@ -194,36 +213,39 @@ class TrendingTopicsFetcher:
             # Engagement score: likes + reposts weighted higher + replies
             score = like_count + repost_count * 2 + reply_count
 
-            # Filter: require meaningful engagement
-            if score < 100:
+            # Higher bar — previous 100 was too low and let viral personal
+            # content through. News shares from active accounts easily clear 300.
+            if score < 300:
                 continue
 
-            # Prefer posts with external link embeds (news shares)
+            # HARD requirement: must have an external link embed. Pure text
+            # posts are filtered out entirely.
             embed = post.get('embed') or {}
             external = embed.get('external') or {}
             external_title = (external.get('title') or '').strip()
             external_desc = (external.get('description') or '').strip()
             external_uri = external.get('uri') or ''
 
-            # Build title: prefer external link title, fall back to post text
-            if external_title:
-                title = external_title[:200]
-                selftext = f"{external_desc} {text}".strip()[:500]
-                link_url = external_uri
-            else:
-                # Skip pure text posts that are too short or clearly conversational
-                if len(text) < 30:
+            if not external_title or not external_uri:
+                continue
+
+            # Reject if the external link points back to social/personal hosts
+            try:
+                host = urlparse(external_uri).netloc.lower().lstrip('www.')
+                if any(host == h or host.endswith('.' + h) for h in self.BSKY_BLOCKED_LINK_HOSTS):
                     continue
-                title = text.split('\n')[0][:200]
-                selftext = text[:500]
-                # Build bsky.app URL
-                author_handle = post.get('author', {}).get('handle', '')
-                post_uri = post.get('uri', '')
-                post_id = post_uri.split('/')[-1] if post_uri else ''
-                link_url = (
-                    f"https://bsky.app/profile/{author_handle}/post/{post_id}"
-                    if author_handle and post_id else ''
-                )
+            except Exception:
+                continue
+
+            # Reject if the title still reads like a personal anecdote
+            # (some news cards have bad titles — last line of defense)
+            title_lower = external_title.lower().lstrip('.…')
+            if any(title_lower.startswith(p) for p in self.BSKY_PERSONAL_PREFIXES):
+                continue
+
+            title = external_title[:200]
+            selftext = f"{external_desc} {text}".strip()[:500]
+            link_url = external_uri
 
             # Parse created_at
             created_raw = record.get('createdAt', '')

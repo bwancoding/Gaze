@@ -191,6 +191,7 @@ const getCatClass = (cat?: string): string => {
     'Science': 'cat-science',
     'Culture': 'cat-culture',
     'Society': 'cat-society',
+    'Sports': 'cat-sports',
   };
   return (cat && map[cat]) || 'bg-neutral-100 text-neutral-700';
 };
