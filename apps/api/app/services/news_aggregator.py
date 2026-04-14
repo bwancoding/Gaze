@@ -416,7 +416,7 @@ def second_pass_matching(db: Session, events: List[TrendingEvent], threshold: fl
 def trim_to_top_n(
     db: Session,
     top_n: int = 40,
-    min_per_category: int = 2,
+    min_per_category: int = 3,
     inactive_days: int = 2,
 ) -> Dict:
     """Keep top N raw events with per-category minimum retention.
@@ -425,6 +425,11 @@ def trim_to_top_n(
     updated in `inactive_days` days. This protects actively-merged long-running
     stories that temporarily drop out of top_n but are still getting new
     articles.
+
+    Per-category floor ensures under-represented categories
+    (Entertainment, Sports, Gaming, Culture, Lifestyle, Science) always have
+    a minimum seat count in the raw pool so they aren't structurally crushed
+    by multi-outlet hard-news stories.
     """
     all_raw = (
         db.query(TrendingEvent)
@@ -467,15 +472,24 @@ def trim_to_top_n(
         )
     db.commit()
 
+    # Build full-pool category distribution for visibility into supply balance
+    pool_distribution: Dict[str, int] = {}
+    for e in all_raw:
+        if e.id in keep_ids:
+            k = e.category or 'Uncategorized'
+            pool_distribution[k] = pool_distribution.get(k, 0) + 1
+
     protected_active = len(all_raw) - len(keep_ids) - archived_count
     logger.info(
         f"Trim: kept {len(keep_ids)} ({len(category_counts)} cats), "
         f"archived {archived_count}, protected {protected_active} active-out-of-topN"
     )
+    logger.info(f"Trim category distribution: {pool_distribution}")
     return {
         "kept": len(keep_ids),
         "archived": archived_count,
         "protected_active": protected_active,
+        "category_distribution": pool_distribution,
     }
 
 

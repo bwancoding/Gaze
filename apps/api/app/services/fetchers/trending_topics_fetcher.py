@@ -28,16 +28,36 @@ class TrendingTopicsFetcher:
     BSKY_API = "https://public.api.bsky.app/xrpc"
     BSKY_WHATS_HOT_FEED = "at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot"
 
-    # Subreddits covering news, science, entertainment, sports, business
+    # Subreddits covering the full content spectrum. Each tuple is
+    # (subreddit, source_id, min_score). Thresholds are per-sub because
+    # vote density varies wildly — r/worldnews posts regularly break 10k,
+    # while r/food and r/books celebrate a 500-upvote post. Raising the
+    # threshold uniformly would filter out the entire long tail.
     NEWS_SUBREDDITS = [
-        ("worldnews", 102),
-        ("news", 103),
-        ("technology", 104),
-        ("entertainment", 106),
-        ("movies", 107),
-        ("sports", 108),
-        ("science", 109),
-        ("business", 110),
+        # Hard news (keep the 100 bar — these subs are vote-heavy)
+        ("worldnews", 102, 100),
+        ("news", 103, 100),
+        ("technology", 104, 100),
+        ("science", 109, 100),
+        ("business", 110, 80),
+        # Entertainment: drop r/entertainment (dead sub) + r/sports (weak),
+        # replace with genuinely active communities
+        ("movies", 107, 50),
+        ("popculturechat", 112, 50),
+        ("television", 113, 50),
+        ("Music", 114, 50),
+        # Gaming: dedicated category, lower bar
+        ("gaming", 115, 100),
+        ("Games", 116, 50),
+        # Sports (keep, lowered bar — r/sports is less active than r/nba etc.)
+        ("sports", 108, 30),
+        ("nba", 117, 100),
+        ("soccer", 118, 100),
+        # Culture / lifestyle long tail
+        ("books", 119, 30),
+        ("food", 120, 50),
+        ("Futurology", 121, 50),
+        ("space", 122, 100),
     ]
 
     def __init__(self, timeout: int = 30):
@@ -66,7 +86,7 @@ class TrendingTopicsFetcher:
         topics = []
         session = await self._get_session()
 
-        for subreddit, source_id in self.NEWS_SUBREDDITS:
+        for subreddit, source_id, min_score in self.NEWS_SUBREDDITS:
             await self._rate_limit()
             url = f"{self.REDDIT_BASE}/r/{subreddit}/hot.json?limit={limit}"
             try:
@@ -80,8 +100,9 @@ class TrendingTopicsFetcher:
                     for post in posts:
                         d = post.get('data', {})
                         score = d.get('score', 0)
-                        # Only take posts with significant engagement
-                        if score < 100:
+                        # Per-subreddit engagement threshold — avoids
+                        # crushing low-vote-density subs like r/books
+                        if score < min_score:
                             continue
                         title = d.get('title', '').strip()
                         if not title:
