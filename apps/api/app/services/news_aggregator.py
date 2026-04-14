@@ -1041,6 +1041,14 @@ def run_full_pipeline(db: Session, top_n: int = 40) -> Dict:
                 len(all_sources_names) * 5
             )
 
+            # Persist demand-side engagement so the heat recalc step can read
+            # it as a first-class term. Without this, every newly-created event
+            # this run would lose its Reddit/HN/Bluesky signal and fall back
+            # to supply-side ranking. (This write used to live in the unused
+            # create_events_from_topics helper — the real pipeline inlines
+            # event construction here, so the write has to live here too.)
+            engagement = compute_topic_engagement(topic)
+
             event = TrendingEvent(
                 title=topic['title'],
                 summary=topic.get('selftext', '')[:2000] or (
@@ -1051,6 +1059,7 @@ def run_full_pipeline(db: Session, top_n: int = 40) -> Dict:
                 source_id=topic.get('source_id', 102),
                 article_count=len(stored_articles) + 1,
                 media_count=len(all_sources_names),
+                topic_engagement_score=engagement,
                 heat_score=topic_heat,
                 status='raw',
                 timeline_data=[],
