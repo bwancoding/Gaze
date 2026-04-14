@@ -693,6 +693,26 @@ async def admin_recalculate_heat(
         raise HTTPException(status_code=500, detail=f"Heat recalculation failed: {str(e)}")
 
 
+@router.post("/pipeline/dedupe-events")
+async def admin_dedupe_events(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """One-shot: merge active events whose titles collide, then recalc heat.
+
+    Fixes duplicate entity-poor stories (GitHub Stacked PRs, DaVinci Resolve,
+    Backblaze, etc.) that accumulated before the find_matching_event fallback
+    fix. Safe to re-run — if there are no collisions, it's a no-op.
+    """
+    from app.services.news_aggregator import dedupe_existing_events, run_heat_update
+    try:
+        dedupe = dedupe_existing_events(db)
+        heat = run_heat_update(db)
+        return {"status": "success", "dedupe": dedupe, "heat": heat}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Dedupe failed: {str(e)}")
+
+
 @router.post("/backfill-categories")
 async def admin_backfill_categories(
     db: Session = Depends(get_db),
