@@ -200,10 +200,18 @@ class HeatCalculator:
         self.db.commit()
         return updated_count
 
-    def update_event_heat_scores(self, batch_size: int = 50) -> int:
-        events = self.db.query(TrendingEvent).order_by(
-            desc(TrendingEvent.created_at)
-        ).limit(batch_size).all()
+    def update_event_heat_scores(self, batch_size: Optional[int] = None) -> int:
+        # Recalculate all active (non-archived) events. The previous
+        # batch_size=50 only touched the most recently created events,
+        # which meant older still-active stories kept stale heat after
+        # formula changes and silently dominated the leaderboard. Bound
+        # with an optional limit for tests; in prod we recalc everything.
+        query = self.db.query(TrendingEvent).filter(
+            TrendingEvent.status.in_(['raw', 'promoted'])
+        ).order_by(desc(TrendingEvent.created_at))
+        if batch_size is not None:
+            query = query.limit(batch_size)
+        events = query.all()
 
         updated_count = 0
         for event in events:
