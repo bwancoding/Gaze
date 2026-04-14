@@ -251,6 +251,22 @@ def match_articles_to_topics(
     return matches
 
 
+def compute_topic_engagement(topic: Dict) -> float:
+    """
+    Demand-side engagement signal from a merged topic seed.
+
+    Combines Reddit/HN/Bluesky upvotes/points and comment counts into one
+    scalar. Comments are weighted 3x because they're harder to produce than
+    a quick upvote — a 200-comment post reflects deeper engagement than a
+    200-upvote post. The raw value is stored on TrendingEvent; the final
+    log-scale weighting happens in HeatCalculator.calculate_event_heat so
+    the engagement term doesn't dominate the formula for viral outliers.
+    """
+    score = topic.get('total_score', topic.get('score', 0)) or 0
+    comments = topic.get('total_comments', topic.get('comments', 0)) or 0
+    return float(score) + float(comments) * 3.0
+
+
 def create_events_from_topics(
     db: Session,
     topics: List[Dict],
@@ -281,13 +297,11 @@ def create_events_from_topics(
         keywords = extract_keywords(combined_text, CLUSTER_TOP_KEYWORDS)
         category = classify_category(combined_text)
 
-        # Calculate initial heat from topic engagement
-        topic_heat = (
-            topic.get('total_score', topic.get('score', 0)) * 0.1 +
-            topic.get('total_comments', topic.get('comments', 0)) * 0.5 +
-            len(matched) * 10 +
-            len(all_sources) * 5
-        )
+        # Persist the demand-side signal on the event so the later heat
+        # recalculation step can read it. Initial heat_score is a rough
+        # placeholder — calculate_all_heat_scores will overwrite it using
+        # the full engagement-aware formula.
+        engagement = compute_topic_engagement(topic)
 
         event = TrendingEvent(
             title=topic['title'],
@@ -297,7 +311,8 @@ def create_events_from_topics(
             source_id=topic.get('source_id', 102),
             article_count=len(matched) + 1,  # +1 for the topic itself
             media_count=len(all_sources),
-            heat_score=topic_heat,
+            topic_engagement_score=engagement,
+            heat_score=0.0,  # placeholder; overwritten by heat recalc
             status='raw',
         )
         db.add(event)
@@ -416,7 +431,7 @@ def second_pass_matching(db: Session, events: List[TrendingEvent], threshold: fl
 def trim_to_top_n(
     db: Session,
     top_n: int = 40,
-    min_per_category: int = 2,
+    min_per_category: int = 3,
     inactive_days: int = 2,
 ) -> Dict:
     """Keep top N raw events with per-category minimum retention.
@@ -425,6 +440,11 @@ def trim_to_top_n(
     updated in `inactive_days` days. This protects actively-merged long-running
     stories that temporarily drop out of top_n but are still getting new
     articles.
+
+    Per-category floor ensures under-represented categories
+    (Entertainment, Sports, Gaming, Culture, Lifestyle, Science) always have
+    a minimum seat count in the raw pool so they aren't structurally crushed
+    by multi-outlet hard-news stories.
     """
     all_raw = (
         db.query(TrendingEvent)
@@ -467,15 +487,24 @@ def trim_to_top_n(
         )
     db.commit()
 
+    # Build full-pool category distribution for visibility into supply balance
+    pool_distribution: Dict[str, int] = {}
+    for e in all_raw:
+        if e.id in keep_ids:
+            k = e.category or 'Uncategorized'
+            pool_distribution[k] = pool_distribution.get(k, 0) + 1
+
     protected_active = len(all_raw) - len(keep_ids) - archived_count
     logger.info(
         f"Trim: kept {len(keep_ids)} ({len(category_counts)} cats), "
         f"archived {archived_count}, protected {protected_active} active-out-of-topN"
     )
+    logger.info(f"Trim category distribution: {pool_distribution}")
     return {
         "kept": len(keep_ids),
         "archived": archived_count,
         "protected_active": protected_active,
+        "category_distribution": pool_distribution,
     }
 
 
@@ -588,6 +617,13 @@ async def merge_topic_into_event(
     existing_timeline.append(entry)
     event.timeline_data = existing_timeline
     flag_modified(event, 'timeline_data')
+
+    # Accumulate the demand-side engagement signal from the new topic seed.
+    # This is what keeps continuation events competitive: a long-running
+    # story that gets fresh Reddit attention each pipeline run should rise,
+    # not fall, even if each individual batch has few new RSS articles.
+    new_engagement = compute_topic_engagement(topic)
+    event.topic_engagement_score = (event.topic_engagement_score or 0.0) + new_engagement
 
     # Refresh counts
     event.last_updated = datetime.utcnow()

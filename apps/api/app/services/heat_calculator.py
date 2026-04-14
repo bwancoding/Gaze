@@ -89,36 +89,75 @@ class HeatCalculator:
         return REGION_DIVERSITY_BONUS.get(n, 1.0)
 
     def calculate_event_heat(self, event: TrendingEvent, reference_time: Optional[datetime] = None) -> float:
-        # Base heat from linked articles
+        """
+        Engagement-aware event heat.
+
+        Prior to Phase A, base_score was dominated by `media_count * 10`,
+        which rewarded supply-side behavior (how many newsrooms covered a
+        story) rather than demand-side behavior (how many humans engaged
+        with it). That structurally crushed Entertainment/Gaming/Sports,
+        because hard news gets wholesale 8+ outlet coverage by default.
+
+        New formula:
+        - `sqrt` dampening on article_count / media_count so a 10-outlet
+          hard news story is ~3.2x bigger than a 1-outlet story, not 10x
+        - `log10(engagement+1) * 20` as a FIRST-CLASS term, reading the
+          persisted topic_engagement_score (Reddit upvotes + HN points +
+          Bluesky likes/reposts + comments, weighted in news_aggregator)
+        - Time decay anchored to last_updated so long-running stories
+          that keep getting merged don't decay
+        """
+        # Per-article interaction heat ONLY — we deliberately skip the
+        # "base 10 per article" term from calculate_article_heat, because
+        # that would re-introduce the supply-side bias we just removed
+        # (every RSS article would add +10 regardless of demand). What we
+        # keep is the interaction score (comment_count / share_count),
+        # which is non-zero for articles fetched via Reddit/HN fetchers
+        # that carry real engagement data, and zero for pure RSS feeds.
         total_article_heat = 0.0
         if event.articles:
-            total_article_heat = sum(
-                self.calculate_article_heat(article, reference_time)
-                for article in event.articles
-            )
+            for article in event.articles:
+                interaction = self.calculate_interaction_score(
+                    article.comment_count or 0,
+                    article.share_count or 0,
+                )
+                if interaction > 0:
+                    src_weight = self.get_source_weight(article.source_id)
+                    td = self.calculate_time_decay(article.published_at, reference_time)
+                    total_article_heat += td * interaction * src_weight
 
         # Time decay for the event itself — use last_updated so long-running
         # stories that keep getting merged with new articles don't decay.
-        # Fall back to created_at for events that have never been updated.
         reference_at = event.last_updated or event.created_at
         event_time_decay = self.calculate_time_decay(reference_at, reference_time)
 
-        # Base score from article/media counts (even if no articles are linked)
-        # This ensures topic-seeded events with engagement data still get scores
         article_count = max(event.article_count or 0, len(event.articles) if event.articles else 0)
         media_count = max(
             event.media_count or 0,
             event.unique_media_count if event.articles else 0
         )
 
-        # Base engagement score: articles + media diversity
-        base_score = (
-            article_count * 5.0 +   # each article adds 5 points
-            media_count * 10.0       # each unique source adds 10 points
-        ) * event_time_decay
+        # Supply-side: dampened with sqrt so a 10-outlet story is ~3.2x the
+        # base of a 1-outlet story (not 10x). This prevents wholesale
+        # coverage from structurally dominating demand signals.
+        supply_score = (
+            math.sqrt(article_count) * 5.0
+            + math.sqrt(media_count) * 8.0
+        )
 
-        # Article heat contribution (when articles are linked)
-        media_diversity_bonus = min(1.0 + (media_count - 1) * 0.1, 2.0)
+        # Demand-side: persisted topic engagement (Reddit upvotes + HN
+        # points + Bluesky likes + comments, from topic seeds at event
+        # creation and every merge). Log-scale so a 50k-upvote post is
+        # ~1.5x the contribution of a 2k-upvote post, not 25x — we want
+        # the signal to matter without letting outliers dominate.
+        engagement = event.topic_engagement_score or 0.0
+        engagement_score = math.log10(engagement + 1) * 20.0
+
+        base_score = (supply_score + engagement_score) * event_time_decay
+
+        # Diversity bonuses (kept — these reward multi-perspective
+        # coverage, which is still a product goal independent of raw heat)
+        media_diversity_bonus = min(1.0 + (media_count - 1) * 0.08, 1.6)
 
         stances = set()
         if event.articles:
@@ -127,13 +166,9 @@ class HeatCalculator:
                     stances.add(article.source.stance)
         stance_bonus = self.STANCE_DIVERSITY_BONUS.get(len(stances), 1.0)
 
-        # Cap article count influence
-        article_count_bonus = min(
-            math.log10(article_count + 1) * 0.5,
-            ARTICLE_COUNT_BONUS_CAP
-        )
-
-        # Category weight
+        # Category weight — Phase A reverted to 1.0 across the board.
+        # The engagement term above is now doing the work that 1.4x
+        # multipliers were trying to do, but in a data-driven way.
         category_weight = self.get_category_weight(event.category)
 
         # Region diversity
@@ -143,7 +178,6 @@ class HeatCalculator:
             (base_score + total_article_heat)
             * media_diversity_bonus
             * stance_bonus
-            * (1 + article_count_bonus)
             * category_weight
             * region_bonus
         )

@@ -48,6 +48,11 @@ def _auto_migrate():
                         "ALTER TABLE trending_events ADD COLUMN timeline_data TEXT DEFAULT '[]'"
                     ))
                     logger.info("Auto-migrate: added trending_events.timeline_data (sqlite)")
+                if "topic_engagement_score" not in col_names:
+                    conn.execute(text(
+                        "ALTER TABLE trending_events ADD COLUMN topic_engagement_score FLOAT DEFAULT 0.0"
+                    ))
+                    logger.info("Auto-migrate: added trending_events.topic_engagement_score (sqlite)")
 
                 ea_cols = conn.execute(text("PRAGMA table_info(event_analyses)")).fetchall()
                 ea_col_names = {row[1] for row in ea_cols}
@@ -67,6 +72,11 @@ def _auto_migrate():
                     "ALTER TABLE trending_events ADD COLUMN IF NOT EXISTS timeline_data JSONB DEFAULT '[]'::jsonb"
                 ))
                 logger.info("Auto-migrate: ensured trending_events.timeline_data (postgres)")
+
+                conn.execute(text(
+                    "ALTER TABLE trending_events ADD COLUMN IF NOT EXISTS topic_engagement_score DOUBLE PRECISION DEFAULT 0.0"
+                ))
+                logger.info("Auto-migrate: ensured trending_events.topic_engagement_score (postgres)")
 
                 conn.execute(text("ALTER TABLE event_analyses ADD COLUMN IF NOT EXISTS status VARCHAR(20)"))
                 conn.execute(text("ALTER TABLE event_analyses ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP"))
