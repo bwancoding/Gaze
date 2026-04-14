@@ -9,23 +9,29 @@ HEAT_TIME_DECAY_LAMBDA: float = float(os.getenv("HEAT_TIME_DECAY_LAMBDA", "0.1")
 HEAT_COMMENT_WEIGHT: float = float(os.getenv("HEAT_COMMENT_WEIGHT", "5.0"))
 HEAT_SHARE_WEIGHT: float = float(os.getenv("HEAT_SHARE_WEIGHT", "3.0"))
 
-# Category weights: Phase A gives under-represented categories a lift so
-# entertainment/sports/gaming/science events aren't structurally crushed by
-# hard-news stories (which get reported by 8+ outlets and dominate heat).
+# Category weights: all 1.0. The earlier Phase A experiment tried lifting
+# entertainment/sports/gaming with 1.4x multipliers, but that was a
+# band-aid on the real problem — the heat formula was supply-side only
+# (media_count * 10) and ignored the demand-side Reddit/HN engagement
+# signals that topic seeds already carry. Phase B fixed that root cause
+# by persisting topic_engagement_score on TrendingEvent and reading it as
+# a first-class term in HeatCalculator.calculate_event_heat, so the
+# category multipliers are no longer needed. Keeping the dict for future
+# per-category overrides if data shows they're warranted.
 CATEGORY_WEIGHTS: Dict[str, float] = {
     "Geopolitics": 1.0,
     "Politics": 1.0,
     "Environment": 1.0,
     "Economy": 1.0,
     "Health": 1.0,
-    "Science": 1.3,
-    "Technology": 1.1,
+    "Science": 1.0,
+    "Technology": 1.0,
     "Society": 1.0,
-    "Culture": 1.3,
-    "Entertainment": 1.4,
-    "Sports": 1.4,
-    "Gaming": 1.4,
-    "Lifestyle": 1.3,
+    "Culture": 1.0,
+    "Entertainment": 1.0,
+    "Sports": 1.0,
+    "Gaming": 1.0,
+    "Lifestyle": 1.0,
 }
 CATEGORY_DEFAULT_WEIGHT: float = 1.0
 

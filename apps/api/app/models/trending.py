@@ -58,6 +58,13 @@ class TrendingEvent(Base):
     status = Column(String(20), default='raw')  # raw, promoted, rejected, archived
     article_count = Column(Integer, default=0)
     media_count = Column(Integer, default=0)
+    # Demand-side engagement: accumulated Reddit upvotes + HN points + Bluesky
+    # likes/reposts + comment counts from all topic seeds that fed into this
+    # event (initial creation + subsequent merges via find_matching_event).
+    # This is the "users are talking about it" signal that heat_calculator
+    # uses as a first-class term alongside media_count. RSS-only events stay
+    # at 0 and fall back to the supply-side formula.
+    topic_engagement_score = Column(Float, default=0.0)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     last_updated = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     # Chronological list of "stage development" entries. Each entry is built
@@ -89,6 +96,7 @@ class TrendingEvent(Base):
             "status": self.status,
             "article_count": self.article_count,
             "media_count": self.media_count,
+            "topic_engagement_score": self.topic_engagement_score or 0.0,
             "sources": list(set(
                 a.source.name for a in self.articles if a.source
             )) if self.articles else [],

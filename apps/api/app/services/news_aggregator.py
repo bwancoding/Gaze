@@ -251,6 +251,22 @@ def match_articles_to_topics(
     return matches
 
 
+def compute_topic_engagement(topic: Dict) -> float:
+    """
+    Demand-side engagement signal from a merged topic seed.
+
+    Combines Reddit/HN/Bluesky upvotes/points and comment counts into one
+    scalar. Comments are weighted 3x because they're harder to produce than
+    a quick upvote — a 200-comment post reflects deeper engagement than a
+    200-upvote post. The raw value is stored on TrendingEvent; the final
+    log-scale weighting happens in HeatCalculator.calculate_event_heat so
+    the engagement term doesn't dominate the formula for viral outliers.
+    """
+    score = topic.get('total_score', topic.get('score', 0)) or 0
+    comments = topic.get('total_comments', topic.get('comments', 0)) or 0
+    return float(score) + float(comments) * 3.0
+
+
 def create_events_from_topics(
     db: Session,
     topics: List[Dict],
@@ -281,13 +297,11 @@ def create_events_from_topics(
         keywords = extract_keywords(combined_text, CLUSTER_TOP_KEYWORDS)
         category = classify_category(combined_text)
 
-        # Calculate initial heat from topic engagement
-        topic_heat = (
-            topic.get('total_score', topic.get('score', 0)) * 0.1 +
-            topic.get('total_comments', topic.get('comments', 0)) * 0.5 +
-            len(matched) * 10 +
-            len(all_sources) * 5
-        )
+        # Persist the demand-side signal on the event so the later heat
+        # recalculation step can read it. Initial heat_score is a rough
+        # placeholder — calculate_all_heat_scores will overwrite it using
+        # the full engagement-aware formula.
+        engagement = compute_topic_engagement(topic)
 
         event = TrendingEvent(
             title=topic['title'],
@@ -297,7 +311,8 @@ def create_events_from_topics(
             source_id=topic.get('source_id', 102),
             article_count=len(matched) + 1,  # +1 for the topic itself
             media_count=len(all_sources),
-            heat_score=topic_heat,
+            topic_engagement_score=engagement,
+            heat_score=0.0,  # placeholder; overwritten by heat recalc
             status='raw',
         )
         db.add(event)
@@ -602,6 +617,13 @@ async def merge_topic_into_event(
     existing_timeline.append(entry)
     event.timeline_data = existing_timeline
     flag_modified(event, 'timeline_data')
+
+    # Accumulate the demand-side engagement signal from the new topic seed.
+    # This is what keeps continuation events competitive: a long-running
+    # story that gets fresh Reddit attention each pipeline run should rise,
+    # not fall, even if each individual batch has few new RSS articles.
+    new_engagement = compute_topic_engagement(topic)
+    event.topic_engagement_score = (event.topic_engagement_score or 0.0) + new_engagement
 
     # Refresh counts
     event.last_updated = datetime.utcnow()
