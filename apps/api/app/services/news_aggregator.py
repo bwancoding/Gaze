@@ -557,16 +557,44 @@ def find_matching_event(
         shared = topic_entities & event_entities
         word_sim = title_similarity(topic_text, event_text)
 
-        # Require at least one shared curated entity. The prior "text-only"
-        # tier (word_sim >= 0.35 with no shared entities) caused false
-        # merges — e.g. "Megyn Kelly: Trump could drop a nuke" was merged
-        # into a stale "Deploytarot.com tarot card reading" event via
-        # coincidental token overlap.
+        # For the entity-poor fallback we need TITLE-only entity sets
+        # (not the aggregated event corpus, which picks up Google News
+        # article entities and is rarely empty). A topic with title
+        # "GitHub Stacked PRs" has no curated entities; an existing
+        # event for the same story has articles like "GitHub rolls out
+        # stacked PR review, CEO says..." which leaks entities into
+        # the aggregated set. Compare title-only to avoid that skew.
+        topic_title_entities = fetcher._extract_entities(topic.get('title', '') or '')
+        event_title_entities = fetcher._extract_entities(event.title or '')
+        title_only_sim = title_similarity(
+            topic.get('title', '') or '',
+            event.title or '',
+        )
+
+        # Matching tiers (in order of confidence):
+        #   strong  — ≥2 shared curated entities
+        #   moderate — 1 shared entity + real word overlap
+        #   entity-poor — BOTH titles have 0 curated entities but the
+        #                 titles are near-identical. Catches tech/HN
+        #                 stories like "GitHub Stacked PRs", "Backblaze
+        #                 has stopped backing up your data", "DaVinci
+        #                 Resolve – Photo" where the curated entity list
+        #                 has no relevant terms but the SAME story shows
+        #                 up run after run. Requires title_only_sim ≥ 0.7
+        #                 (70%+ of stopword-stripped tokens coincide) to
+        #                 avoid false positives like the old 0.35 text-only
+        #                 tier.
         match_score = 0.0
         if len(shared) >= 2:
             match_score = 1.0 + len(shared) * 0.1 + word_sim  # strong
         elif len(shared) >= 1 and word_sim >= 0.25:
             match_score = 0.6 + word_sim  # moderate: shared entity + real overlap
+        elif (
+            len(topic_title_entities) == 0
+            and len(event_title_entities) == 0
+            and title_only_sim >= 0.7
+        ):
+            match_score = 0.3 + title_only_sim  # entity-poor, nearly identical titles
         else:
             continue
 
@@ -1131,6 +1159,106 @@ def run_full_pipeline(db: Session, top_n: int = 40) -> Dict:
 
     logger.info(f"Pipeline complete: {result}")
     return result
+
+
+def dedupe_existing_events(db: Session) -> Dict:
+    """Retroactively merge active events whose titles collide.
+
+    Pre-fix, `find_matching_event` silently refused to merge entity-poor
+    stories (GitHub Stacked PRs, Backblaze, DaVinci Resolve, etc.) because
+    `_extract_entities` returned empty sets for those titles. Every ~4h
+    pipeline run created a fresh event instead of merging, so the same
+    story accumulated 3-6 duplicate rows. This function groups active
+    events by a normalized title key, keeps the winner (highest heat,
+    then most engagement, then most articles), re-parents all articles
+    from losers onto the winner, sums engagement, and archives losers.
+    """
+    fetcher = TrendingTopicsFetcher()
+
+    def title_key(title: str) -> str:
+        # Normalize: lowercase, strip punctuation, drop stopwords, sort
+        # remaining tokens. Near-identical titles (curly vs straight quotes,
+        # trailing ellipsis) collapse to the same key.
+        words = fetcher._clean_words(title or '')
+        return ' '.join(sorted(words))
+
+    active = db.query(TrendingEvent).filter(
+        TrendingEvent.status.in_(['raw', 'promoted'])
+    ).all()
+
+    groups: Dict[str, List[TrendingEvent]] = {}
+    for e in active:
+        k = title_key(e.title)
+        if not k:
+            continue
+        groups.setdefault(k, []).append(e)
+
+    merged_groups = 0
+    archived_losers = 0
+    reparented_articles = 0
+    for key, group in groups.items():
+        if len(group) < 2:
+            continue
+        # Winner: highest heat, tiebreak on engagement, then article count
+        group.sort(
+            key=lambda e: (
+                e.heat_score or 0.0,
+                e.topic_engagement_score or 0.0,
+                e.article_count or 0,
+            ),
+            reverse=True,
+        )
+        winner = group[0]
+        losers = group[1:]
+
+        for loser in losers:
+            # Re-parent articles
+            updated = (
+                db.query(TrendingArticle)
+                .filter(TrendingArticle.event_id == loser.id)
+                .update({"event_id": winner.id}, synchronize_session=False)
+            )
+            reparented_articles += updated
+
+            # Sum engagement onto winner
+            winner.topic_engagement_score = (
+                (winner.topic_engagement_score or 0.0)
+                + (loser.topic_engagement_score or 0.0)
+            )
+
+            # Merge timeline entries (winner first, then loser chronologically)
+            winner_tl = winner.timeline_data or []
+            loser_tl = loser.timeline_data or []
+            winner.timeline_data = winner_tl + loser_tl
+            flag_modified(winner, 'timeline_data')
+
+            loser.status = 'archived'
+            archived_losers += 1
+
+        # Refresh counts on winner
+        db.flush()
+        winner_articles = db.query(TrendingArticle).filter(
+            TrendingArticle.event_id == winner.id
+        ).all()
+        winner.article_count = len(winner_articles)
+        winner.media_count = len(set(a.source_id for a in winner_articles if a.source_id))
+        winner.last_updated = datetime.utcnow()
+        merged_groups += 1
+        logger.info(
+            f"Deduped '{(winner.title or '')[:50]}': "
+            f"kept event {winner.id}, archived {[l.id for l in losers]}"
+        )
+
+    db.commit()
+    logger.info(
+        f"Dedupe: merged {merged_groups} groups, archived {archived_losers} "
+        f"losers, re-parented {reparented_articles} articles"
+    )
+    return {
+        "merged_groups": merged_groups,
+        "archived_losers": archived_losers,
+        "reparented_articles": reparented_articles,
+    }
 
 
 def reclassify_events(db: Session) -> Dict:
