@@ -67,6 +67,102 @@ def job_clustering():
         db.close()
 
 
+def job_auto_promote_trending():
+    """Scheduled task: auto-promote top raw trending events to candidates (every 1h).
+
+    Bridges the gap between pipeline output (trending events in 'raw' state)
+    and the editorial Events table. Before this, promotion was 100% manual via
+    the admin dashboard — which meant if nobody clicked Candidates → Batch
+    Promote, new stories never entered the publish funnel.
+
+    Conservative behavior:
+      - Pick at most MAX_PROMOTE_PER_RUN raw trending events per tick (by heat)
+      - Skip events below MIN_HEAT_TO_PROMOTE (avoid tail noise)
+      - No-op if the candidate queue is already >= CANDIDATE_QUEUE_CAP
+        (prevents runaway queue when editor is away)
+      - Uses find_matching_event's already-done work — trending_origin_id
+        is set so we never duplicate-promote the same story
+      - Does NOT trigger AI analysis here; the admin's `publish` step will
+        regenerate it on demand via background_tasks
+
+    Admin still owns the final publish decision — this only fills the queue.
+    """
+    from app.models import Event
+    from app.models.trending import TrendingEvent
+
+    MAX_PROMOTE_PER_RUN = 8
+    MIN_HEAT_TO_PROMOTE = 200.0
+    CANDIDATE_QUEUE_CAP = 15
+
+    db = _get_db()
+    try:
+        pending = db.query(Event).filter(Event.status == 'candidate').count()
+        if pending >= CANDIDATE_QUEUE_CAP:
+            logger.info(
+                f"Auto-promote: skipping — candidate queue already has {pending} "
+                f"pending (cap {CANDIDATE_QUEUE_CAP})"
+            )
+            return
+
+        slots = CANDIDATE_QUEUE_CAP - pending
+        budget = min(slots, MAX_PROMOTE_PER_RUN)
+
+        candidates = (
+            db.query(TrendingEvent)
+            .filter(TrendingEvent.status == 'raw')
+            .filter(TrendingEvent.heat_score >= MIN_HEAT_TO_PROMOTE)
+            .order_by(TrendingEvent.heat_score.desc())
+            .limit(budget)
+            .all()
+        )
+
+        if not candidates:
+            logger.info(
+                f"Auto-promote: no eligible raw trending events "
+                f"(min heat {MIN_HEAT_TO_PROMOTE}, queue slots {slots})"
+            )
+            return
+
+        promoted = []
+        for trending in candidates:
+            # Double-check we haven't already promoted this trending id
+            # (edge case: two scheduler ticks overlap)
+            already = db.query(Event).filter(
+                Event.trending_origin_id == trending.id
+            ).first()
+            if already:
+                trending.status = 'promoted'
+                continue
+
+            event = Event(
+                title=trending.title,
+                summary=trending.summary,
+                category=trending.category,
+                status='candidate',
+                source_count=trending.article_count,
+                hot_score=trending.heat_score or 0,
+                trending_origin_id=trending.id,
+                tags=trending.keywords if isinstance(trending.keywords, list) else None,
+            )
+            db.add(event)
+            trending.status = 'promoted'
+            promoted.append((trending.id, (trending.title or '')[:60]))
+
+        db.commit()
+
+        if promoted:
+            logger.info(
+                f"Auto-promote: promoted {len(promoted)} trending → candidates"
+            )
+            for tid, title in promoted:
+                logger.info(f"  - trending={tid}  {title}")
+    except Exception as e:
+        logger.error(f"Scheduled: auto-promote error - {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def job_auto_archive():
     """Scheduled task: Auto-archive stale/expired active events (every 1 hour)"""
     from app.services.event_lifecycle import auto_archive_events
@@ -202,6 +298,18 @@ def init_scheduler():
         replace_existing=True,
     )
 
+    # Every 1 hour: auto-promote top raw trending → Event(candidate)
+    # Bridges pipeline output and the editorial publish queue when the
+    # editor isn't manually reviewing. Conservative (top 8, heat >= 200,
+    # queue cap 15) — see job_auto_promote_trending.
+    scheduler.add_job(
+        job_auto_promote_trending,
+        trigger=IntervalTrigger(hours=1),
+        id="auto_promote_trending",
+        name="Auto-promote top raw trending to candidates",
+        replace_existing=True,
+    )
+
     # Every 1 hour: auto-archive stale/expired active events
     scheduler.add_job(
         job_auto_archive,
@@ -230,7 +338,10 @@ def init_scheduler():
     )
 
     scheduler.start()
-    logger.info("Scheduler started with 6 jobs: fetch(4h), heat(1h), cluster(6h), auto-archive(1h), log-cleanup(24h), analysis-backfill(20m)")
+    logger.info(
+        "Scheduler started with 7 jobs: fetch(4h), heat(1h), cluster(6h), "
+        "auto-promote(1h), auto-archive(1h), log-cleanup(24h), analysis-backfill(20m)"
+    )
 
 
 def shutdown_scheduler():
