@@ -78,6 +78,21 @@ def _auto_migrate():
                 ))
                 logger.info("Auto-migrate: ensured trending_events.topic_engagement_score (postgres)")
 
+                # Widen trending_articles.url from varchar(1000) -> TEXT.
+                # Some news feeds ship URLs with huge tracking query strings;
+                # the varchar(1000) cap was causing StringDataRightTruncation
+                # errors during pipeline ingest. TEXT is effectively unbounded
+                # and still supports the UNIQUE constraint.
+                url_type = conn.execute(text(
+                    "SELECT data_type FROM information_schema.columns "
+                    "WHERE table_name = 'trending_articles' AND column_name = 'url'"
+                )).scalar()
+                if url_type and url_type.lower() != 'text':
+                    conn.execute(text(
+                        "ALTER TABLE trending_articles ALTER COLUMN url TYPE TEXT"
+                    ))
+                    logger.info("Auto-migrate: widened trending_articles.url to TEXT (postgres)")
+
                 conn.execute(text("ALTER TABLE event_analyses ADD COLUMN IF NOT EXISTS status VARCHAR(20)"))
                 conn.execute(text("ALTER TABLE event_analyses ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMP"))
                 conn.execute(text("ALTER TABLE event_analyses ADD COLUMN IF NOT EXISTS attempt_count INTEGER DEFAULT 0"))
