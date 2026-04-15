@@ -730,6 +730,52 @@ async def admin_dedupe_events(
         raise HTTPException(status_code=500, detail=f"Dedupe failed: {str(e)}")
 
 
+@router.post("/pipeline/cleanup-timeline")
+async def admin_cleanup_timeline(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """One-shot: strip junk timeline entries left behind by pre-fix pipeline runs.
+
+    Before the merge_topic_into_event fix, the pipeline re-summarized the full
+    topic cluster every run even when zero new articles had been linked. That
+    produced two classes of garbage entries:
+      - article_count == 0 (summarize_batch called with empty article list)
+      - immediate near-duplicate re-summaries (same batch re-ran through LLM)
+
+    This endpoint deletes article_count==0 entries in place. Near-duplicate
+    trimming is intentionally skipped (too risky to machine-compare Chinese
+    summaries; the user can manually delete obvious dupes from the detail
+    page later if needed). Safe to re-run — idempotent.
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+
+    events = db.query(TrendingEvent).filter(
+        TrendingEvent.timeline_data.isnot(None)
+    ).all()
+
+    events_touched = 0
+    entries_removed = 0
+    for ev in events:
+        tl = ev.timeline_data or []
+        if not tl:
+            continue
+        cleaned = [e for e in tl if (e.get("article_count") or 0) > 0]
+        removed = len(tl) - len(cleaned)
+        if removed > 0:
+            ev.timeline_data = cleaned
+            flag_modified(ev, "timeline_data")
+            events_touched += 1
+            entries_removed += removed
+    db.commit()
+
+    return {
+        "status": "success",
+        "events_touched": events_touched,
+        "entries_removed": entries_removed,
+    }
+
+
 @router.post("/backfill-categories")
 async def admin_backfill_categories(
     db: Session = Depends(get_db),
