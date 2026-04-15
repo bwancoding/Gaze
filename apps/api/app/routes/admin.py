@@ -825,6 +825,113 @@ async def admin_trigger_auto_promote(
         raise HTTPException(status_code=500, detail=f"Auto-promote failed: {e}")
 
 
+@router.post("/pipeline/expire-candidates")
+async def admin_expire_candidates(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Manually trigger the candidate-expiry job.
+
+    Archives candidates older than CANDIDATE_MAX_AGE_HOURS (default 6h) that
+    never cleared the active heat floor. Pairs with auto-promote's dynamic
+    floor to keep the queue flowing instead of accumulating zombies.
+    """
+    from app.services.scheduler import job_expire_stale_candidates
+    try:
+        job_expire_stale_candidates()
+        pending = db.query(Event).filter(Event.status == 'candidate').count()
+        return {"status": "success", "candidate_queue": pending}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Expire failed: {e}")
+
+
+@router.get("/stats/analysis-health")
+async def admin_analysis_health(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Diagnostic: analysis coverage across all active events.
+
+    Reports counts by analysis status (done / pending / failed / missing)
+    plus any events with analyses that are expired or failed too many times.
+    Used to verify the publish-analysis gate is working and to find events
+    that got stuck in the background-task race window.
+    """
+    from app.models.event_analysis import EventAnalysis
+
+    active_events = db.query(Event).filter(Event.status == 'active').all()
+    total = len(active_events)
+
+    done = 0
+    pending = 0
+    failed = 0
+    missing = 0
+    expired = 0
+    stuck_pending = []  # pending attempts >= 3
+    failed_items = []   # recent failures
+
+    now = datetime.utcnow()
+
+    for ev in active_events:
+        analysis = db.query(EventAnalysis).filter(
+            EventAnalysis.event_id == ev.id
+        ).first()
+        if not analysis:
+            missing += 1
+            continue
+
+        status = analysis.status
+        # Backward compat: pre-migration rows with status=NULL and body → done
+        if status is None:
+            if analysis.background:
+                status = 'done'
+            else:
+                status = 'pending'
+
+        if status == 'done':
+            if analysis.expires_at and now > analysis.expires_at:
+                expired += 1
+            else:
+                done += 1
+        elif status == 'pending':
+            pending += 1
+            if (analysis.attempt_count or 0) >= 3:
+                stuck_pending.append({
+                    "event_id": str(ev.id),
+                    "title": (ev.title or "")[:60],
+                    "attempts": analysis.attempt_count,
+                    "last_attempt_at": (
+                        analysis.last_attempt_at.isoformat()
+                        if analysis.last_attempt_at else None
+                    ),
+                })
+        elif status == 'failed':
+            failed += 1
+            if len(failed_items) < 10:
+                failed_items.append({
+                    "event_id": str(ev.id),
+                    "title": (ev.title or "")[:60],
+                    "attempts": analysis.attempt_count,
+                    "error": (analysis.error_message or "")[:200],
+                })
+
+    healthy_pct = round(100 * done / total, 1) if total else 0.0
+
+    return {
+        "total_active": total,
+        "coverage": {
+            "done": done,
+            "pending": pending,
+            "failed": failed,
+            "missing": missing,
+            "expired": expired,
+        },
+        "healthy_pct": healthy_pct,
+        "stuck_pending": stuck_pending,
+        "failed_items": failed_items,
+    }
+
+
 @router.post("/pipeline/dedupe-timeline")
 async def admin_dedupe_timeline(
     dry_run: bool = Query(True),

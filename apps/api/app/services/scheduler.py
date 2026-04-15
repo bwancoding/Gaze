@@ -90,12 +90,15 @@ def job_auto_promote_trending():
     Admin still owns the final publish decision — this only fills the queue.
     """
     import asyncio
+    from sqlalchemy import func
     from app.models import Event
     from app.models.trending import TrendingEvent
     from app.services.event_analysis_service import generate_event_analysis
+    from app.services.event_lifecycle import MAX_ACTIVE_EVENTS
 
     MAX_PROMOTE_PER_RUN = 8
-    MIN_HEAT_TO_PROMOTE = 200.0
+    MIN_HEAT_FLOOR = 200.0  # absolute floor regardless of active state
+    HEAT_MARGIN = 0.9  # require candidate heat >= 90% of active floor (soft)
     CANDIDATE_QUEUE_CAP = 15
 
     db = _get_db()
@@ -111,10 +114,28 @@ def job_auto_promote_trending():
         slots = CANDIDATE_QUEUE_CAP - pending
         budget = min(slots, MAX_PROMOTE_PER_RUN)
 
+        # Dynamic floor: only promote events whose heat has a realistic
+        # chance of clearing the active floor. Otherwise they'd be
+        # auto-archived on publish and clog the queue as zombies.
+        #
+        # If active table isn't full yet (< MAX_ACTIVE_EVENTS), use the
+        # absolute floor so we're not blocked when the site is warming up.
+        # If full, require candidate heat >= HEAT_MARGIN × min(active.heat).
+        active_count = db.query(Event).filter(Event.status == 'active').count()
+        if active_count < MAX_ACTIVE_EVENTS:
+            effective_floor = MIN_HEAT_FLOOR
+        else:
+            active_min = (
+                db.query(func.min(Event.hot_score))
+                .filter(Event.status == 'active')
+                .scalar()
+            ) or 0.0
+            effective_floor = max(MIN_HEAT_FLOOR, active_min * HEAT_MARGIN)
+
         candidates = (
             db.query(TrendingEvent)
             .filter(TrendingEvent.status == 'raw')
-            .filter(TrendingEvent.heat_score >= MIN_HEAT_TO_PROMOTE)
+            .filter(TrendingEvent.heat_score >= effective_floor)
             .order_by(TrendingEvent.heat_score.desc())
             .limit(budget)
             .all()
@@ -123,7 +144,8 @@ def job_auto_promote_trending():
         if not candidates:
             logger.info(
                 f"Auto-promote: no eligible raw trending events "
-                f"(min heat {MIN_HEAT_TO_PROMOTE}, queue slots {slots})"
+                f"(effective floor {effective_floor:.0f}, "
+                f"active_count={active_count}, queue slots {slots})"
             )
             return
 
@@ -214,6 +236,60 @@ def job_auto_archive():
         logger.info(f"Scheduled: auto-archive complete - {result}")
     except Exception as e:
         logger.error(f"Scheduled: auto-archive error - {e}")
+    finally:
+        db.close()
+
+
+def job_expire_stale_candidates():
+    """Scheduled task: archive candidates that sat in the queue too long.
+
+    The auto-promote job fills the candidate queue, but if the active table
+    is hot enough that nothing new can clear the floor, candidates just
+    accumulate and eventually age out. Without this job they'd stay in the
+    queue forever, and the next auto-promote run would skip (queue at cap)
+    so no fresh trending ever gets a chance to surface.
+
+    Policy:
+      - candidate older than CANDIDATE_MAX_AGE_HOURS → archive (no LLM waste)
+      - runs hourly, same cadence as auto-promote so the queue breathes
+    """
+    from datetime import datetime, timedelta
+    from app.models import Event
+
+    CANDIDATE_MAX_AGE_HOURS = 6
+
+    db = _get_db()
+    try:
+        cutoff = datetime.utcnow() - timedelta(hours=CANDIDATE_MAX_AGE_HOURS)
+        stale = (
+            db.query(Event)
+            .filter(Event.status == 'candidate')
+            .filter(Event.created_at < cutoff)
+            .all()
+        )
+        if not stale:
+            logger.info("Candidate expiry: no stale candidates")
+            return
+
+        now = datetime.utcnow()
+        for ev in stale:
+            ev.status = 'archived'
+            ev.archived_at = now
+        db.commit()
+
+        logger.info(
+            f"Candidate expiry: archived {len(stale)} candidates older than "
+            f"{CANDIDATE_MAX_AGE_HOURS}h"
+        )
+        for ev in stale[:5]:
+            age_hours = (now - ev.created_at).total_seconds() / 3600
+            logger.info(
+                f"  - event={ev.id} hot={ev.hot_score or 0:.0f} "
+                f"age={age_hours:.1f}h  {(ev.title or '')[:50]}"
+            )
+    except Exception as e:
+        logger.error(f"Scheduled: candidate expiry error - {e}")
+        db.rollback()
     finally:
         db.close()
 
@@ -360,6 +436,18 @@ def init_scheduler():
         replace_existing=True,
     )
 
+    # Every 1 hour: expire candidates that never cleared the active floor.
+    # Prevents the queue from calcifying when active events stay hot and
+    # nothing new can push through. Pairs with auto-promote's dynamic floor
+    # check so zombies don't get re-created immediately.
+    scheduler.add_job(
+        job_expire_stale_candidates,
+        trigger=IntervalTrigger(hours=1),
+        id="expire_stale_candidates",
+        name="Expire stale candidates",
+        replace_existing=True,
+    )
+
     # Every 24 hours: clean up old logs (request_logs >90d, error_logs >180d)
     scheduler.add_job(
         job_cleanup_logs,
@@ -380,8 +468,9 @@ def init_scheduler():
 
     scheduler.start()
     logger.info(
-        "Scheduler started with 7 jobs: fetch(4h), heat(1h), cluster(6h), "
-        "auto-promote(1h), auto-archive(1h), log-cleanup(24h), analysis-backfill(20m)"
+        "Scheduler started with 8 jobs: fetch(4h), heat(1h), cluster(6h), "
+        "auto-promote(1h), auto-archive(1h), candidate-expiry(1h), "
+        "log-cleanup(24h), analysis-backfill(20m)"
     )
 
 
