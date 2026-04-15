@@ -730,6 +730,29 @@ async def admin_dedupe_events(
         raise HTTPException(status_code=500, detail=f"Dedupe failed: {str(e)}")
 
 
+@router.post("/pipeline/auto-promote")
+async def admin_trigger_auto_promote(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Manually trigger the hourly auto-promote job.
+
+    Useful after enabling the auto-promote scheduler for the first time,
+    or if you want to immediately fill the candidate queue without waiting
+    for the next tick. Idempotent — subject to the same caps as the
+    scheduled job (top 8, heat >= 200, queue cap 15).
+    """
+    from app.services.scheduler import job_auto_promote_trending
+    # The scheduler job uses its own session; we call it directly.
+    # Return a simple ack — the job logs the promoted items.
+    try:
+        job_auto_promote_trending()
+        pending = db.query(Event).filter(Event.status == 'candidate').count()
+        return {"status": "success", "candidate_queue": pending}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Auto-promote failed: {e}")
+
+
 @router.post("/pipeline/dedupe-timeline")
 async def admin_dedupe_timeline(
     dry_run: bool = Query(True),
