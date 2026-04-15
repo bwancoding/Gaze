@@ -614,47 +614,72 @@ async def merge_topic_into_event(
     """
     Merge a new topic cluster + its articles into an existing event.
 
-    - Links new articles to event.id
-    - Appends one LLM-summarized timeline entry covering the new batch
-    - Refreshes last_updated, article_count, media_count
-    - Revives archived events back to 'raw' (should be rare given recency filter)
+    - Links ACTUALLY new articles to event.id (skipping ones already attached)
+    - Appends one LLM-summarized timeline entry covering the new batch —
+      only if there actually are new articles. If the topic brought nothing
+      new (every article was already on this event from a prior run), we
+      skip the LLM call and do not append a duplicate timeline entry.
+    - Always accumulates demand-side engagement from the topic seed, since
+      fresh Reddit/HN attention is valid signal even without new articles.
+    - Refreshes last_updated only when new articles or fresh engagement
+      show up (otherwise the event's clock freezes, matching reality).
+    - Revives archived events back to 'raw' (rare given recency filter).
     """
-    # Link articles
-    for article in new_articles:
-        if article.event_id != event.id:
-            article.event_id = event.id
-            article.is_processed = True
+    # Split incoming articles into "genuinely new to this event" vs
+    # "already linked from a prior pipeline run". The timeline summary
+    # and article_count should only reflect the genuinely new batch —
+    # otherwise every run re-summarizes the same 30 Google News articles
+    # and the timeline fills with near-duplicate entries.
+    net_new = [a for a in new_articles if a.event_id != event.id]
+
+    for article in net_new:
+        article.event_id = event.id
+        article.is_processed = True
 
     # Revive if somehow archived
     if event.status == 'archived':
         event.status = 'raw'
 
-    # Build new timeline entry (await LLM)
-    try:
-        entry = await summarize_batch(
-            event.title or topic.get('title', ''),
-            new_articles,
-            is_initial=False,
-        )
-    except Exception as e:
-        logger.warning(f"merge_topic_into_event: summarize failed for event {event.id}: {e}")
-        from app.services.timeline_summarizer import _fallback_entry
-        entry = _fallback_entry(event.title or '', new_articles)
-
-    existing_timeline = list(event.timeline_data or [])
-    existing_timeline.append(entry)
-    event.timeline_data = existing_timeline
-    flag_modified(event, 'timeline_data')
-
     # Accumulate the demand-side engagement signal from the new topic seed.
-    # This is what keeps continuation events competitive: a long-running
-    # story that gets fresh Reddit attention each pipeline run should rise,
-    # not fall, even if each individual batch has few new RSS articles.
+    # This happens even when net_new is empty: a long-running story that
+    # gets fresh Reddit attention each pipeline run should rise in heat,
+    # not fall, even if no new RSS articles arrived.
     new_engagement = compute_topic_engagement(topic)
+    had_fresh_engagement = new_engagement > 0
     event.topic_engagement_score = (event.topic_engagement_score or 0.0) + new_engagement
 
-    # Refresh counts
-    event.last_updated = datetime.utcnow()
+    if net_new:
+        # Real new batch — summarize and append a timeline entry.
+        try:
+            entry = await summarize_batch(
+                event.title or topic.get('title', ''),
+                net_new,
+                is_initial=False,
+            )
+        except Exception as e:
+            logger.warning(
+                f"merge_topic_into_event: summarize failed for event {event.id}: {e}"
+            )
+            from app.services.timeline_summarizer import _fallback_entry
+            entry = _fallback_entry(event.title or '', net_new)
+
+        existing_timeline = list(event.timeline_data or [])
+        existing_timeline.append(entry)
+        event.timeline_data = existing_timeline
+        flag_modified(event, 'timeline_data')
+        event.last_updated = datetime.utcnow()
+    elif had_fresh_engagement:
+        # No new articles but the topic is still getting fresh engagement —
+        # bump last_updated so the trim step treats the event as alive,
+        # but don't append a noise entry to the timeline.
+        event.last_updated = datetime.utcnow()
+    else:
+        logger.debug(
+            f"merge_topic_into_event: event {event.id} got no new articles "
+            f"and no fresh engagement — skipping timeline update"
+        )
+
+    # Refresh counts (based on actual linked articles in DB)
     db.flush()
     db.refresh(event)
     if event.articles:
