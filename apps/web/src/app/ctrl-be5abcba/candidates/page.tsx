@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_BASE_URL } from '../../../lib/config';
+import { useAdminTask } from '../../../lib/useAdminTask';
 
 
 interface CandidateEvent {
@@ -36,9 +37,14 @@ export default function CandidateReviewPage() {
   const [activeTab, setActiveTab] = useState<'candidates' | 'trending'>('candidates');
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [publishElapsed, setPublishElapsed] = useState(0);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Long-running background tasks. These endpoints return immediately
+  // from asyncio.create_task, so we poll /api/admin/tasks/status to
+  // show an elapsed counter and a completion toast.
+  const pipelineTask = useAdminTask('pipeline');
 
   // Batch selection
   const [selectedTrending, setSelectedTrending] = useState<Set<number>>(new Set());
@@ -223,6 +229,14 @@ export default function CandidateReviewPage() {
     if (selectedCandidates.size === 0) return;
     if (!confirm(`Publish ${selectedCandidates.size} events? They will become visible to all users.`)) return;
     setActionLoading('batch-publish');
+    // Publish is synchronous on the backend (just status flips + commit),
+    // but with 20+ events it can still take 10-30s — show an elapsed
+    // counter during the await so the user sees progress.
+    setPublishElapsed(0);
+    const start = Date.now();
+    const tick = setInterval(() => {
+      setPublishElapsed((Date.now() - start) / 1000);
+    }, 1000);
     try {
       const res = await fetch(`${API_BASE_URL}/api/admin/events/batch-publish`, {
         method: 'POST',
@@ -231,38 +245,60 @@ export default function CandidateReviewPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setSuccessMsg(`Published ${data.published} events${data.errors > 0 ? `, ${data.errors} errors` : ''}`);
+        const secs = ((Date.now() - start) / 1000).toFixed(1);
+        setSuccessMsg(
+          `Published ${data.published} events in ${secs}s${data.errors > 0 ? `, ${data.errors} errors` : ''}`
+        );
         setSelectedCandidates(new Set());
         fetchData();
       } else {
         alert('Batch publish failed');
       }
     } catch { alert('Network error'); }
-    finally { setActionLoading(null); }
+    finally {
+      clearInterval(tick);
+      setActionLoading(null);
+      setPublishElapsed(0);
+    }
   };
 
   // --- Pipeline ---
 
   const handleRefreshPipeline = async () => {
     if (!confirm('Run the full pipeline? This may take a minute (fetch → cluster → heat → trim).')) return;
-    setPipelineRunning(true);
     setSuccessMsg('');
+    pipelineTask.begin();
     try {
+      // The backend fires asyncio.create_task and returns immediately;
+      // we only check here that the kick-off succeeded. The actual
+      // elapsed/done indicator is driven by pipelineTask polling
+      // /api/admin/tasks/status.
       const res = await fetch(`${API_BASE_URL}/api/admin/pipeline/refresh`, {
         method: 'POST', headers: getAuthHeaders(),
       });
-      if (res.ok) {
-        const data = await res.json();
-        const r = data.result || {};
-        setSuccessMsg(`Pipeline done: ${r.fetch || 0} fetched, ${r.new || 0} new, ${r.trim?.archived || 0} archived`);
-        fetchData();
-      } else {
-        const data = await res.json();
-        alert(data.detail || 'Pipeline failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        pipelineTask.abort();
+        alert(data.detail || 'Pipeline failed to start');
       }
-    } catch { alert('Network error'); }
-    finally { setPipelineRunning(false); }
+    } catch {
+      pipelineTask.abort();
+      alert('Network error');
+    }
   };
+
+  // Refresh the data once the pipeline finishes, so the new events show up.
+  useEffect(() => {
+    if (pipelineTask.justFinished && !pipelineTask.error) {
+      const r = (pipelineTask.result || {}) as Record<string, unknown>;
+      const trim = (r.trim || {}) as Record<string, unknown>;
+      setSuccessMsg(
+        `Pipeline done in ${pipelineTask.lastDurationLabel}: ${r.new_articles ?? 0} articles, ${r.events_created ?? 0} new events, ${r.events_merged ?? 0} merged, ${trim.archived ?? 0} archived`
+      );
+      fetchData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pipelineTask.justFinished]);
 
   const handleRecalculateHeat = async () => {
     setActionLoading('heat');
@@ -335,15 +371,24 @@ export default function CandidateReviewPage() {
               </button>
               <button
                 onClick={handleRefreshPipeline}
-                disabled={pipelineRunning}
-                className="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors disabled:opacity-50"
+                disabled={pipelineTask.running}
+                data-testid="run-pipeline-btn"
+                className="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors disabled:opacity-60"
               >
-                {pipelineRunning ? (
-                  <span className="flex items-center space-x-1">
+                {pipelineTask.running ? (
+                  <span className="flex items-center space-x-2">
                     <span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
-                    <span>Running...</span>
+                    <span>Running {pipelineTask.elapsedLabel}</span>
                   </span>
-                ) : '🚀 Run Pipeline'}
+                ) : pipelineTask.justFinished && !pipelineTask.error ? (
+                  <span className="flex items-center space-x-1">
+                    <span>✓ Done in {pipelineTask.lastDurationLabel}</span>
+                  </span>
+                ) : pipelineTask.justFinished && pipelineTask.error ? (
+                  <span>✗ Pipeline failed</span>
+                ) : (
+                  '🚀 Run Pipeline'
+                )}
               </button>
               <button
                 onClick={() => router.push('/ctrl-be5abcba')}
@@ -406,8 +451,11 @@ export default function CandidateReviewPage() {
             <div className="flex items-center space-x-3 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2">
               <span className="text-sm text-emerald-700 font-medium">{selectedCandidates.size} selected</span>
               <button onClick={handleBatchPublish} disabled={actionLoading === 'batch-publish'}
-                className="px-3 py-1.5 bg-emerald-600 text-white rounded-md text-xs font-medium hover:bg-emerald-700 disabled:opacity-50">
-                {actionLoading === 'batch-publish' ? 'Publishing...' : 'Publish All'}
+                data-testid="batch-publish-btn"
+                className="px-3 py-1.5 bg-emerald-600 text-white rounded-md text-xs font-medium hover:bg-emerald-700 disabled:opacity-60">
+                {actionLoading === 'batch-publish'
+                  ? `Publishing ${Math.floor(publishElapsed)}s...`
+                  : 'Publish All'}
               </button>
               <button onClick={() => setSelectedCandidates(new Set())}
                 className="text-xs text-emerald-600 hover:underline">Clear</button>
@@ -534,9 +582,9 @@ export default function CandidateReviewPage() {
               <div className="text-center py-20 bg-white rounded-xl border border-stone-200">
                 <p className="text-stone-500 text-lg mb-2">No pending news feed events</p>
                 <p className="text-stone-400 text-sm mb-4">Run the pipeline to discover new events</p>
-                <button onClick={handleRefreshPipeline} disabled={pipelineRunning}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50">
-                  {pipelineRunning ? 'Running...' : 'Run Pipeline'}
+                <button onClick={handleRefreshPipeline} disabled={pipelineTask.running}
+                  className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-60">
+                  {pipelineTask.running ? `Running ${pipelineTask.elapsedLabel}` : 'Run Pipeline'}
                 </button>
               </div>
             ) : (
