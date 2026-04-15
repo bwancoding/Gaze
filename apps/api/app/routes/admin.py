@@ -827,21 +827,83 @@ async def admin_trigger_auto_promote(
 
 @router.post("/pipeline/backfill-analysis")
 async def admin_trigger_backfill_analysis(
+    limit: int = Query(10, ge=1, le=30),
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
-    """Manually trigger the analysis-backfill job.
+    """Manually trigger the analysis-backfill job (inline version).
 
-    Runs once and returns. Picks up missing/failed/stuck-pending/expired
-    analyses, up to 10 per invocation. Call repeatedly to drain a larger
-    backlog (e.g. after deploying the expired-refresh fix the first time).
+    Runs in the FastAPI async context directly — does NOT delegate to the
+    scheduler's job_backfill_analysis, because that wrapper uses
+    asyncio.new_event_loop() which misbehaves when called from inside an
+    already-running loop. Picks up missing/failed/stuck-pending/expired
+    analyses, up to `limit` per invocation. Call repeatedly to drain a
+    larger backlog.
     """
-    from app.services.scheduler import job_backfill_analysis
-    try:
-        job_backfill_analysis()
-        return {"status": "success", "message": "Backfill tick complete — see logs for per-event results"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Backfill failed: {e}")
+    from datetime import timedelta
+    from sqlalchemy import or_, and_
+    from app.models.event_analysis import EventAnalysis
+    from app.services.event_analysis_service import generate_event_analysis
+
+    now = datetime.utcnow()
+    cutoff_pending = now - timedelta(minutes=15)
+    max_attempts = 5
+
+    events = (
+        db.query(Event)
+        .outerjoin(EventAnalysis, EventAnalysis.event_id == Event.id)
+        .filter(Event.status == 'active')
+        .filter(or_(
+            EventAnalysis.id == None,  # noqa: E711
+            EventAnalysis.status == 'failed',
+            and_(
+                EventAnalysis.status == 'pending',
+                or_(
+                    EventAnalysis.last_attempt_at == None,  # noqa: E711
+                    EventAnalysis.last_attempt_at < cutoff_pending,
+                ),
+            ),
+            and_(
+                or_(
+                    EventAnalysis.status == 'done',
+                    EventAnalysis.status == None,  # noqa: E711
+                ),
+                EventAnalysis.expires_at != None,  # noqa: E711
+                EventAnalysis.expires_at < now,
+            ),
+        ))
+        .filter(or_(
+            EventAnalysis.attempt_count == None,  # noqa: E711
+            EventAnalysis.attempt_count < max_attempts,
+        ))
+        .order_by(Event.last_activity_at.desc().nullslast())
+        .limit(limit)
+        .all()
+    )
+
+    if not events:
+        return {"status": "success", "processed": 0, "message": "Nothing to backfill"}
+
+    event_ids = [str(e.id) for e in events]
+    logger.info(f"Admin backfill: processing {len(event_ids)} events")
+
+    results = {"success": [], "failed": []}
+    for eid in event_ids:
+        try:
+            await generate_event_analysis(db, eid, force=True)
+            results["success"].append(eid)
+            logger.info(f"Admin backfill: generated analysis for {eid}")
+        except Exception as e:
+            results["failed"].append({"event_id": eid, "error": f"{type(e).__name__}: {e}"})
+            logger.error(f"Admin backfill: failed for {eid}: {e}")
+
+    return {
+        "status": "success",
+        "processed": len(event_ids),
+        "success_count": len(results["success"]),
+        "failed_count": len(results["failed"]),
+        "failed": results["failed"][:5],
+    }
 
 
 @router.post("/pipeline/expire-candidates")
