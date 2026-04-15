@@ -307,13 +307,26 @@ async def admin_publish_event(
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
-    """Publish a candidate event (candidate → active). Auto-triggers AI stakeholder analysis.
+    """Publish a candidate event (candidate → active).
+
+    Gated on analysis readiness: the event is NOT flipped to `active` until
+    the stakeholder analysis exists. If a cached analysis is already present
+    (e.g. pre-generated at promote time) we return immediately; otherwise we
+    block here and generate synchronously. This guarantees users never land
+    on a freshly-published event and see "Analysis is being prepared".
 
     If the event's hot_score wouldn't make the top MAX_ACTIVE_EVENTS cap,
-    the event is archived immediately and no analysis is generated. This
-    prevents wasted LLM calls on events that would just get trimmed anyway.
+    the event is archived immediately with no LLM work done at all.
+
+    Seed interactions (threads + comments) are intentionally NOT gating —
+    they run in the background because users can read the analysis without
+    them, and seeding is slower than the core analysis.
     """
     from app.services.event_lifecycle import MAX_ACTIVE_EVENTS, trim_active_events_to_cap
+    from app.services.event_analysis_service import (
+        generate_event_analysis,
+        get_cached_analysis,
+    )
 
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
@@ -340,6 +353,19 @@ async def admin_publish_event(
             "archived": True,
         }
 
+    # Gate: ensure analysis is ready BEFORE flipping to active.
+    # get_cached_analysis returns None unless status='done', so this also
+    # retries any previous 'pending' or 'failed' row.
+    if not get_cached_analysis(db, str(event_id)):
+        try:
+            await generate_event_analysis(db, str(event_id), force=True)
+        except Exception as e:
+            logger.error(f"Publish aborted — analysis generation failed for {event_id}: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Publish aborted: analysis generation failed ({type(e).__name__}: {e})",
+            )
+
     event.status = 'active'
     event.published_at = datetime.utcnow()
     event.last_activity_at = datetime.utcnow()
@@ -348,13 +374,14 @@ async def admin_publish_event(
     # Enforce cap (in case this push bumps a colder one out)
     trim_active_events_to_cap(db)
 
-    # Auto-generate stakeholder analysis in the background
-    background_tasks.add_task(_generate_analysis_background, str(event_id))
-
-    # Auto-seed threads/comments so the event isn't empty
+    # Seed threads/comments in background — not gating, users can read
+    # the analysis without them, and seeding is ~10x slower than analysis.
     background_tasks.add_task(_seed_interactions_background, str(event_id))
 
-    return {"message": "Event published, analysis + seed interactions queued", "event_id": str(event_id)}
+    return {
+        "message": "Event published with analysis ready; seed interactions running in background",
+        "event_id": str(event_id),
+    }
 
 
 async def _generate_analysis_background(event_id: str):
@@ -618,13 +645,29 @@ async def admin_batch_promote(
 @router.post("/events/batch-publish")
 async def admin_batch_publish(
     event_ids: List[str],
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     username: str = Depends(verify_admin_credentials),
 ):
-    """Batch publish multiple candidate events."""
+    """Batch publish multiple candidate events.
+
+    Gated on analysis readiness: for each event we ensure analysis exists
+    (generating in parallel via asyncio.gather if needed) BEFORE flipping
+    to active. Individual failures don't block the rest — they're reported
+    in error_items and the event is left as candidate for retry.
+    """
+    import asyncio
+    from app.services.event_lifecycle import trim_active_events_to_cap
+    from app.services.event_analysis_service import (
+        generate_event_analysis,
+        get_cached_analysis,
+    )
+
     published = []
     errors = []
 
+    # Validate all up-front; only events that pass move into the analysis phase.
+    to_process = []
     for eid in event_ids:
         event = db.query(Event).filter(Event.id == eid).first()
         if not event:
@@ -633,18 +676,47 @@ async def admin_batch_publish(
         if event.status not in ('candidate', 'archived'):
             errors.append({"id": eid, "error": f"Status is '{event.status}'"})
             continue
+        to_process.append(eid)
 
-        event.status = 'active'
-        event.published_at = datetime.utcnow()
-        event.last_activity_at = datetime.utcnow()
-        published.append({"event_id": eid, "title": event.title})
+    async def _ensure_analysis(eid: str):
+        """Return (eid, None) on success, (eid, error_string) on failure."""
+        if get_cached_analysis(db, eid):
+            return (eid, None)
+        try:
+            await generate_event_analysis(db, eid, force=True)
+            return (eid, None)
+        except Exception as e:
+            return (eid, f"analysis failed: {type(e).__name__}: {e}")
+
+    # Generate analyses in parallel. Each LLM call is 10-30s; 5-10 in parallel
+    # is the difference between "batch publish works" and "batch publish times out".
+    if to_process:
+        results = await asyncio.gather(
+            *[_ensure_analysis(eid) for eid in to_process],
+            return_exceptions=False,
+        )
+        for eid, err in results:
+            event = db.query(Event).filter(Event.id == eid).first()
+            if err:
+                errors.append({"id": eid, "error": err})
+                continue
+            if not event:
+                errors.append({"id": eid, "error": "Not found after analysis"})
+                continue
+            event.status = 'active'
+            event.published_at = datetime.utcnow()
+            event.last_activity_at = datetime.utcnow()
+            published.append({"event_id": eid, "title": event.title})
 
     db.commit()
 
-    # Trigger AI analysis + seed interactions for all published events
+    # Enforce active cap once at the end rather than per-event.
+    if published:
+        trim_active_events_to_cap(db)
+
+    # Seed interactions in background for each successfully published event.
     for item in published:
-        _schedule_analysis(_generate_analysis_background(item["event_id"]))
-        _schedule_analysis(_seed_interactions_background(item["event_id"]))
+        background_tasks.add_task(_seed_interactions_background, item["event_id"])
 
     return {
         "published": len(published),
