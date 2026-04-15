@@ -730,6 +730,116 @@ async def admin_dedupe_events(
         raise HTTPException(status_code=500, detail=f"Dedupe failed: {str(e)}")
 
 
+@router.post("/pipeline/dedupe-timeline")
+async def admin_dedupe_timeline(
+    dry_run: bool = Query(True),
+    threshold: float = Query(0.65, ge=0.3, le=0.95),
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Collapse near-duplicate timeline entries within each event.
+
+    Pre-fix pipeline runs re-summarized the same batch of 30 articles every
+    run, so many events carry 5+ near-identical Chinese title entries like
+    `[GitHub Copilot新增PR直接编辑功能 × 5]`. This endpoint groups entries
+    whose normalized titles are >= `threshold` bigram-Jaccard similar, keeps
+    the **oldest** entry in each cluster, and drops the rest. Entries with
+    genuinely different titles (i.e. different sub-stories that got glued
+    into one super-event) are untouched.
+
+    Defaults to `dry_run=true` — pass `?dry_run=false` to commit.
+    Idempotent. Preview payload returns up to 20 affected events.
+    """
+    import re
+    from sqlalchemy.orm.attributes import flag_modified
+
+    def _normalize(title: str) -> str:
+        # Strip whitespace + ASCII punctuation; keep CJK / digits / letters
+        return re.sub(r"[\s\W_]+", "", (title or "").lower())
+
+    def _bigrams(s: str) -> set:
+        return {s[i:i + 2] for i in range(len(s) - 1)}
+
+    def _jaccard(a_norm: str, b_norm: str) -> float:
+        ba, bb = _bigrams(a_norm), _bigrams(b_norm)
+        if not ba or not bb:
+            return 1.0 if a_norm == b_norm else 0.0
+        return len(ba & bb) / len(ba | bb)
+
+    events = db.query(TrendingEvent).filter(
+        TrendingEvent.timeline_data.isnot(None)
+    ).all()
+
+    preview = []
+    total_removed = 0
+    events_touched = 0
+
+    for ev in events:
+        tl = ev.timeline_data or []
+        if len(tl) < 2:
+            continue
+
+        # Walk entries in timestamp order so we always keep the OLDEST
+        # occurrence of each near-duplicate cluster — semantically the
+        # "first time this sub-story surfaced" version.
+        sorted_idx = sorted(
+            range(len(tl)),
+            key=lambda i: tl[i].get("timestamp") or "",
+        )
+        keep_flags = [False] * len(tl)
+        kept_norms = []
+
+        for idx in sorted_idx:
+            entry = tl[idx]
+            norm = _normalize(entry.get("title", ""))
+            if not norm:
+                # Missing / empty title — conservatively keep it
+                keep_flags[idx] = True
+                kept_norms.append(norm)
+                continue
+            is_dup = any(_jaccard(norm, k) >= threshold for k in kept_norms)
+            if is_dup:
+                continue  # drop
+            keep_flags[idx] = True
+            kept_norms.append(norm)
+
+        new_tl = [tl[i] for i in range(len(tl)) if keep_flags[i]]
+        dropped_count = len(tl) - len(new_tl)
+        if dropped_count == 0:
+            continue
+
+        events_touched += 1
+        total_removed += dropped_count
+
+        if len(preview) < 20:
+            preview.append({
+                "event_id": ev.id,
+                "event_title": (ev.title or "")[:80],
+                "before": len(tl),
+                "after": len(new_tl),
+                "kept_titles": [e.get("title") for e in new_tl],
+                "dropped_titles": [
+                    tl[i].get("title") for i in range(len(tl)) if not keep_flags[i]
+                ],
+            })
+
+        if not dry_run:
+            ev.timeline_data = new_tl
+            flag_modified(ev, "timeline_data")
+
+    if not dry_run:
+        db.commit()
+
+    return {
+        "status": "success",
+        "dry_run": dry_run,
+        "threshold": threshold,
+        "events_touched": events_touched,
+        "entries_removed": total_removed,
+        "preview": preview,
+    }
+
+
 @router.post("/pipeline/cleanup-timeline")
 async def admin_cleanup_timeline(
     db: Session = Depends(get_db),
