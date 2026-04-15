@@ -168,6 +168,12 @@ def job_auto_promote_trending():
         # Each call is 10-30s; run serially to avoid starving the scheduler
         # thread or hammering the LLM provider. If one fails, continue —
         # the publish endpoint will retry on demand.
+        #
+        # This job runs from two contexts: (1) APScheduler's background
+        # thread, where no asyncio loop exists, and (2) the admin manual
+        # trigger endpoint, which IS already inside a FastAPI async handler
+        # with a running loop. `asyncio.run` rejects the latter. Using a
+        # fresh `new_event_loop()` works in both contexts.
         if new_event_ids:
             logger.info(
                 f"Auto-promote: pre-generating analysis for {len(new_event_ids)} "
@@ -184,10 +190,13 @@ def job_auto_promote_trending():
                             f"Auto-promote: analysis pre-gen failed for {eid}: {e}"
                         )
 
+            pregen_loop = asyncio.new_event_loop()
             try:
-                asyncio.run(_pregen_all())
+                pregen_loop.run_until_complete(_pregen_all())
             except Exception as e:
                 logger.error(f"Auto-promote: pre-gen batch errored - {e}")
+            finally:
+                pregen_loop.close()
     except Exception as e:
         logger.error(f"Scheduled: auto-promote error - {e}")
         db.rollback()
