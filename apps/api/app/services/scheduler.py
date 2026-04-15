@@ -339,8 +339,14 @@ def job_backfill_analysis():
                     ),
                 ),
                 # Stale done rows: TTL expired, needs refresh.
+                # Match both status='done' and status=NULL (pre-migration
+                # rows that have bodies but no status column — backward
+                # compat with get_cached_analysis' is_complete check).
                 and_(
-                    EventAnalysis.status == 'done',
+                    or_(
+                        EventAnalysis.status == 'done',
+                        EventAnalysis.status == None,  # noqa: E711
+                    ),
                     EventAnalysis.expires_at != None,  # noqa: E711
                     EventAnalysis.expires_at < now,
                 ),
