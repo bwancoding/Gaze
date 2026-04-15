@@ -825,6 +825,25 @@ async def admin_trigger_auto_promote(
         raise HTTPException(status_code=500, detail=f"Auto-promote failed: {e}")
 
 
+@router.post("/pipeline/backfill-analysis")
+async def admin_trigger_backfill_analysis(
+    db: Session = Depends(get_db),
+    username: str = Depends(verify_admin_credentials),
+):
+    """Manually trigger the analysis-backfill job.
+
+    Runs once and returns. Picks up missing/failed/stuck-pending/expired
+    analyses, up to 10 per invocation. Call repeatedly to drain a larger
+    backlog (e.g. after deploying the expired-refresh fix the first time).
+    """
+    from app.services.scheduler import job_backfill_analysis
+    try:
+        job_backfill_analysis()
+        return {"status": "success", "message": "Backfill tick complete — see logs for per-event results"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Backfill failed: {e}")
+
+
 @router.post("/pipeline/expire-candidates")
 async def admin_expire_candidates(
     db: Session = Depends(get_db),

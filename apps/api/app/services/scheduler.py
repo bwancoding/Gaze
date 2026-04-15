@@ -295,10 +295,20 @@ def job_expire_stale_candidates():
 
 
 def job_backfill_analysis():
-    """Scheduled task: retry missing/failed event analyses (every 20 minutes).
+    """Scheduled task: retry missing/failed/expired event analyses (every 20 minutes).
 
-    Picks up events whose analysis never completed — e.g. because a Railway
-    redeploy killed the in-flight BackgroundTask, or the LLM call timed out.
+    Picks up active events whose analysis is in one of these bad states:
+      - missing entirely (EventAnalysis row never created)
+      - status='failed' (LLM errored previously)
+      - status='pending' for > 15 min (stuck — likely crashed mid-call)
+      - status='done' but expires_at < now (stale — TTL ran out)
+
+    The last case is the common one: analyses live for ANALYSIS_TTL_HOURS
+    (default 24h), and without an active refresh loop they rot. Users
+    visiting stale events see the public endpoint regenerate on-demand
+    with a 90s blocking request, so it's much better for the backfill job
+    to proactively refresh them.
+
     Runs up to 5 per tick serially so one slow event doesn't starve others.
     """
     import asyncio
@@ -310,7 +320,8 @@ def job_backfill_analysis():
 
     db = _get_db()
     try:
-        cutoff_pending = datetime.utcnow() - timedelta(minutes=15)
+        now = datetime.utcnow()
+        cutoff_pending = now - timedelta(minutes=15)
         max_attempts = 5
 
         events = (
@@ -327,13 +338,19 @@ def job_backfill_analysis():
                         EventAnalysis.last_attempt_at < cutoff_pending,
                     ),
                 ),
+                # Stale done rows: TTL expired, needs refresh.
+                and_(
+                    EventAnalysis.status == 'done',
+                    EventAnalysis.expires_at != None,  # noqa: E711
+                    EventAnalysis.expires_at < now,
+                ),
             ))
             .filter(or_(
                 EventAnalysis.attempt_count == None,  # noqa: E711
                 EventAnalysis.attempt_count < max_attempts,
             ))
             .order_by(Event.last_activity_at.desc().nullslast())
-            .limit(5)
+            .limit(10)
             .all()
         )
 
@@ -351,7 +368,13 @@ def job_backfill_analysis():
                 except Exception as e:
                     logger.error(f"Scheduled backfill: failed for {eid}: {e}")
 
-        asyncio.run(_run_all())
+        # Same loop-context caveat as auto-promote: if this is called from
+        # a manual admin endpoint (async handler), asyncio.run raises.
+        backfill_loop = asyncio.new_event_loop()
+        try:
+            backfill_loop.run_until_complete(_run_all())
+        finally:
+            backfill_loop.close()
     except Exception as e:
         logger.error(f"Scheduled: backfill-analysis error - {e}")
     finally:
