@@ -116,7 +116,12 @@ class TrendingArticle(Base):
     title = Column(String(500), nullable=False)
     summary = Column(Text)
     content = Column(Text)
-    url = Column(String(1000), nullable=False, unique=True)
+    # NOTE: url is Text (unbounded) because some news feeds ship URLs
+    # with huge tracking query strings that exceeded a previous
+    # varchar(1000) cap and broke pipeline ingest. The unique constraint
+    # still works via Postgres btree — practical B-tree limit is ~2704
+    # bytes per entry, which is fine for real-world URLs.
+    url = Column(Text, nullable=False, unique=True)
     published_at = Column(DateTime, nullable=False, index=True)
     fetched_at = Column(DateTime, default=datetime.utcnow)
     heat_score = Column(Float, default=0.0)
