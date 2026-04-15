@@ -82,13 +82,17 @@ def job_auto_promote_trending():
         (prevents runaway queue when editor is away)
       - Uses find_matching_event's already-done work — trending_origin_id
         is set so we never duplicate-promote the same story
-      - Does NOT trigger AI analysis here; the admin's `publish` step will
-        regenerate it on demand via background_tasks
+      - Pre-generates AI analysis for each newly-promoted candidate so that
+        when the editor clicks publish later, the analysis is already cached
+        and the publish gate returns instantly instead of blocking ~20s
+        per event.
 
     Admin still owns the final publish decision — this only fills the queue.
     """
+    import asyncio
     from app.models import Event
     from app.models.trending import TrendingEvent
+    from app.services.event_analysis_service import generate_event_analysis
 
     MAX_PROMOTE_PER_RUN = 8
     MIN_HEAT_TO_PROMOTE = 200.0
@@ -124,6 +128,7 @@ def job_auto_promote_trending():
             return
 
         promoted = []
+        new_event_ids: list[str] = []
         for trending in candidates:
             # Double-check we haven't already promoted this trending id
             # (edge case: two scheduler ticks overlap)
@@ -145,8 +150,10 @@ def job_auto_promote_trending():
                 tags=trending.keywords if isinstance(trending.keywords, list) else None,
             )
             db.add(event)
+            db.flush()  # get event.id for analysis generation below
             trending.status = 'promoted'
             promoted.append((trending.id, (trending.title or '')[:60]))
+            new_event_ids.append(str(event.id))
 
         db.commit()
 
@@ -156,6 +163,31 @@ def job_auto_promote_trending():
             )
             for tid, title in promoted:
                 logger.info(f"  - trending={tid}  {title}")
+
+        # Pre-generate analysis so editor's publish click is instant.
+        # Each call is 10-30s; run serially to avoid starving the scheduler
+        # thread or hammering the LLM provider. If one fails, continue —
+        # the publish endpoint will retry on demand.
+        if new_event_ids:
+            logger.info(
+                f"Auto-promote: pre-generating analysis for {len(new_event_ids)} "
+                f"newly-promoted candidates"
+            )
+
+            async def _pregen_all():
+                for eid in new_event_ids:
+                    try:
+                        await generate_event_analysis(db, eid, force=True)
+                        logger.info(f"Auto-promote: pre-generated analysis for {eid}")
+                    except Exception as e:
+                        logger.error(
+                            f"Auto-promote: analysis pre-gen failed for {eid}: {e}"
+                        )
+
+            try:
+                asyncio.run(_pregen_all())
+            except Exception as e:
+                logger.error(f"Auto-promote: pre-gen batch errored - {e}")
     except Exception as e:
         logger.error(f"Scheduled: auto-promote error - {e}")
         db.rollback()
