@@ -61,8 +61,20 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (seedTask.justFinished && !seedTask.error) {
       const r = (seedTask.result || {}) as Record<string, unknown>;
+      // Backend returns {total_events, seeded, skipped, errors, details}
+      // from seed_all_active_events. Show the breakdown so the admin
+      // sees at a glance how many events got fresh AI discussions.
+      const total = r.total_events;
+      const seeded = r.seeded;
+      const skipped = r.skipped;
+      const parts: string[] = [];
+      if (seeded != null) parts.push(`${seeded} seeded`);
+      if (skipped != null) parts.push(`${skipped} skipped`);
+      const suffix = parts.length
+        ? ` — ${parts.join(', ')}${total != null ? ` / ${total} total` : ''}`
+        : '';
       setTaskSuccessMsg(
-        `Seed interactions done in ${seedTask.lastDurationLabel}${r.events ? ` — ${r.events} events` : ''}`
+        `Seed interactions done in ${seedTask.lastDurationLabel}${suffix}`
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
