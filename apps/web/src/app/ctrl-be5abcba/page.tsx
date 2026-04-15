@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_BASE_URL } from '../../lib/config';
+import { useAdminTask } from '../../lib/useAdminTask';
 
 
 interface Event {
@@ -43,7 +44,29 @@ export default function AdminDashboard() {
   const [totalEvents, setTotalEvents] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [taskSuccessMsg, setTaskSuccessMsg] = useState('');
   const PAGE_SIZE = 20;
+
+  // Seed interactions fires off asyncio.create_task and returns
+  // immediately — poll /api/admin/tasks/status for elapsed + done.
+  const seedTask = useAdminTask('seed_interactions');
+
+  useEffect(() => {
+    if (taskSuccessMsg) {
+      const t = setTimeout(() => setTaskSuccessMsg(''), 6000);
+      return () => clearTimeout(t);
+    }
+  }, [taskSuccessMsg]);
+
+  useEffect(() => {
+    if (seedTask.justFinished && !seedTask.error) {
+      const r = (seedTask.result || {}) as Record<string, unknown>;
+      setTaskSuccessMsg(
+        `Seed interactions done in ${seedTask.lastDurationLabel}${r.events ? ` — ${r.events} events` : ''}`
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedTask.justFinished]);
 
   const getAuthHeaders = (): HeadersInit => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -400,6 +423,19 @@ export default function AdminDashboard() {
       </header>
 
       <main className="container mx-auto px-6 py-8">
+        {taskSuccessMsg && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg mb-6 flex items-center justify-between">
+            <span className="text-sm">{taskSuccessMsg}</span>
+            <button
+              onClick={() => setTaskSuccessMsg('')}
+              className="text-emerald-500 hover:text-emerald-700 text-lg leading-none"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
@@ -490,23 +526,39 @@ export default function AdminDashboard() {
 
           <div className="flex items-center space-x-2">
             <button
+              data-testid="seed-interactions-btn"
+              disabled={seedTask.running}
               onClick={async () => {
                 if (!confirm('Generate fake discussions (threads, comments, votes) for all active events? This uses AI and may take a few minutes.')) return;
+                seedTask.begin();
                 try {
                   const res = await fetch(`${API_BASE_URL}/api/admin/seed-interactions`, {
                     method: 'POST', headers: getAuthHeaders(),
                   });
-                  if (res.ok) {
-                    alert('Seeding started in background. It may take a few minutes. Refresh the page later to see results.');
-                  } else {
-                    const data = await res.json();
-                    alert(data.detail || 'Seed failed');
+                  if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    seedTask.abort();
+                    alert(data.detail || 'Seed failed to start');
                   }
-                } catch { alert('Network error'); }
+                } catch {
+                  seedTask.abort();
+                  alert('Network error');
+                }
               }}
-              className="bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors"
+              className="bg-violet-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-violet-700 transition-colors disabled:opacity-60"
             >
-              🌱 Seed Interactions
+              {seedTask.running ? (
+                <span className="flex items-center space-x-2">
+                  <span className="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full"></span>
+                  <span>Seeding {seedTask.elapsedLabel}</span>
+                </span>
+              ) : seedTask.justFinished && !seedTask.error ? (
+                `✓ Seeded in ${seedTask.lastDurationLabel}`
+              ) : seedTask.justFinished && seedTask.error ? (
+                '✗ Seed failed'
+              ) : (
+                '🌱 Seed Interactions'
+              )}
             </button>
             <button
               onClick={handleCreateEvent}

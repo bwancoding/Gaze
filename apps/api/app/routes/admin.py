@@ -662,21 +662,38 @@ async def admin_trigger_pipeline(
     """Manually trigger the full news pipeline (fetch → dedup → cluster → heat → trim). Runs in background."""
     from app.services.news_aggregator import run_full_pipeline
     from app.core.database import SessionLocal
+    from app.core.task_tracker import start_task, finish_task, fail_task
     import asyncio
 
     async def _run_pipeline():
+        start_task("pipeline")
         pipeline_db = SessionLocal()
         try:
             loop = asyncio.get_event_loop()
             result = await loop.run_in_executor(None, run_full_pipeline, pipeline_db)
             logger.info(f"Pipeline complete: {result}")
+            finish_task("pipeline", result)
         except Exception as e:
             logger.exception("Pipeline failed")
+            fail_task("pipeline", str(e))
         finally:
             pipeline_db.close()
 
     asyncio.create_task(_run_pipeline())
     return {"status": "started", "message": "Pipeline running in background. This may take several minutes."}
+
+
+@router.get("/tasks/status")
+async def admin_tasks_status(username: str = Depends(verify_admin_credentials)):
+    """Return in-memory state of tracked admin background tasks.
+
+    Shape: {task_name: {status, started_at, finished_at, duration_seconds, result, error}}
+    where status is one of 'running' | 'done' | 'error'. Used by the admin UI
+    to poll completion for fire-and-forget operations (pipeline, seed
+    interactions) and show elapsed/done badges.
+    """
+    from app.core.task_tracker import get_all
+    return get_all()
 
 
 @router.post("/pipeline/heat-recalculate")
@@ -888,13 +905,18 @@ async def admin_seed_all_interactions(
     from app.services.seed_interactions import seed_all_active_events
     from app.core.database import SessionLocal
 
+    from app.core.task_tracker import start_task, finish_task, fail_task
+
     async def _run_seed():
+        start_task("seed_interactions")
         seed_db = SessionLocal()
         try:
             result = await seed_all_active_events(seed_db, force=force)
             logger.info(f"Seed interactions complete: {result}")
+            finish_task("seed_interactions", result)
         except Exception as e:
             logger.exception("Seed interactions failed")
+            fail_task("seed_interactions", str(e))
         finally:
             seed_db.close()
 
